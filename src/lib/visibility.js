@@ -13,11 +13,14 @@ export function horizonAt(profile, az) {
   return profile[i] * (1 - f) + profile[(i + 1) % profile.length] * f
 }
 
-/** Elevation above the local horizon over time: [{ t (ms), margin (deg) }]. body = 'sun' | 'earth'. */
-export function marginSeries(series, body, profile = null) {
+/**
+ * Elevation above the local horizon over time: [{ t (ms), margin (deg) }]. body = 'sun' | 'earth'.
+ * `minElevationDeg` raises the bar: the body only counts as visible above horizon + minElevationDeg.
+ */
+export function marginSeries(series, body, profile = null, minElevationDeg = 0) {
   return series.map((p) => ({
     t: Date.parse(p.t),
-    margin: p[`${body}El`] - horizonAt(profile, p[`${body}Az`]),
+    margin: p[`${body}El`] - horizonAt(profile, p[`${body}Az`]) - minElevationDeg,
   }))
 }
 
@@ -63,6 +66,7 @@ export function summarize(samples, windows) {
     visibleFraction: last > first ? visibleMs / (last - first) : 0,
     windowCount: windows.length,
     longestGapMs: Math.max(...gaps),
+    longestWindowMs: windows.reduce((max, w) => Math.max(max, w.end - w.start), 0),
     maxMargin: Math.max(...samples.map((s) => s.margin)),
   }
 }

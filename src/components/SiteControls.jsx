@@ -1,12 +1,13 @@
-const DURATIONS = [15, 30, 60]
+const DURATIONS = [7, 15, 30, 60]
 
-export default function SiteControls({ sites, siteId, onSiteChange, start, onStartChange, days, onDaysChange }) {
-  const site = sites.find((s) => s.id === siteId)
+export default function SiteControls({ title, sites, state, onChange }) {
+  const site = sites.find((s) => s.id === state.siteId)
   return (
-    <section className="controls" aria-label="Site and dates">
-      <label className="controls__field">
+    <section className="controls" aria-label={title ? `${title}: site and dates` : 'Site and dates'}>
+      {title && <h2 className="controls__title">{title}</h2>}
+      <label className="controls__field controls__field--wide">
         <span className="controls__label">Site</span>
-        <select className="controls__input" value={siteId} onChange={(e) => onSiteChange(e.target.value)}>
+        <select className="controls__input" value={state.siteId} onChange={(e) => onChange({ siteId: e.target.value })}>
           {sites.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -15,12 +16,12 @@ export default function SiteControls({ sites, siteId, onSiteChange, start, onSta
         </select>
       </label>
       <label className="controls__field">
-        <span className="controls__label">Start date (UT)</span>
-        <input className="controls__input" type="date" value={start} onChange={(e) => onStartChange(e.target.value)} />
+        <span className="controls__label">Landing date (UT)</span>
+        <input className="controls__input" type="date" value={state.start} onChange={(e) => onChange({ start: e.target.value })} />
       </label>
       <label className="controls__field">
-        <span className="controls__label">Period</span>
-        <select className="controls__input" value={days} onChange={(e) => onDaysChange(Number(e.target.value))}>
+        <span className="controls__label">Period after landing</span>
+        <select className="controls__input" value={state.days} onChange={(e) => onChange({ days: Number(e.target.value) })}>
           {DURATIONS.map((d) => (
             <option key={d} value={d}>
               {d} days

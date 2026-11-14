@@ -21,9 +21,12 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 - `src/lib/visibility.js`: combines both: a body is visible when its elevation is above the horizon
   profile at its azimuth. Gives visibility windows, fractions and time to sunset/Earthset.
 - Sites live in `src/data/south-pole-sites.js`.
-- `src/lib/useEphemeris.js` loads the data in the browser; `src/App.jsx` combines everything:
-  site/date controls, Sun and Earth cards, sky view (`SkyView`) and timelines (`ElevationChart`).
-  First version, functional but not styled for design yet: Teo's job.
+- A **scenario** = a site + a landing date + a period. `src/lib/scenario.js` turns a scenario's series into
+  Sun / Earth / "both at once" windows and metrics, and compares two scenarios (`compareScenarios`).
+  `src/lib/useScenario.js` (hook, with `useEphemeris.js`) loads and analyzes one scenario.
+- UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
+  x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted). Functional first version, not styled
+  for design yet: Teo's job.
 
 ## Team and ownership
 
