@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Stitch polar</title></head>
+<body style="background:#111;color:#ddd;font:14px sans-serif">
+<div id="log">starting…</div>
+<canvas id="c" width="2048" height="2048" style="width:400px;height:400px"></canvas>
+<script>
+// LRO WAC south polar mosaic (60S to the pole, polar stereographic), NASA/GSFC/Arizona State University, via NASA Moon Trek, level 3: 8 x 8 tiles of 256 px.
+const BASE = 'https://trek.nasa.gov/tiles/Moon/SP/LRO_WAC_Mosaic_SPole60_100m_v02/1.0.0/default/default028mm/3'
+const canvas = document.getElementById('c')
+const ctx = canvas.getContext('2d')
+ctx.fillStyle = '#000'
+ctx.fillRect(0, 0, 2048, 2048)
+const log = document.getElementById('log')
+let done = 0
+let missing = 0
+const load = (row, col) => new Promise((resolve) => {
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  img.onload = () => { ctx.drawImage(img, col * 256, row * 256); done++; resolve() }
+  img.onerror = () => { missing++; resolve() } // a tile with no data (outside the mosaic) is simply black
+  img.src = `${BASE}/${row}/${col}.png`
+})
+;(async () => {
+  const jobs = []
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) jobs.push([r, c])
+  const worker = async () => { while (jobs.length) { const [r, c] = jobs.shift(); await load(r, c); log.textContent = `tiles ${done} ok, ${missing} empty of 64` } }
+  await Promise.all(Array.from({ length: 8 }, worker))
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.9))
+  const res = await fetch('/save', { method: 'POST', body: blob })
+  log.textContent = `tiles ${done} ok, ${missing} empty, jpeg ${(blob.size / 1e6).toFixed(2)} MB, ${await res.text()}`
+})()
+</script>
+</body>
+</html>

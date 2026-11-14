@@ -9,6 +9,9 @@ import { zoneRect } from './zones.js'
 
 export const TEXTURE_SIZE = 2048
 export const ZONE_TEXTURE_SIZE = 512
+const RELIEF_SHADING = 0.3 // strength of the hillshade laid over the photograph
+const LAYER_ALPHA_ON_PHOTO = 0.55 // the layers stay see-through over the photograph
+const EDGE_FADE = 0.05 // share of the radius, at the rim of the cap, that fades to transparent
 
 // The share-of-period map does not depend on the moment shown: keep it per terrain instead of recomputing at every step.
 const periodCache = new WeakMap()
@@ -71,9 +74,37 @@ function gridCanvas(rgba, grid) {
   return small
 }
 
-// Draws a grid-sized RGBA layer onto the whole-map texture, only inside the 80 S disc (the corners hold no data).
-function drawLayer(ctx, rgba, grid) {
+// The ground under the layers: the photograph (with the hillshade as a light relief shading) or, without it, the hillshade alone.
+function drawBase(ctx, hillshade, photo) {
+  if (!photo) {
+    ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+    return
+  }
+  ctx.drawImage(photo, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   ctx.save()
+  ctx.globalCompositeOperation = 'overlay'
+  ctx.globalAlpha = RELIEF_SHADING
+  ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+  ctx.restore()
+}
+
+// Fades the last few percent of the radius to transparent, so the cap melts into the Moon around it (no ring, no wall).
+function fadeEdge(ctx) {
+  const c = TEXTURE_SIZE / 2
+  const edge = ctx.createRadialGradient(c, c, c * (1 - EDGE_FADE), c, c, c - 1)
+  edge.addColorStop(0, 'rgba(0,0,0,1)')
+  edge.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.save()
+  ctx.globalCompositeOperation = 'destination-in'
+  ctx.fillStyle = edge
+  ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+  ctx.restore()
+}
+
+// Draws a grid-sized RGBA layer onto the whole-map texture, only inside the 80 S disc (the corners hold no data).
+function drawLayer(ctx, rgba, grid, alpha = 1) {
+  ctx.save()
+  ctx.globalAlpha = alpha
   ctx.beginPath()
   ctx.arc(TEXTURE_SIZE / 2, TEXTURE_SIZE / 2, TEXTURE_SIZE / 2 - 2, 0, Math.PI * 2)
   ctx.clip()
@@ -85,6 +116,8 @@ function drawLayer(ctx, rgba, grid) {
 /**
  * Repaints `canvas` (TEXTURE_SIZE square), the texture of the whole map.
  *   hillshade: the relief picture; terrain, frames: see loadTerrain3d and buildCellFrames;
+ *   photo (optional): the LRO photograph of the cap (public/south-pole-photo.jpg); when given, it is the ground and the hillshade
+ *   only adds a light relief shading on it, the layers being painted over it; its edge fades out into the photo of the Moon around;
  *   sample: one entry of /api/sky (or null: no sunlight / Earth layer);
  *   samples: all the sky samples of the period (for the Optimal layer over the period);
  *   layers: { sun, earth, slope, go, goPeriod }; requirements: { maxSlopeDeg, minSunDeg, minEarthDeg };
@@ -95,11 +128,12 @@ function drawLayer(ctx, rgba, grid) {
  *   holes (optional): [{ x, y, side }] squares of the map (fractions of its width) left transparent, where a fine zone
  *   takes over.
  */
-export function paintGround(canvas, { hillshade, terrain, frames, sample, samples, layers, requirements, overlay, holes = [], fine = [], feasibleLevels }) {
+export function paintGround(canvas, { hillshade, photo, terrain, frames, sample, samples, layers, requirements, overlay, holes = [], fine = [], feasibleLevels }) {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  for (const rgba of layerPixels({ terrain, frames, sample, samples, layers, requirements, feasibleLevels })) drawLayer(ctx, rgba, terrain.grid)
+  drawBase(ctx, hillshade, photo)
+  const layerAlpha = photo ? LAYER_ALPHA_ON_PHOTO : 1
+  for (const rgba of layerPixels({ terrain, frames, sample, samples, layers, requirements, feasibleLevels })) drawLayer(ctx, rgba, terrain.grid, layerAlpha)
   for (const chunk of fine) {
     const r = zoneRect(chunk)
     const x = r.x * TEXTURE_SIZE
@@ -109,12 +143,14 @@ export function paintGround(canvas, { hillshade, terrain, frames, sample, sample
     ctx.beginPath()
     ctx.rect(x, y, side, side)
     ctx.clip()
-    ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE) // the relief picture again, under this chunk's own cells
+    drawBase(ctx, hillshade, photo) // the ground again, under this chunk's own cells
     ctx.imageSmoothingEnabled = false
+    ctx.globalAlpha = layerAlpha
     for (const rgba of layerPixels({ terrain: chunk, frames: chunk.frames, sample, samples, layers, requirements })) ctx.drawImage(gridCanvas(rgba, chunk.grid), x, y, side, side)
     ctx.restore()
   }
   if (overlay) drawOverlay(ctx, overlay)
+  if (photo) fadeEdge(ctx)
   for (const h of holes) ctx.clearRect(h.x * TEXTURE_SIZE, h.y * TEXTURE_SIZE, h.side * TEXTURE_SIZE, h.side * TEXTURE_SIZE)
 }
 

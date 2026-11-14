@@ -188,7 +188,7 @@ export function latLonOf([px, py, pz]) {
 // 2048 pixels, 1070.244 m each, whose top-left corner is at (-1095930, 1095930) meters from the pole (x east, y toward lon 0),
 // as served by NASA Moon Trek at tile level 3 (8 x 8 tiles of 256 pixels).
 const SOUTH_MOSAIC_ORIGIN_M = 1095930
-const SOUTH_MOSAIC_WIDTH_M = 2048 * 1070.2441406
+export const SOUTH_MOSAIC_WIDTH_M = 2048 * 1070.2441406
 
 /** Texture coordinates (u, v) of a point of the map plane (km from the pole) in the south polar mosaic. */
 export function southPolarUv(xKm, yKm) {

@@ -19,6 +19,7 @@ import {
   sunDirection,
   mapXY,
   southPolarUv,
+  SOUTH_MOSAIC_WIDTH_M,
   surfacePoint,
 } from './polarSky.js'
 import { azEl, localFrame, unitVector } from './sky.js'
@@ -26,6 +27,7 @@ import { zoneHeightAt, zoneIndices, zonePositions } from './zones.js'
 import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeReticleCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
 import { levelColor, makeLabel, selectionColor } from './terrainScene.js'
 
+const SEAM_DEG = 33 // the two Moon photos meet 33 degrees from the south pole (latitude -57)
 const RAD = Math.PI / 180
 const DISPLAY_KM = 40000 // the bodies are drawn this far from the camera (true direction, true angular size)
 const SUN_GLOW_DEG = 11 // width of the glare picture; the disc inside it keeps the Sun's true size
@@ -56,13 +58,35 @@ function disposeTree(root) {
   })
 }
 
+// The south polar mosaic (public/moon-wac-south-2048.jpg, polar stereographic, 1070.2 m per pixel) as a canvas whose alpha fades
+// from opaque, 7 degrees inside the seam, to transparent at the seam, 33 degrees from the pole.
+function fadedPolarCanvas(image) {
+  const size = image.width
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(image, 0, 0, size, size)
+  const pixelsPerKm = size / (SOUTH_MOSAIC_WIDTH_M / 1000)
+  const radiusPx = (deg) => 2 * MOON_RADIUS_KM * Math.tan((deg * RAD) / 2) * pixelsPerKm
+  const c = size / 2
+  const inner = radiusPx(SEAM_DEG - 7) / radiusPx(SEAM_DEG)
+  const mask = ctx.createRadialGradient(c, c, 0, c, c, radiusPx(SEAM_DEG))
+  mask.addColorStop(0, 'rgba(0,0,0,1)')
+  mask.addColorStop(inner, 'rgba(0,0,0,1)')
+  mask.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.globalCompositeOperation = 'destination-in'
+  ctx.fillStyle = mask
+  ctx.fillRect(0, 0, size, size)
+  return canvas
+}
+
 /**
  * Creates the scene inside `container`. Callbacks: onPick(siteId) for a click on a pin, onProbe(cell | null)
  * when the pointer moves over the ground, onPin(cell) for a click on the ground.
  */
 export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin, onNear, onView }) {
   const N = terrain.grid
-  let exaggeration = 2
+  let exaggeration = 1 // true scale
   let sites = []
   let sample = null
   let view = null // { frame, yaw, pitch } when the camera stands on a site, null in orbit
@@ -100,6 +124,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   const POSES = {
     orbit: poseOf(new THREE.Vector3(-700, 0, -(MOON_RADIUS_KM + 300)), new THREE.Vector3(350, 0, -MOON_RADIUS_KM)),
     top: { target: [0, 0, -MOON_RADIUS_KM], radius: 820, polar: 0.035, azimuth: Math.PI },
+    // The whole Moon at true size, seen from the near side from a southern latitude (the pole tilted toward us), like the globe of NASA's videos.
+    globe: { target: [0, 0, 0], radius: 5600, polar: 0.8, azimuth: 0 },
   }
   let poseName = 'orbit'
   let tween = null
@@ -149,8 +175,9 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   applyPose(POSES.orbit)
 
   // The Sun lights the Earth and the Moon around the cap; the cap itself shows the painted layers.
-  const sunLight = new THREE.DirectionalLight(0xffffff, 3)
+  const sunLight = new THREE.DirectionalLight(0xffffff, 4.5)
   scene.add(sunLight)
+  scene.add(new THREE.AmbientLight(0xffffff, 0.1)) // a little earthshine: the night side is dark, not invisible
 
   // --- Ground: the cap (same texture canvas as the Terrain view) and the smooth sphere around it.
   const canvas = document.createElement('canvas')
@@ -172,7 +199,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   capGeometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
   capGeometry.setIndex(new THREE.BufferAttribute(capIndices(N), 1))
   capGeometry.computeBoundingSphere()
-  const cap = new THREE.Mesh(capGeometry, new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, side: THREE.DoubleSide }))
+  const cap = new THREE.Mesh(capGeometry, new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.02, side: THREE.DoubleSide }))
   scene.add(cap)
 
   // A fine zone (100 to 250 m cells) around a site, shown in place of the overview when the camera comes close: its own
@@ -241,7 +268,6 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   // global mosaic (equirectangular, public/moon-wac-4096.jpg) for most of the sphere, and the south polar mosaic (polar
   // stereographic, public/moon-wac-south-2048.jpg) for the ring around the cap, where an equirectangular picture is stretched.
   // They replace the picture drawn by code once both are loaded; if a file is missing, the latter stays.
-  const SEAM_DEG = 33 // the two photos meet 33 degrees from the south pole (latitude -57)
   let moonPhotos = []
   let moonPhotoMeshes = []
   let disposed = false
@@ -258,11 +284,15 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       photo.colorSpace = THREE.SRGBColorSpace
       photo.anisotropy = renderer.capabilities.getMaxAnisotropy()
     }
-    const photoMaterial = (map) => new THREE.MeshLambertMaterial({ map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.55 })
+    // Lit by the real Sun (setSample): the phase and the terminator follow the timeline, the far side stays dark.
+    const photoMaterial = (map, extra) => new THREE.MeshLambertMaterial({ map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.08, ...extra })
     const radius = MOON_RADIUS_KM - 0.3
-    const upper = new THREE.SphereGeometry(radius, 144, 72, 0, Math.PI * 2, 0, Math.PI - SEAM_DEG * RAD) // the sphere's own equirectangular coordinates
+    // The global mosaic covers the whole sphere down to the cap (stretched near the pole, but hidden there); the polar mosaic is laid
+    // over the ring around the cap and fades out toward the seam, so the two pictures, which are not normalized alike, blend
+    // instead of meeting on a hard edge.
+    const upper = new THREE.SphereGeometry(radius, 144, 72, 0, Math.PI * 2, 0, Math.PI - 9.9 * RAD) // the sphere's own equirectangular coordinates
     upper.rotateX(Math.PI / 2)
-    const ring = new THREE.SphereGeometry(radius, 144, 24, 0, Math.PI * 2, Math.PI - SEAM_DEG * RAD, (SEAM_DEG - 9.9) * RAD)
+    const ring = new THREE.SphereGeometry(radius + 0.15, 144, 24, 0, Math.PI * 2, Math.PI - SEAM_DEG * RAD, (SEAM_DEG - 9.9) * RAD)
     ring.rotateX(Math.PI / 2)
     const pos = ring.attributes.position
     const uv = new Float32Array(pos.count * 2)
@@ -271,7 +301,12 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       uv.set(southPolarUv(x, y), k * 2)
     }
     ring.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
-    moonPhotoMeshes = [new THREE.Mesh(upper, photoMaterial(globalPhoto)), new THREE.Mesh(ring, photoMaterial(southPhoto))]
+    const fadedSouth = canvasTexture(fadedPolarCanvas(southPhoto.image))
+    fadedSouth.anisotropy = renderer.capabilities.getMaxAnisotropy()
+    moonPhotos.push(fadedSouth)
+    const ringMesh = new THREE.Mesh(ring, photoMaterial(fadedSouth, { transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }))
+    ringMesh.renderOrder = 1
+    moonPhotoMeshes = [new THREE.Mesh(upper, photoMaterial(globalPhoto)), ringMesh]
     scene.add(...moonPhotoMeshes)
     moon.visible = false
     orbitParts.splice(orbitParts.indexOf(moon), 1)

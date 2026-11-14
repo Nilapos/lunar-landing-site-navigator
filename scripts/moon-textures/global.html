@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Stitch</title></head>
+<body style="background:#111;color:#ddd;font:14px sans-serif">
+<div id="log">starting…</div>
+<canvas id="c" width="4096" height="2048" style="width:800px;height:400px"></canvas>
+<script>
+// LRO WAC global mosaic (NASA/GSFC/Arizona State University) from NASA Moon Trek, tile level 3: 16 x 8 tiles of 256 px.
+const BASE = 'https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/3'
+const COLS = 16
+const ROWS = 8
+const canvas = document.getElementById('c')
+const ctx = canvas.getContext('2d')
+const log = document.getElementById('log')
+let done = 0
+let failed = 0
+const load = (row, col) =>
+  new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      ctx.drawImage(img, col * 256, row * 256)
+      done++
+      resolve()
+    }
+    img.onerror = () => {
+      failed++
+      resolve()
+    }
+    img.src = `${BASE}/${row}/${col}.jpg`
+  })
+;(async () => {
+  const jobs = []
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) jobs.push([r, c])
+  const worker = async () => {
+    while (jobs.length) {
+      const [r, c] = jobs.shift()
+      await load(r, c)
+      log.textContent = `tiles ${done}/${ROWS * COLS}, failed ${failed}`
+    }
+  }
+  await Promise.all(Array.from({ length: 8 }, worker))
+  if (failed) {
+    log.textContent += ' — NOT SAVED (some tiles failed)'
+    return
+  }
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.88))
+  const res = await fetch('/save', { method: 'POST', body: blob })
+  log.textContent = `tiles ${done}/${ROWS * COLS}, jpeg ${(blob.size / 1e6).toFixed(2)} MB, ${await res.text()}`
+})()
+</script>
+</body>
+</html>

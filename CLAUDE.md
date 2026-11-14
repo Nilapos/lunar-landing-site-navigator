@@ -99,6 +99,13 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   polar stereographic, layer LRO_WAC_Mosaic_SPole60_100m_v02). `polarSkyScene.js` draws the sphere in two meshes meeting 33 degrees from the pole
   (`southPolarUv` in polarSky.js gives the coordinates of the ring); the picture drawn by code (skyTextures.js) stays as the fallback if a file is
   missing. Credit: NASA/GSFC/Arizona State University (LRO WAC), via NASA Moon Trek.
+  Rework of 2026-11-14 to get close to NASA's Artemis video: (1) the cap itself is a photograph, `public/south-pole-photo.jpg` (same polar WAC mosaic, tile level 4,
+  535 m/px, cropped to the 3D map square; rebuild with `node scripts/moon-textures/serve.cjs pole.html <out.jpg>`, see the header of that file); `paintGround` draws it as the
+  ground, the hillshade only as a light overlay shading, the layers at 55% opacity over it, and fades the last 5% of the radius to transparent so the cap melts into the
+  Moon (cap material `transparent`); (2) around the cap the global mosaic covers the whole sphere and the polar mosaic is laid over the ring with an alpha fade toward
+  the 33 degree seam (`fadedPolarCanvas`), so no hard seam; (3) the Moon photos are lit by the real Sun direction (`setSample`) with little emissive light: phase and
+  terminator follow the timeline, the far side is dark; (4) a `globe` camera pose (whole Moon at true size) next to orbit / top; the view opens on the globe and dives
+  to the pole (effect in `PolarSky.jsx`); (5) relief default x1 (true scale).
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

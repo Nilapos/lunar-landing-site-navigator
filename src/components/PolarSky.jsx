@@ -27,6 +27,7 @@ const REGIONS = candidateRegions(southPoleSites)
 const signed = (deg) => `${deg >= 0 ? '+' : '−'}${Math.abs(deg).toFixed(1)}°`
 
 const VIEWS = [
+  { key: 'globe', label: 'Globe' },
   { key: 'orbit', label: 'Orbit' },
   { key: 'top', label: 'Top view' },
 ]
@@ -61,9 +62,10 @@ function ProbeCard({ probe, maxSlopeDeg }) {
 
 /**
  * The one 3D view of the south pole: the curved cap with the Sun and the Earth in the sky, the layers painted on the
- * ground (they follow the shared timeline), and three cameras: "orbit" (oblique, over the pole), "top" (straight down,
- * like a map) with an animated flight between them, and "site" (standing on the site of scenario A).
- *   view: 'orbit' | 'top' | 'site';  onView(view): change of camera (orbit / top only);
+ * ground (they follow the shared timeline), and four cameras: "globe" (the whole Moon at true size, lit by the real Sun),
+ * "orbit" (oblique, over the pole), "top" (straight down, like a map) with an animated flight between them, and "site"
+ * (standing on the site of scenario A). The view opens on the globe, then dives to the pole.
+ *   view: 'globe' | 'orbit' | 'top' | 'site';  onView(view): change of camera (all but site);
  *   evaluation, startMs, onLand, onShiftLanding: the score card (see ScoreCard).
  */
 export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint, requirements, timeline, layers, onLayers, view, onView, evaluation, startMs, onLand, onShiftLanding }) {
@@ -73,8 +75,8 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const onPickPointRef = useRef(onPickPoint)
   const fineRef = useRef([])
   const flightRef = useRef(false) // false until the first pose is set: no flight when the view opens
-  const { terrain, hillshade, error } = useTerrain3d()
-  const [exaggeration, setExaggeration] = useState(2)
+  const { terrain, hillshade, photo, error } = useTerrain3d()
+  const [exaggeration, setExaggeration] = useState(1)
   const [hoverCell, setHoverCell] = useState(null)
   const [areas, setAreas] = useState(null) // best areas found for the period, null before the first search
   const [searching, setSearching] = useState(false)
@@ -163,6 +165,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (!scene || !terrain || !hillshade) return
     paintGround(scene.textureCanvas, {
       hillshade,
+      photo,
       terrain,
       frames,
       sample,
@@ -175,7 +178,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
       feasibleLevels: layers.feasible ? feasible.levels : undefined,
     })
     scene.refreshTexture()
-  }, [terrain, hillshade, frames, sample, samples, layers, requirements, zoneShown, zoneData.zone, fineChunks, feasible.levels])
+  }, [terrain, hillshade, photo, frames, sample, samples, layers, requirements, zoneShown, zoneData.zone, fineChunks, feasible.levels])
 
   // The fine zone: its mesh when shown, and its own texture (same layers, computed on its cells).
   useEffect(() => {
@@ -209,18 +212,27 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     )
   }, [terrain, hillshade, site, states])
 
-  // Camera: standing on the site, or one of the two orbit poses (the move between them is animated).
+  // Camera: standing on the site, or one of the orbit poses (the move between them is animated). The first time, the view opens
+  // on the whole Moon and dives to the pole, like NASA's videos.
   useEffect(() => {
     const scene = sceneRef.current
-    if (!scene) return
+    if (!scene) return undefined
     const profile = site && profileOf(site)
+    let dive = null
     if (standing && profile) {
       scene.setView({ lat: site.lat, lon: site.lon, profile })
     } else {
       scene.setView(null)
-      scene.setOrbitPose(view === 'top' ? 'top' : 'orbit', flightRef.current)
+      const pose = view === 'top' || view === 'globe' ? view : 'orbit'
+      if (!flightRef.current && pose !== 'globe') {
+        scene.setOrbitPose('globe', false)
+        dive = setTimeout(() => scene.setOrbitPose(pose, true), 1200)
+      } else {
+        scene.setOrbitPose(pose, flightRef.current)
+      }
     }
     flightRef.current = true
+    return () => clearTimeout(dive)
   }, [terrain, hillshade, standing, view, site])
 
   useEffect(() => {
@@ -290,7 +302,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
           <Pop icon="info" label="About this view">
             <p className="pop__text">
               Sun and Earth: true direction and true angular size (the Sun is 0.53° wide, the Earth 1.9°), from JPL Horizons; surface:
-              LOLA map on the real sphere; textures and the Sun&apos;s glare are stylized, but the Moon around the polar cap is the real LRO WAC global mosaic (NASA/GSFC/Arizona State University, via NASA Moon Trek). Drag to rotate, right-drag to move; click the
+              LOLA map on the real sphere; textures and the Sun&apos;s glare are stylized, but the Moon and the cap itself are real LRO WAC mosaics (NASA/GSFC/Arizona State University, via NASA Moon Trek). Drag to rotate, right-drag to move; click the
               view, then scroll to zoom. Lines go from the site to the Sun (yellow) and the Earth (blue), faint when the terrain hides
               the body. Move over the ground to judge a 2.4 km cell, click to pin its card; click a pin to analyze that site. Cells are an
               overview: on summits and slopes near the pole they can differ from the precise site analysis, which is the one to use for

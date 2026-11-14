@@ -54,7 +54,7 @@ const isoMinutes = (ms) => new Date(ms).toISOString().slice(0, 16)
 
 export default function App() {
   const [tab, setTab] = useState('sky')
-  const [skyView, setSkyView] = useState('orbit') // 'orbit' or 'top': the two cameras of the sky tab
+  const [skyView, setSkyView] = useState('orbit') // 'globe', 'orbit' or 'top': the cameras of the sky tab
   const [drawer, setDrawer] = useState(null)
   const [layers, setLayers] = useState({ sun: true, earth: true, slope: true, go: false, goPeriod: false, feasible: false })
   const [compare, setCompare] = useState(false)

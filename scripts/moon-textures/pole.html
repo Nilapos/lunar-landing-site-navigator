@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Stitch pole photo</title></head>
+<body style="background:#111;color:#ddd;font:14px sans-serif">
+<div id="log">starting…</div>
+<canvas id="c" width="1136" height="1136" style="width:400px;height:400px"></canvas>
+<script>
+// The south polar cap as a photograph: LRO WAC south polar mosaic (60S to the pole, polar stereographic), NASA/GSFC/Arizona
+// State University, via NASA Moon Trek, tile level 4 (535.12 m per pixel): 6 x 6 tiles (rows and columns 5 to 10) cropped to the
+// square of the 3D map, 2 x 304.0056 km (see MAP_RADIUS_KM in src/lib/polarMap.js): x east to the right, lon 0 at the top.
+const BASE = 'https://trek.nasa.gov/tiles/Moon/SP/LRO_WAC_Mosaic_SPole60_100m_v02/1.0.0/default/default028mm/4'
+const PIXEL_M = 535.1220703
+const TILE_M = 256 * PIXEL_M
+const ORIGIN_M = 1095930 // top-left corner of the tile matrix: (-ORIGIN_M, +ORIGIN_M)
+const FIRST = 5
+const COUNT = 6
+const HALF_KM = 304.0056
+const stitched = document.createElement('canvas')
+stitched.width = stitched.height = COUNT * 256
+const sctx = stitched.getContext('2d')
+sctx.fillStyle = '#000'
+sctx.fillRect(0, 0, stitched.width, stitched.height)
+const out = document.getElementById('c')
+const octx = out.getContext('2d')
+const log = document.getElementById('log')
+let done = 0
+let missing = 0
+const load = (row, col) => new Promise((resolve) => {
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  img.onload = () => { sctx.drawImage(img, (col - FIRST) * 256, (row - FIRST) * 256); done++; resolve() }
+  img.onerror = () => { missing++; resolve() }
+  img.src = `${BASE}/${row}/${col}.png`
+})
+;(async () => {
+  const jobs = []
+  for (let r = FIRST; r < FIRST + COUNT; r++) for (let c = FIRST; c < FIRST + COUNT; c++) jobs.push([r, c])
+  const worker = async () => { while (jobs.length) { const [r, c] = jobs.shift(); await load(r, c); log.textContent = `tiles ${done} ok, ${missing} empty of ${COUNT * COUNT}` } }
+  await Promise.all(Array.from({ length: 6 }, worker))
+  // Crop the stitched square to the map square, centered on the pole.
+  const leftM = -ORIGIN_M + FIRST * TILE_M
+  const topM = ORIGIN_M - FIRST * TILE_M
+  const sx = (-HALF_KM * 1000 - leftM) / PIXEL_M
+  const sy = (topM - HALF_KM * 1000) / PIXEL_M
+  const size = (2 * HALF_KM * 1000) / PIXEL_M
+  octx.drawImage(stitched, sx, sy, size, size, 0, 0, out.width, out.height)
+  const blob = await new Promise((r) => out.toBlob(r, 'image/jpeg', 0.9))
+  const res = await fetch('/save', { method: 'POST', body: blob })
+  log.textContent = `tiles ${done} ok, ${missing} empty, jpeg ${(blob.size / 1e6).toFixed(2)} MB, ${await res.text()}`
+})()
+</script>
+</body>
+</html>
