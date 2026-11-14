@@ -52,7 +52,7 @@ export function createTerrainScene(container, terrain, { onPick }) {
   controls.maxPolarAngle = Math.PI * 0.49
 
   function resetView() {
-    camera.position.set(0, width * 0.62, width * 0.78)
+    camera.position.set(0, width * 0.98, width * 0.34) // near top-down, like the Terrain reference
     controls.target.set(0, 0, 0)
     controls.update()
   }

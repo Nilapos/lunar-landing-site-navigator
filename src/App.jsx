@@ -10,6 +10,7 @@ import SiteControls from './components/SiteControls.jsx'
 import SitesOverview from './components/SitesOverview.jsx'
 import TimelineBar from './components/TimelineBar.jsx'
 import Verdict from './components/Verdict.jsx'
+import Why from './components/Why.jsx'
 import { southPoleSites } from './data/south-pole-sites.js'
 import { addDaysIso, addMinutesIso, showDateTime, todayUtc } from './lib/format.js'
 import { compareScenarios } from './lib/scenario.js'
@@ -28,6 +29,7 @@ const SHIFT_MARGIN_MIN = 15 // land a little after a window opens, not exactly o
 const TABS = [
   { key: 'sky', label: 'Polar sky', icon: '◐', hint: 'The curved south pole with the Sun and the Earth in the sky' },
   { key: 'terrain', label: 'Terrain', icon: '▦', hint: 'The south polar map in relief, with the layers' },
+  { key: 'why', label: 'Why', icon: '?', hint: 'Why the Sun and the Earth are visible or hidden at this moment' },
   { key: 'analysis', label: 'Analysis', icon: '⇄', hint: 'Scenario analysis and A/B comparison' },
   { key: 'sites', label: 'Sites', icon: '◎', hint: 'All sites on the map and ranked by score' },
 ]
@@ -80,6 +82,8 @@ export default function App() {
         </Suspense>
       </>
     )
+  } else if (tab === 'why') {
+    content = <Why result={resultA} requirements={requirements} timeline={timeline} />
   } else if (tab === 'sites') {
     content = (
       <SitesOverview

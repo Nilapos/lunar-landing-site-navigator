@@ -318,3 +318,44 @@ body { overflow: hidden; }
 .shell__sidebody .controls__field--wide { grid-column: 1 / -1; }
 .shell__sidebody .controls__input { width: 100%; min-width: 0; }
 .shell__sidebody .controls__field { min-width: 0; }
+
+/* "Why" tab: sky chart, cause strip, ray diagram */
+.skychart__track { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.2; opacity: 0.35; }
+.skychart__track--on { stroke-width: 3.5; opacity: 1; }
+.skychart__track--sun { stroke: var(--color-sun); }
+.skychart__track--earth { stroke: var(--color-earth); }
+.skychart__trail { stroke-width: 2; }
+.skychart__trail--sun { stroke: var(--color-sun); }
+.skychart__trail--earth { stroke: var(--color-earth); }
+.why__now .compare th, .why__now .compare td { padding: var(--space-1) var(--space-2); }
+.causes { display: grid; gap: var(--space-3); }
+.causes__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-1); }
+.causes__now { font-size: 0.875rem; color: var(--color-text-muted); }
+.causes__now--visible { color: var(--color-ok); }
+.causes__now--terrain { color: var(--color-warn); }
+.causes__bar { position: relative; height: 34px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; }
+.causes__seg { position: absolute; top: 0; bottom: 0; }
+.causes__seg--visible { background: var(--color-ok); }
+.causes__seg--terrain { background: var(--color-warn); }
+.causes__seg--below { background: var(--color-terrain); }
+.causes__cursor { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--color-text); box-shadow: 0 0 6px #fff; }
+.causes__legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); font-size: 0.8125rem; color: var(--color-text-muted); }
+.causes__key::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; }
+.causes__key--visible::before { background: var(--color-ok); }
+.causes__key--terrain::before { background: var(--color-warn); }
+.causes__key--below::before { background: var(--color-terrain); }
+.ray__panels { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.ray__svg { width: 100%; height: auto; display: block; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius); }
+.ray__terrain { fill: var(--color-terrain); }
+.ray__flat { stroke: var(--color-text-muted); stroke-dasharray: 5 4; }
+.ray__mask { stroke: #fff; stroke-width: 2.5; }
+.ray__sight { stroke-width: 2; stroke-dasharray: 2 3; }
+.ray__sight--ok { stroke: var(--color-ok); }
+.ray__sight--fail { stroke: var(--color-off); }
+.ray__body--sun { fill: var(--color-sun); }
+.ray__body--earth { fill: var(--color-earth); }
+.ray__site { fill: #fff; }
+.ray__mark { font-size: 30px; font-weight: 700; }
+.ray__mark--ok { fill: var(--color-ok); }
+.ray__mark--fail { fill: var(--color-off); }
+.ray__steps { margin: 0; padding-left: var(--space-4); display: grid; gap: var(--space-1); font-size: 0.875rem; }
