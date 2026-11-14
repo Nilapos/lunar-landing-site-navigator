@@ -359,3 +359,8 @@ body { overflow: hidden; }
 .ray__mark--ok { fill: var(--color-ok); }
 .ray__mark--fail { fill: var(--color-off); }
 .ray__steps { margin: 0; padding-left: var(--space-4); display: grid; gap: var(--space-1); font-size: 0.875rem; }
+
+.topscores { display: grid; gap: 4px; max-width: 900px; margin: 0 auto; width: 100%; }
+.topscores__follow { font-size: 0.8125rem; color: var(--color-text-muted); justify-self: center; }
+.topscores__follow input { width: 15px; height: 15px; }
+.demo { width: 100%; border-color: var(--color-accent); }

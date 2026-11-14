@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import ComparisonTable from './components/ComparisonTable.jsx'
 import LayerToggles from './components/LayerToggles.jsx'
 import MissionHistory from './components/MissionHistory.jsx'
@@ -12,7 +12,8 @@ import TimelineBar from './components/TimelineBar.jsx'
 import Verdict from './components/Verdict.jsx'
 import Why from './components/Why.jsx'
 import { southPoleSites } from './data/south-pole-sites.js'
-import { addDaysIso, addMinutesIso, showDateTime, todayUtc } from './lib/format.js'
+import { addDaysIso, addMinutesIso, formatUtc, showDateTime, todayUtc } from './lib/format.js'
+import { evaluateFromMoment } from './lib/momentScores.js'
 import { compareScenarios } from './lib/scenario.js'
 import { useScenario } from './lib/useScenario.js'
 import { useSitesOverview } from './lib/useSitesOverview.js'
@@ -25,6 +26,10 @@ const PolarSky = lazy(() => import('./components/PolarSky.jsx'))
 
 const DELAY_DAYS = 2 // default "what if the landing slips" scenario B
 const SHIFT_MARGIN_MIN = 15 // land a little after a window opens, not exactly on its edge
+
+// The pitch demo: a site and a date where a day of delay changes the whole verdict (checked on 2026-11-14 with the default
+// requirements: landing at 14 Nov 00:00 gives a window score of 0 and a global score of 58; landing at 15 Nov 06:00 gives 100 and 83).
+const DEMO = { siteId: 'malapert-massif', start: '2026-11-14T00:00', days: 30 }
 
 const TABS = [
   { key: 'sky', label: 'Polar sky', icon: '◐', hint: 'The curved south pole with the Sun and the Earth in the sky' },
@@ -46,6 +51,7 @@ export default function App() {
   const [requirements, setRequirements] = useState(DEFAULT_REQUIREMENTS)
   const [a, setA] = useState({ siteId: southPoleSites[0].id, start: `${todayUtc()}T00:00`, days: 30 })
   const [b, setB] = useState(null)
+  const [follow, setFollow] = useState(false) // scores follow the moment of the timeline
   const [mapTarget, setMapTarget] = useState('A') // which scenario a click on the map or the ranking sets
 
   const overview = useSitesOverview(a.start, a.days, requirements)
@@ -56,6 +62,19 @@ export default function App() {
   const resultB = useScenario(b ?? a, compare && b !== null, requirements)
   const evalA = evaluate(resultA, requirements)
   const evalB = compare ? evaluate(resultB, requirements) : null
+
+  // "What if we land at this moment?": scores measured from the moment of the timeline onward.
+  const atMs = timeline.sample ? Date.parse(timeline.sample.t) : null
+  const momentEval = useMemo(
+    () => (follow && atMs !== null ? evaluateFromMoment(resultA, requirements, atMs) : null),
+    [follow, atMs, resultA, requirements],
+  )
+  const shownEval = momentEval ?? evalA
+  const loadDemo = () => {
+    setA(DEMO)
+    setFollow(true)
+    timeline.setIndex(0)
+  }
 
   const toggleCompare = (on) => {
     setCompare(on)
@@ -133,12 +152,29 @@ export default function App() {
             <span className="brand__name">MOONWALK</span>
             <span className="brand__sub">Lunar Landing Site Navigator</span>
           </div>
-          <ScoreBar evaluation={evalA} />
+          <div className="topscores">
+            <ScoreBar evaluation={shownEval} />
+            <label className="toggle topscores__follow">
+              <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
+              <span>
+                {momentEval && atMs !== null
+                  ? `Scores if we land at ${formatUtc(atMs)} (move the timeline)`
+                  : 'Scores follow the timeline: what if we land at the moment shown?'}
+              </span>
+            </label>
+          </div>
         </>
       }
       leftTitle="Landing window and rover"
       left={
         <>
+          <button type="button" className="button demo" onClick={loadDemo}>
+            Pitch demo: Malapert, 14 Nov 2026
+          </button>
+          <p className="panel__detail demo__note">
+            Loads the scenario and turns on &quot;scores follow the timeline&quot;. Land on 14 Nov 00:00: the window score is 0. Drag the timeline
+            to 15 Nov 06:00: the Sun is up, the window is 100 and the global score rises from 58 to 83 (default rover requirements).
+          </p>
           <SiteControls title="Landing window" sites={southPoleSites} state={a} onChange={(patch) => setA((s) => ({ ...s, ...patch }))} />
           <RequirementsPanel
             requirements={requirements}
@@ -150,10 +186,10 @@ export default function App() {
       rightTitle="Feasibility and mission history"
       right={
         <>
-          {evalA && (
+          {shownEval && (
             <Verdict
-              evaluation={evalA}
-              onShiftLanding={(ms) => setA((s) => ({ ...s, start: addMinutesIso(s.start, Math.ceil(ms / 60000) + SHIFT_MARGIN_MIN) }))}
+              evaluation={shownEval}
+              onShiftLanding={momentEval ? undefined : (ms) => setA((s) => ({ ...s, start: addMinutesIso(s.start, Math.ceil(ms / 60000) + SHIFT_MARGIN_MIN) }))}
             />
           )}
           <MissionHistory onSelectSite={selectSite} />

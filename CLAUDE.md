@@ -54,6 +54,11 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   (tested) the hover card of a 2.4 km cell (rules of `verdict.js` / `scores.js`), `src/lib/polarSkyScene.js` the three.js scene with
   two cameras: orbit, and standing on the site of scenario A with its real horizon profile as the skyline. Earth, Sun glare and
   ground textures are drawn by code (`src/lib/skyTextures.js`): stylized, no downloaded asset.
+- Dashboard shell (BRIEF-V2 phases B to E, done): `App.jsx` composes `Shell` (top bar with `ScoreBar`, folding side columns, rail of tabs
+  Polar sky / Terrain / Why / Analysis / Sites, `TimelineBar` at the bottom). Desktop browsers only, no phone layout. The "Why" tab
+  (`Why`, `SkyChart`, `CauseStrip`, `RayDiagram`) uses the pure `src/lib/cause.js`. "Scores follow the timeline" uses
+  `src/lib/momentScores.js` (scores measured after the moment shown). The pitch demo button and its checked numbers are in `App.jsx`.
+  `README.md` is the page for the jury and `SUBMISSION.md` the checklist of what the team still has to deliver.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted). Functional first version, not styled
@@ -81,7 +86,7 @@ person stays in their own area. If you must touch the other's area or a shared f
 
 - All colors, spacing, fonts live as CSS variables in `src/styles/tokens.css`. Never hard-code them in components.
 - One component per file in `src/components/`, class names in BEM style (`sites__item--selected`).
-- The UI must work on a phone-width screen.
+- The UI targets desktop browsers only (no phone layout, decided 2026-11-14).
 
 ## Data rules
 
