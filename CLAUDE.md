@@ -61,20 +61,29 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   `README.md` is the page for the jury and `SUBMISSION.md` the checklist of what the team still has to deliver.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
-  x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted). Functional first version, not styled
-  for design yet: Teo's job.
+  x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).
+- Artemis III identity (2026-11-14, Teo): the art direction follows NASA's Artemis III landing region videos (SVS 5013): candidate
+  regions as translucent teal squares (~15 km, `regionSquare` in `polarMap.js`) with a cyan edge and a white bold name, a lavender
+  polar graticule (`GRID_LATS` / `GRID_LONS`), black and neutral lunar greys. `groundTexture.js` paints the graticule and the region
+  squares on the 3D ground (optional `overlay`); `src/lib/cssTokens.js` lets canvas / three.js code read the colors of `tokens.css`
+  (pins, selection ring, labels). `src/data/artemis-regions.js` lists NASA's 13 regions of 2022 (names from SVS 5013; only those
+  with a sourced point in `south-pole-sites.js` are analyzable) and is shown by `ArtemisRegions` in the Sites tab.
 
 ## Team and ownership
 
 Two people work in this repo, each with their own Claude. To avoid merge conflicts, each
 person stays in their own area. If you must touch the other's area or a shared file, tell them first.
 
-- **Update 2026-11-14: Teo is not working on the repo for now. Quentin (with Claude) does everything, directly on `main`.
-  The next work is described in `BRIEF-V2.md` (dashboard shell, "Polar sky" view): read it. `DESIGN.md` is Teo's older brief.**
+- **Update 2026-11-14 (evening): Teo works on the design again, on `teo/<topic>` branches with a PR that Quentin reviews and
+  merges (first one: the Artemis III identity). `DESIGN.md` is Teo's
+  older brief and is outdated; `BRIEF-V2.md` is the history of the dashboard (phases A to E, done).**
 - **Quentin**: data and logic. Owns `src/data/` and `src/lib/`.
 - **Teo**: interface and design. Owns `src/components/` and `src/styles/`.
 - **Shared** (coordinate first): `package.json`, `index.html`, this file.
-- `src/App.jsx`: Teo owns the layout, Quentin owns the state and hooks. See `DESIGN.md` for the design pass (Teo's brief).
+- `src/App.jsx`: Teo owns the layout, Quentin owns the state and hooks.
+- Colors drawn by JavaScript (3D scenes, ground painting) should read tokens through `src/lib/cssTokens.js` rather than
+  repeat hex values. Exception: the layer colors in `illumination.js` / `terrain3d.js` (tests check them); keep the
+  `--color-layer-*` tokens in sync with them.
 
 ## Stack
 

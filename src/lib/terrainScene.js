@@ -14,7 +14,7 @@ export function selectionColor() {
   return new THREE.Color(cssToken('--color-region-edge') || '#70e0df')
 }
 export function levelColor(level) {
-  return new THREE.Color(cssToken(LEVEL_TOKEN[level] ?? LEVEL_TOKEN.unknown) || '#a6afc0')
+  return new THREE.Color(cssToken(LEVEL_TOKEN[level] ?? LEVEL_TOKEN.unknown) || '#b3b3ad')
 }
 
 export function makeLabel(text) {
