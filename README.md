@@ -32,6 +32,7 @@ One rule everywhere: `ratio = what the site offers / what the rover needs`, `sco
 
 - **Sun and Earth positions**: NASA JPL Horizons (queried server-side by `/api/horizons` and `/api/sky`).
 - **Terrain, slopes, horizon**: LOLA elevation map of the south pole, 80 m per pixel (NASA PDS). The 115 MB source map is not in the repository; the derived data are.
+- **Moon imagery around the polar cap**: LRO WAC global and south polar mosaics (NASA/GSFC/Arizona State University), served by NASA Moon Trek.
 - **Sites and missions**: every coordinate has a source next to it in `src/data/`. NASA's official Artemis III region centers are not in the sources we could open, so those entries are representative points, flagged as approximate.
 
 ## Limits (said honestly)

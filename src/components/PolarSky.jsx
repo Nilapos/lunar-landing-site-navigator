@@ -290,7 +290,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
           <Pop icon="info" label="About this view">
             <p className="pop__text">
               Sun and Earth: true direction and true angular size (the Sun is 0.53° wide, the Earth 1.9°), from JPL Horizons; surface:
-              LOLA map on the real sphere; textures and the Sun&apos;s glare are stylized. Drag to rotate, right-drag to move; click the
+              LOLA map on the real sphere; textures and the Sun&apos;s glare are stylized, but the Moon around the polar cap is the real LRO WAC global mosaic (NASA/GSFC/Arizona State University, via NASA Moon Trek). Drag to rotate, right-drag to move; click the
               view, then scroll to zoom. Lines go from the site to the Sun (yellow) and the Earth (blue), faint when the terrain hides
               the body. Move over the ground to judge a 2.4 km cell, click to pin its card; click a pin to analyze that site. Cells are an
               overview: on summits and slopes near the pole they can differ from the precise site analysis, which is the one to use for

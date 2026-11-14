@@ -18,6 +18,7 @@ import {
   SUN_ANGULAR_RADIUS_DEG,
   sunDirection,
   mapXY,
+  southPolarUv,
   surfacePoint,
 } from './polarSky.js'
 import { azEl, localFrame, unitVector } from './sky.js'
@@ -220,7 +221,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   // The rest of the Moon: a sphere open at the south (the cap covers the hole), just under the cap's rim.
   const moonGeometry = new THREE.SphereGeometry(MOON_RADIUS_KM - 0.3, 144, 72, 0, Math.PI * 2, 0, Math.PI - 9.9 * RAD)
   moonGeometry.rotateX(Math.PI / 2) // the sphere's axis (y) becomes the polar axis (z)
-  // The Moon picture is centered on the south pole (no pinching where the camera looks): set the coordinates to match.
+  // The picture drawn by code is centered on the south pole (no pinching where the camera looks): it gets its own coordinates.
   {
     const pos = moonGeometry.attributes.position
     const uv = new Float32Array(pos.count * 2)
@@ -232,11 +233,50 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   }
   const moonTexture = canvasTexture(makeMoonCanvas())
   moonTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
-  const moon = new THREE.Mesh(
-    moonGeometry,
-    new THREE.MeshLambertMaterial({ map: moonTexture, emissive: 0xffffff, emissiveMap: moonTexture, emissiveIntensity: 0.6 }),
-  )
+  const moonMaterial = new THREE.MeshLambertMaterial({ map: moonTexture, emissive: 0xffffff, emissiveMap: moonTexture, emissiveIntensity: 0.55 })
+  const moon = new THREE.Mesh(moonGeometry, moonMaterial)
   scene.add(moon)
+
+  // The real Moon outside the polar cap, from the LRO WAC mosaics (NASA/GSFC/Arizona State University, via NASA Moon Trek): the
+  // global mosaic (equirectangular, public/moon-wac-4096.jpg) for most of the sphere, and the south polar mosaic (polar
+  // stereographic, public/moon-wac-south-2048.jpg) for the ring around the cap, where an equirectangular picture is stretched.
+  // They replace the picture drawn by code once both are loaded; if a file is missing, the latter stays.
+  const SEAM_DEG = 33 // the two photos meet 33 degrees from the south pole (latitude -57)
+  let moonPhotos = []
+  let moonPhotoMeshes = []
+  let disposed = false
+  const textureLoader = new THREE.TextureLoader()
+  const loadPhoto = (url) => new Promise((resolve) => textureLoader.load(url, resolve, undefined, () => resolve(null)))
+  Promise.all([loadPhoto('/moon-wac-4096.jpg'), loadPhoto('/moon-wac-south-2048.jpg')]).then(([globalPhoto, southPhoto]) => {
+    if (disposed || !globalPhoto || !southPhoto) {
+      globalPhoto?.dispose()
+      southPhoto?.dispose()
+      return
+    }
+    moonPhotos = [globalPhoto, southPhoto]
+    for (const photo of moonPhotos) {
+      photo.colorSpace = THREE.SRGBColorSpace
+      photo.anisotropy = renderer.capabilities.getMaxAnisotropy()
+    }
+    const photoMaterial = (map) => new THREE.MeshLambertMaterial({ map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.55 })
+    const radius = MOON_RADIUS_KM - 0.3
+    const upper = new THREE.SphereGeometry(radius, 144, 72, 0, Math.PI * 2, 0, Math.PI - SEAM_DEG * RAD) // the sphere's own equirectangular coordinates
+    upper.rotateX(Math.PI / 2)
+    const ring = new THREE.SphereGeometry(radius, 144, 24, 0, Math.PI * 2, Math.PI - SEAM_DEG * RAD, (SEAM_DEG - 9.9) * RAD)
+    ring.rotateX(Math.PI / 2)
+    const pos = ring.attributes.position
+    const uv = new Float32Array(pos.count * 2)
+    for (let k = 0; k < pos.count; k++) {
+      const { x, y } = mapXY([pos.getX(k), pos.getY(k), pos.getZ(k)])
+      uv.set(southPolarUv(x, y), k * 2)
+    }
+    ring.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+    moonPhotoMeshes = [new THREE.Mesh(upper, photoMaterial(globalPhoto)), new THREE.Mesh(ring, photoMaterial(southPhoto))]
+    scene.add(...moonPhotoMeshes)
+    moon.visible = false
+    orbitParts.splice(orbitParts.indexOf(moon), 1)
+    orbitParts.push(...moonPhotoMeshes)
+  })
 
   // Sky: a faint Milky Way and three layers of stars (many faint, some medium, a few bright and glowing), all at the
   // far limit so they never hide anything, and moved with the camera so they behave like a sky at infinity.
@@ -792,6 +832,12 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       zoneTexture.dispose()
       zoneMaterial.dispose()
       moonTexture.dispose()
+      disposed = true
+      for (const photo of moonPhotos) photo.dispose()
+      for (const mesh of moonPhotoMeshes) {
+        mesh.geometry.dispose()
+        mesh.material.dispose()
+      }
       controls.dispose()
       renderer.dispose()
       el.remove()

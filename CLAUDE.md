@@ -94,6 +94,11 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   period, with the verdict rules of verdict.js (worst ratio: ok from 1.2, marginal from 1, fail below). The period is sampled (90 samples), the
   2.4 km map is computed in slices by `useFeasibility`, the 500 m chunks and the zones synchronously (cached). The landing window is not part of it.
   The score card now says what holds a site back (`Blockers` in ScoreCard.jsx): the verdict is the worst requirement, not the average score.
+- Real Moon around the polar cap: two LRO WAC mosaics from NASA Moon Trek (public WMTS, CORS open), stitched once from tile level 3 and committed:
+  `public/moon-wac-4096.jpg` (global, equirectangular, layer LRO_WAC_Mosaic_Global_303ppd_v02) and `public/moon-wac-south-2048.jpg` (south polar,
+  polar stereographic, layer LRO_WAC_Mosaic_SPole60_100m_v02). `polarSkyScene.js` draws the sphere in two meshes meeting 33 degrees from the pole
+  (`southPolarUv` in polarSky.js gives the coordinates of the ring); the picture drawn by code (skyTextures.js) stays as the fallback if a file is
+  missing. Credit: NASA/GSFC/Arizona State University (LRO WAC), via NASA Moon Trek.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

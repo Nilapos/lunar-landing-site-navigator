@@ -81,3 +81,16 @@ test('latLonOf turns a point of the scene into latitude and longitude', () => {
   assert.ok(Math.abs(out.lat + 85) < 1e-9 && Math.abs(out.lon - 200) < 1e-9)
   assert.ok(polarRadiusKm(-85) < MAP_RADIUS_KM)
 })
+
+test('the south polar mosaic: the pole is at the center of the picture, lon 0 is up and 90 E is to the right', async () => {
+  const { southPolarUv } = await import('./polarSky.js')
+  const [u0, v0] = southPolarUv(0, 0)
+  assert.ok(Math.abs(u0 - 0.5) < 1e-3 && Math.abs(v0 - 0.5) < 1e-3)
+  const up = southPolarUv(0, 500) // 500 km toward lon 0
+  assert.ok(up[1] > v0 && Math.abs(up[0] - u0) < 1e-9)
+  const east = southPolarUv(500, 0) // 500 km toward lon 90 E
+  assert.ok(east[0] > u0 && Math.abs(east[1] - v0) < 1e-9)
+  // One degree of latitude is about 30 km: the picture shows it as about 28 pixels of 1.07 km.
+  const [ua] = southPolarUv(0, 931) // 60 S is 931 km from the pole
+  assert.ok(Math.abs((southPolarUv(0, 931)[1] - v0) * 2048 - 870) < 3 && ua === u0)
+})

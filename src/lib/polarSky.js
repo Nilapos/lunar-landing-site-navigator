@@ -183,3 +183,14 @@ export function latLonOf([px, py, pz]) {
   const length = Math.hypot(px, py, pz)
   return { lat: (Math.asin(Math.min(1, Math.max(-1, pz / length))) * 180) / Math.PI, lon: ((Math.atan2(py, px) * 180) / Math.PI + 360) % 360 }
 }
+
+// The south polar mosaic of the Moon (LRO WAC, polar stereographic, public/moon-wac-south-2048.jpg): a square picture of
+// 2048 pixels, 1070.244 m each, whose top-left corner is at (-1095930, 1095930) meters from the pole (x east, y toward lon 0),
+// as served by NASA Moon Trek at tile level 3 (8 x 8 tiles of 256 pixels).
+const SOUTH_MOSAIC_ORIGIN_M = 1095930
+const SOUTH_MOSAIC_WIDTH_M = 2048 * 1070.2441406
+
+/** Texture coordinates (u, v) of a point of the map plane (km from the pole) in the south polar mosaic. */
+export function southPolarUv(xKm, yKm) {
+  return [(xKm * 1000 + SOUTH_MOSAIC_ORIGIN_M) / SOUTH_MOSAIC_WIDTH_M, 1 - (SOUTH_MOSAIC_ORIGIN_M - yKm * 1000) / SOUTH_MOSAIC_WIDTH_M]
+}
