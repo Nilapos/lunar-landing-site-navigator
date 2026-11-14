@@ -83,5 +83,5 @@ npm run build
 ## Git
 
 Work on a branch named `teo/<topic>`, push it, open a Pull Request to `main`. Small commits, English messages. Pull `main`
-before you start. No force push. Vercel builds a preview for each branch; it may ask you to sign in to Vercel, so rely on
-`npm run dev` locally.
+before you start. No force push. Vercel builds a preview for each branch and for each Pull Request (public, no Vercel
+login needed): its link is in the Vercel bot comment on the PR. `npm run dev` is still the fastest way to iterate.
