@@ -14,7 +14,7 @@ sunlight / shadows / Earth visibility / forbidden-zone layers and a time slider.
 The page is currently one long vertical stack of panels. The goal of V2 is to make it look and behave like the team's mockup,
 and to add the view that makes people **see why** a site has sunlight or a direct link to Earth.
 
-## 2. Art direction (files in the references folder, see its LISEZ-MOI.txt)
+## 2. Art direction (the ONLY design references: the 4 images in the references folder, see its LISEZ-MOI.txt)
 
 - `1-maquette-v2-direction-artistique.webp`: the target look. Dark dashboard: top bar with 5 scores (Solar Exposure, Telecom,
   **Global Score** in the middle, Window Duration, Topography) and layer menus; left panels (Landing window, Rover specs, color
@@ -34,8 +34,25 @@ timeline and the side panels from the mockup. Each tab is a component with its o
 | **Terrain** | The current `Terrain3D` with light relief (x1 to x2 by default), near top-down camera, layers on by default: Sunlight and shadows, Earth visible (direct link), Forbidden zones. Site pins, shared timeline, Play |
 | **Polar sky** (new, section 4) | Curved south polar cap with the Sun and the Earth moving in the sky with the timeline |
 | **Compare A/B** | Existing `ComparisonTable` and the two scenario panels |
-| **Why** (sub-tabs) | Sky chart (az/el tracks over the period against the terrain horizon), cause strip (lit / hidden by terrain / below the flat horizon), ray diagram. HTML sketches exist, see "Open Design - Moonwalk": rebuild them with the **real** data |
+| **Why** (sub-tabs) | Sky chart, cause strip, ray diagram: specified in section 3b, all computed from the real data |
 | Side panels | Sites overview (2D map + ranking), Rover requirements, Mission history, Landing window |
+
+### 3b. The "Why" charts (kept from earlier explorations, described here: there are no other design files to look for)
+
+All three use the selected scenario's `series`, the site's terrain horizon (`src/data/horizon-profiles.json`, `horizonAt`) and
+the shared timeline cursor, in the dark theme and the tokens of `src/styles/tokens.css`.
+
+1. **Sky chart**: azimuth (0 to 360, x) against elevation (about -6 to +14 degrees, y) over the whole period. The terrain horizon is
+   a filled dark silhouette; the Sun track and the Earth track are curves, thick and bright where the body is above the terrain
+   (margin > 0), thin and dim elsewhere; a marker with a short trail shows the current moment. A side table "Why now": body,
+   elevation, terrain horizon at that azimuth, margin, verdict (word + color), next change (`stateAt`).
+2. **Cause strip**: for the Sun and for the Earth, a bar over the period colored by cause: visible (margin > 0), **hidden by terrain**
+   (body above the flat horizon but under the terrain), **below the flat horizon** (night, or Earth set). A cursor marks the
+   current moment, labels mark the next change. Needs a pure function in `src/lib` that classifies each sample (with tests):
+   visible takes precedence, because on a summit the horizon can be below 0 degrees.
+3. **Ray diagram**: a static schematic for the current moment: side view of the ground, the local horizontal, the terrain mask
+   angle toward each body against the body's elevation, with check / cross marks and a four-step caption (place the site, find the
+   bodies, read the terrain, compare). Angles are drawn exaggerated: say so on the figure.
 
 ## 4. The "Polar sky" tab
 
