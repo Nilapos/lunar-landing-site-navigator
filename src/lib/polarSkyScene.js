@@ -344,6 +344,30 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   // --- Site pins, standing along the local vertical.
   const markers = new THREE.Group()
   scene.add(markers)
+
+  // Numbered rings on the best areas found by the search (bestAreas.js), in neon green like the Optimal layer.
+  const rankMarkers = new THREE.Group()
+  scene.add(rankMarkers)
+  let ranked = []
+  function buildRankMarkers() {
+    for (const obj of [...rankMarkers.children]) {
+      rankMarkers.remove(obj)
+      disposeTree(obj)
+    }
+    ranked.forEach((a, i) => {
+      const group = new THREE.Group()
+      group.position.fromArray(surfacePoint(terrain, a.lat, a.lon, exaggeration))
+      group.quaternion.setFromUnitVectors(Y_AXIS, group.position.clone().normalize())
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(9, 1.2, 8, 40), new THREE.MeshBasicMaterial({ color: 0x39ff14 }))
+      ring.rotation.x = Math.PI / 2
+      ring.position.y = 1
+      const label = makeLabel(`#${i + 1}`)
+      label.scale.multiplyScalar(0.7)
+      label.position.y = 24
+      group.add(ring, label)
+      rankMarkers.add(group)
+    })
+  }
   const hitMeshes = []
   function clearMarkers() {
     for (const obj of [...markers.children]) {
@@ -607,7 +631,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     skyDome.position.copy(camera.position)
     // Pins shrink as the camera comes close, so they stay small marks on a fine zone.
     const pinScale = Math.min(1, Math.max(0.02, camera.position.distanceTo(controls.target) / 900))
-    for (const pin of markers.children) pin.scale.setScalar(pinScale)
+    for (const pin of [...markers.children, ...rankMarkers.children]) pin.scale.setScalar(pinScale)
+    rankMarkers.visible = view === null
     if (zoneMesh) zoneMesh.visible = zoneShown && view === null
     // Tell React when the camera is close enough to the selected site for its fine zone (with some hysteresis).
     if (focus && view === null) {
@@ -638,6 +663,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       capGeometry.attributes.position.needsUpdate = true
       capGeometry.computeBoundingSphere()
       buildMarkers()
+      buildRankMarkers()
       updateFocus()
       placeReticle()
     },
@@ -687,6 +713,16 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
         buildMarkers()
         updateFocus()
       }
+    },
+    /** The best areas to mark with numbered rings: [{ lat, lon }] (best first), or [] for none. */
+    setRankMarkers(list) {
+      ranked = list
+      buildRankMarkers()
+    },
+    /** Fly the camera down above a point of the map. */
+    flyTo(lat, lon, radiusKm = 60) {
+      if (view) return
+      goToPose({ target: surfacePoint(terrain, lat, lon, exaggeration), radius: radiusKm, polar: 0.8, azimuth: Math.PI })
     },
     /** Fly down to the selected site, close enough to see its fine zone. */
     zoomToSite() {

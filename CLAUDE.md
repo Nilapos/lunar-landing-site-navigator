@@ -66,6 +66,10 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   under it. The "Zoom to site" button flies the camera down to it. `createDemAuto` (terrain.js) reads any LDEM_80S product (80, 40 or 20 m).
   The committed zones come from the 80 m map (250 m cells); rebuild them with the 20 m map (`LOLA data/ldem_80s_20m/`, 1.85 GB) for 125 m
   cells. The other scripts (compute-horizons, build-3d-data, build-horizon-grid, render-map) still assume the 80 m map.
+- Best landing areas (`src/lib/bestAreas.js`, tested; `BestAreas` card in the sky view): `findBestAreas` takes the share of the period each 2.4 km
+  cell is optimal (`goFractions`), judges the best ~400 cells like sites (`probeCell`, same rules and scores as verdict.js), keeps distinct areas
+  15 km apart, only south of 83 S (near the map edge the horizon walk is cut short). Clicking an area flies the camera there; the scene marks the
+  areas with numbered neon rings (`setRankMarkers`, `flyTo` in polarSkyScene.js).
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

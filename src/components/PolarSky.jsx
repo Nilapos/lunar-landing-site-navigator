@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import horizonFile from '../data/horizon-profiles.json'
 import { southPoleSites } from '../data/south-pole-sites.js'
+import { findBestAreas } from '../lib/bestAreas.js'
 import { probeCell } from '../lib/cellProbe.js'
 import { groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent } from '../lib/format.js'
@@ -12,6 +13,7 @@ import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js
 import { useZone } from '../lib/useZone.js'
 import { zoneFrames, zonePatchRect } from '../lib/zones.js'
 import { LEVEL_LABEL } from '../lib/verdict.js'
+import BestAreas from './BestAreas.jsx'
 import LayerToggles from './LayerToggles.jsx'
 import Pop from './Pop.jsx'
 import ScoreCard from './ScoreCard.jsx'
@@ -76,6 +78,8 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   const [exaggeration, setExaggeration] = useState(2)
   const [hoverCell, setHoverCell] = useState(null)
   const [pinnedCell, setPinnedCell] = useState(null)
+  const [areas, setAreas] = useState(null) // best areas found for the period, null before the first search
+  const [searching, setSearching] = useState(false)
   const [near, setNear] = useState(false) // the camera is close to the selected site: its fine zone replaces the overview
   const standing = view === 'site'
   const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
@@ -102,6 +106,18 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   useEffect(() => {
     onSelectRef.current = onSelect
   }, [onSelect])
+
+  // Search the best landing areas of the period (a second or two: it judges thousands of cells), then mark them on the map.
+  const searchAreas = () => {
+    if (!terrain || !frames || !samples) return
+    setSearching(true)
+    setTimeout(() => {
+      const found = findBestAreas(terrain, frames, samples, requirements)
+      setAreas(found)
+      setSearching(false)
+      sceneRef.current?.setRankMarkers(found)
+    }, 30)
+  }
 
   useEffect(() => {
     if (!terrain || !hillshade || !containerRef.current) return undefined
@@ -257,6 +273,16 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
           </Pop>
         </div>
 
+        {!standing && (
+          <BestAreas
+            areas={areas}
+            searching={searching}
+            ready={!!(terrain && frames && samples)}
+            onSearch={searchAreas}
+            onFly={(a) => sceneRef.current?.flyTo(a.lat, a.lon)}
+            sites={southPoleSites}
+          />
+        )}
         {probe && (
           <ProbeCard probe={probe} pinned={pinnedCell !== null} onClose={() => setPinnedCell(null)} maxSlopeDeg={requirements.maxSlopeDeg} />
         )}
