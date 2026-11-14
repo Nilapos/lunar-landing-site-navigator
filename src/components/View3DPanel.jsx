@@ -11,7 +11,7 @@ export default function View3DPanel(props) {
         <h2 className="panel__title">3D view of the south pole</h2>
         {!open && (
           <button type="button" className="button" onClick={() => setOpen(true)}>
-            Open the 3D view (loads about 1 MB of 3D library and data)
+            Open the 3D view (loads about 2 MB of 3D library and data)
           </button>
         )}
       </div>
