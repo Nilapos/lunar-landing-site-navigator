@@ -3,8 +3,25 @@
 Web app for the NASA Space Apps Challenge 2026, challenge "Lunar Landing Site Navigator":
 https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/
 
-Goal: help a user explore the Moon and compare candidate landing sites (slope, lighting,
-hazards...) on an interactive map, with a clear ranking.
+Goal: let mission planners, educators and the public compare landing sites and dates quickly by
+showing where the **Sun and Earth are relative to the local horizon** (terrain included) to judge
+**power** (sunlight windows, solar elevation, time before sunset) and **direct-to-Earth
+communication** (Earth visibility windows, time before Earthset).
+
+Scope: the **lunar south polar region only** (80S to the pole), not the whole Moon.
+
+## How the data works
+
+- `/api/horizons` (`api/horizons.js`, logic in `src/lib/horizons.js`): Sun and Earth azimuth/elevation
+  over time for a point on the Moon, from JPL Horizons (called server-side, it has no CORS).
+  Elevations are relative to a smooth sphere, so they ignore terrain.
+- `src/lib/terrain.js`: horizon profile (360 values, one per degree of azimuth, 0 = north) from the
+  LOLA south pole elevation map. Profiles are precomputed by `scripts/compute-horizons.mjs` into
+  `src/data/horizon-profiles.json`. The 115 MB source map is NOT in the repo (download link in the script).
+- `src/lib/visibility.js`: combines both: a body is visible when its elevation is above the horizon
+  profile at its azimuth. Gives visibility windows, fractions and time to sunset/Earthset.
+- Sites live in `src/data/south-pole-sites.js` (the old `src/data/sites.js` and `scoring.js` are
+  obsolete placeholders and will be removed when the UI is moved to the new data).
 
 ## Team and ownership
 
@@ -18,7 +35,7 @@ person stays in their own area. If you must touch the other's area or a shared f
 ## Stack
 
 - Vite + React (JavaScript, no TypeScript), plain CSS.
-- Node 24, npm. Install with `npm install`, run with `npm run dev`, check with `npm run build` and `npm run lint`.
+- Node 24, npm. Install with `npm install`, run with `npm run dev`, check with `npm run build`, `npm run lint` and `npm test`.
 - Add a dependency only when it is really needed, and say so in the PR description.
 
 ## Design rules
@@ -29,8 +46,9 @@ person stays in their own area. If you must touch the other's area or a shared f
 
 ## Data rules
 
-- Data in `src/data/sites.js` is currently PLACEHOLDER. Real values must come from NASA
-  sources (LRO/LOLA, Moon Trek); always note the source next to the data.
+- Data in `src/data/sites.js` is OBSOLETE placeholder. The site list in `src/data/south-pole-sites.js`
+  is a demo set. Real values must come from NASA sources (LRO/LOLA, Moon Trek, JPL Horizons);
+  always note the source next to the data.
 - Do not commit large raw datasets (images, DEM). Use links or a small sample.
 - Never commit secrets: `.env` is git-ignored. Put variable names in `.env.example`.
 
