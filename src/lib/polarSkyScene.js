@@ -9,13 +9,16 @@ import {
   capPositions,
   EARTH_RADIUS_KM,
   earthPosition,
+  groundRings,
+  horizonDirection,
   MOON_RADIUS_KM,
   placeBody,
   SUN_ANGULAR_RADIUS_DEG,
   sunDirection,
   surfacePoint,
 } from './polarSky.js'
-import { makeEarthCanvas, makeMoonCanvas, makeReticleCanvas, makeSunGlowCanvas } from './skyTextures.js'
+import { azEl, localFrame } from './sky.js'
+import { makeEarthCanvas, makeGrainCanvas, makeMoonCanvas, makeReticleCanvas, makeSunGlowCanvas } from './skyTextures.js'
 import { LEVEL_COLOR, makeLabel } from './terrainScene.js'
 
 const RAD = Math.PI / 180
@@ -25,6 +28,12 @@ const SUN_COLOR = 0xffd166
 const EARTH_COLOR = 0x6e8cff
 const SOUTH = new THREE.Vector3(0, 0, -1)
 const Y_AXIS = new THREE.Vector3(0, 1, 0)
+const ORBIT_FOV = 50
+const SITE_FOV = 60
+const EYE_KM = 0.002 // the observer of the site view stands 2 m above the ground
+const SKYLINE_KM = 100 // the horizon silhouette is drawn this far from the observer (only its direction matters)
+const GROUND_LIT = 0xbdb8ae
+const GROUND_SHADOW = 0x3a3c45
 
 function canvasTexture(canvas) {
   const texture = new THREE.CanvasTexture(canvas)
@@ -51,6 +60,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   let exaggeration = 2
   let sites = []
   let sample = null
+  let view = null // { frame, yaw, pitch } when the camera stands on a site, null in orbit
+  let savedOrbit = null
   let focus = null // { lat, lon, sunVisible, earthVisible }: the site the lines start from
 
   const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -69,6 +80,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
 
   // Default view: above the far side of the cap, looking over the pole toward lon 0, where the Earth hangs.
   function resetView() {
+    if (view) return lookAtBody('sun')
     camera.position.set(-700, 0, -(MOON_RADIUS_KM + 300))
     controls.target.set(350, 0, -MOON_RADIUS_KM)
     controls.update()
@@ -142,7 +154,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   const earthLine = makeLine(EARTH_COLOR)
   const focusPoint = new THREE.Vector3()
   function updateFocus() {
-    const show = !!(focus && sample)
+    const show = !!(focus && sample) && view === null
+    groundMaterial.color.setHex(focus?.sunVisible ? GROUND_LIT : GROUND_SHADOW)
     sunLine.visible = show
     earthLine.visible = show
     if (!show) return
@@ -173,6 +186,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       setLine(sunLine, sunDisc.position)
       setLine(earthLine, earth.position)
     }
+    placeBodyLabel(sunLabel, sunDisc, sun.angularRadiusDeg)
+    placeBodyLabel(earthLabel, earth, placed.angularRadiusDeg)
   }
 
   // --- Site pins, standing along the local vertical.
@@ -226,8 +241,116 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   scene.add(reticle)
   let reticleCell = null
   function placeReticle() {
-    reticle.visible = reticleCell !== null
+    reticle.visible = reticleCell !== null && view === null
     if (reticleCell !== null) reticle.position.fromArray(positions, reticleCell * 3).multiplyScalar(1 + 1 / MOON_RADIUS_KM)
+  }
+
+  // --- Site view: the observer stands on the site and turns their head. The ground rises to the site's real
+  // terrain horizon (360-value profile), so the Sun and the Earth pass above or behind the true skyline.
+  const orbitParts = [cap, moon, markers]
+  const siteGroup = new THREE.Group()
+  siteGroup.visible = false
+  scene.add(siteGroup)
+  const grainTexture = canvasTexture(makeGrainCanvas())
+  grainTexture.wrapS = THREE.RepeatWrapping
+  grainTexture.wrapT = THREE.RepeatWrapping
+  const groundMaterial = new THREE.MeshBasicMaterial({ map: grainTexture, vertexColors: true, side: THREE.DoubleSide })
+  const sunLabel = makeLabel('Sun')
+  const earthLabel = makeLabel('Earth')
+  for (const label of [sunLabel, earthLabel]) {
+    label.visible = false
+    scene.add(label)
+  }
+
+  function clearSiteGroup() {
+    for (const obj of [...siteGroup.children]) {
+      siteGroup.remove(obj)
+      obj.geometry?.dispose()
+      if (obj.material !== groundMaterial) disposeTree(obj)
+    }
+  }
+  function buildSiteGround(frame, profile) {
+    clearSiteGroup()
+    const RINGS = 5
+    const SHADE = [0.62, 0.66, 0.58, 0.46, 0.4] // darker toward the skyline, so the relief reads as a silhouette
+    const V = [0, 1.5, 3.5, 5, 5.3]
+    const vertices = new Float32Array(361 * RINGS * 3)
+    const colors = new Float32Array(361 * RINGS * 3)
+    const uv = new Float32Array(361 * RINGS * 2)
+    const skyline = new Float32Array(361 * 3)
+    for (let az = 0; az <= 360; az++) {
+      const rings = groundRings(profile[az % 360])
+      for (let k = 0; k < RINGS; k++) {
+        const i = az * RINGS + k
+        const d = horizonDirection(frame, az, rings[k])
+        vertices.set([d[0] * SKYLINE_KM, d[1] * SKYLINE_KM, d[2] * SKYLINE_KM], i * 3)
+        colors.fill(SHADE[k], i * 3, i * 3 + 3)
+        uv.set([az / 12, V[k]], i * 2)
+      }
+      skyline.set(vertices.subarray((az * RINGS + RINGS - 1) * 3, (az * RINGS + RINGS) * 3), az * 3)
+    }
+    const indices = []
+    for (let az = 0; az < 360; az++) {
+      for (let k = 0; k < RINGS - 1; k++) {
+        const a = az * RINGS + k
+        const b = a + RINGS
+        indices.push(a, b, a + 1, a + 1, b, b + 1)
+      }
+    }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+    geometry.setIndex(indices)
+    const ground = new THREE.Mesh(geometry, groundMaterial)
+    const lineGeometry = new THREE.BufferGeometry()
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(skyline, 3))
+    const line = new THREE.Line(lineGeometry, new THREE.LineBasicMaterial({ color: 0x8f97a8 }))
+    siteGroup.add(ground, line)
+    // Compass marks just above the skyline.
+    for (const [text, az] of [['N', 0], ['E', 90], ['S', 180], ['W', 270]]) {
+      const mark = makeLabel(text)
+      mark.scale.set(30, 5.6, 1)
+      mark.position.fromArray(horizonDirection(frame, az, profile[az] - 3)).multiplyScalar(SKYLINE_KM * 0.9)
+      siteGroup.add(mark)
+    }
+  }
+  const forward = new THREE.Vector3()
+  function aimSiteCamera() {
+    view.pitch = Math.min(Math.max(view.pitch, -60), 85)
+    forward.fromArray(horizonDirection(view.frame, view.yaw, view.pitch))
+    camera.up.fromArray(view.frame.up)
+    camera.lookAt(forward.add(camera.position))
+  }
+  function lookAtBody(body) {
+    if (!view || !sample) return
+    const cam = camera.position.toArray()
+    const target = body === 'earth' ? { position: earthPosition(sample), radiusKm: EARTH_RADIUS_KM } : { direction: sunDirection(sample) }
+    view.yaw = azEl(view.frame, placeBody(cam, target, 1).direction).az
+    view.pitch = 7
+    camera.fov = SITE_FOV
+    camera.updateProjectionMatrix()
+    aimSiteCamera()
+  }
+  function applyMode() {
+    const site = view !== null
+    for (const part of orbitParts) part.visible = !site
+    siteGroup.visible = site
+    controls.enabled = !site
+    camera.near = site ? 0.5 : 2
+    camera.fov = site ? SITE_FOV : ORBIT_FOV
+    camera.updateProjectionMatrix()
+    updateFocus()
+    placeReticle()
+  }
+  // Puts a name above a body in the site view (also when the body is behind the terrain, to show where it is).
+  function placeBodyLabel(label, body, angularRadiusDeg) {
+    label.visible = view !== null
+    if (!label.visible) return
+    const zoom = camera.fov / SITE_FOV
+    label.position.copy(body.position).addScaledVector(camera.up, DISPLAY_KM * Math.tan((angularRadiusDeg + 2.4 * zoom) * RAD))
+    const width = DISPLAY_KM * Math.tan(20 * zoom * RAD)
+    label.scale.set(width, width * 0.1875, 1)
   }
 
   const raycaster = new THREE.Raycaster()
@@ -264,11 +387,25 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     controls.enableZoom = true // the wheel only zooms after a click, so scrolling the page does not move the camera
   }
   const onMove = (e) => {
-    if (!dragging && e.pointerType !== 'touch') hoverEvent = e
+    if (view) {
+      // Site view: dragging turns the head (the sky follows the pointer).
+      if (!dragging) return
+      const degPerPixel = camera.fov / el.clientHeight
+      view.yaw = (view.yaw - e.movementX * degPerPixel + 360) % 360
+      view.pitch += e.movementY * degPerPixel
+      aimSiteCamera()
+    } else if (!dragging && e.pointerType !== 'touch') hoverEvent = e
+  }
+  // Site view: the wheel changes the field of view (after a click, like the orbit zoom).
+  const onWheel = (e) => {
+    if (!view || !controls.enableZoom) return
+    e.preventDefault()
+    camera.fov = Math.min(Math.max(camera.fov * Math.exp(e.deltaY * 0.001), 6), 80)
+    camera.updateProjectionMatrix()
   }
   const onUp = (e) => {
     dragging = false
-    if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return
+    if (view || !downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return
     pointerRay(e)
     const pin = raycaster.intersectObjects(hitMeshes, false)[0]
     if (pin) return onPick(pin.object.userData.siteId)
@@ -289,6 +426,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   el.addEventListener('pointermove', onMove)
   el.addEventListener('pointerup', onUp)
   el.addEventListener('pointerleave', onLeave)
+  el.addEventListener('wheel', onWheel, { passive: false })
 
   const resize = () => {
     const w = Math.max(container.clientWidth, 1)
@@ -304,7 +442,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   resize()
 
   renderer.setAnimationLoop(() => {
-    controls.update()
+    if (!view) controls.update()
     if (hoverEvent) {
       pointerRay(hoverEvent)
       hoverEvent = null
@@ -359,6 +497,34 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       reticleCell = cell
       placeReticle()
     },
+    /**
+     * Camera: null = orbit above the cap; { lat, lon, profile } = standing on that site, with its terrain horizon
+     * (360 values, one per degree of azimuth) as the skyline.
+     */
+    setView(site) {
+      if (site) {
+        const first = !view
+        if (first) savedOrbit = { position: camera.position.clone(), target: controls.target.clone() }
+        const frame = localFrame(site.lat, site.lon)
+        view = { frame, yaw: view?.yaw ?? 0, pitch: view?.pitch ?? 7 }
+        camera.position.fromArray(frame.up).multiplyScalar(MOON_RADIUS_KM + EYE_KM)
+        siteGroup.position.copy(camera.position)
+        buildSiteGround(frame, site.profile)
+        applyMode()
+        if (first && sample) lookAtBody('sun')
+        else aimSiteCamera()
+      } else if (view) {
+        view = null
+        clearSiteGroup()
+        camera.up.copy(SOUTH)
+        camera.position.copy(savedOrbit.position)
+        controls.target.copy(savedOrbit.target)
+        applyMode()
+        controls.update()
+      }
+    },
+    /** Site view: turn toward 'sun' or 'earth'. */
+    lookAt: lookAtBody,
     resetView,
     dispose() {
       renderer.setAnimationLoop(null)
@@ -367,6 +533,10 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       el.removeEventListener('pointermove', onMove)
       el.removeEventListener('pointerup', onUp)
       el.removeEventListener('pointerleave', onLeave)
+      el.removeEventListener('wheel', onWheel)
+      clearSiteGroup()
+      groundMaterial.dispose()
+      grainTexture.dispose()
       clearMarkers()
       disposeTree(scene)
       texture.dispose()

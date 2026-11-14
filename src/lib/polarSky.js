@@ -139,3 +139,21 @@ export function causeText(name, state) {
   }
   return `${body} is under the ${signed(state.horizon)} ${relief} (hidden)`
 }
+
+/** Unit vector of a direction given by its azimuth (0 = north, 90 = east) and elevation (deg) in a local frame (sky.js). */
+export function horizonDirection(frame, azDeg, elDeg) {
+  const az = azDeg * RAD
+  const el = elDeg * RAD
+  const n = Math.cos(el) * Math.cos(az)
+  const e = Math.cos(el) * Math.sin(az)
+  const u = Math.sin(el)
+  return [0, 1, 2].map((i) => frame.north[i] * n + frame.east[i] * e + frame.up[i] * u)
+}
+
+/**
+ * Elevations (deg) of the rings of the ground drawn around a standing observer, for one azimuth: from the feet
+ * up to the terrain horizon `horizonDeg`, which is the last ring. The rings below never cross the horizon.
+ */
+export function groundRings(horizonDeg) {
+  return [-89, Math.min(-30, horizonDeg - 12), Math.min(-8, horizonDeg - 4), horizonDeg - 1.2, horizonDeg]
+}

@@ -11,12 +11,14 @@ import {
   EARTH_RADIUS_KM,
   earthPosition,
   edgeTaper,
+  groundRings,
+  horizonDirection,
   MOON_RADIUS_KM,
   placeBody,
   siteBodyStates,
   surfacePoint,
 } from './polarSky.js'
-import { skyAt } from './sky.js'
+import { azEl, localFrame, skyAt } from './sky.js'
 import { DEFAULT_REQUIREMENTS } from './verdict.js'
 
 const close = (a, b, eps) => assert.ok(Math.abs(a - b) <= eps, `${a} is not within ${eps} of ${b}`)
@@ -135,4 +137,16 @@ test('no card outside the map', () => {
   const t = makeTerrain({ grid: 64 })
   t.horizon.fill(0, 0, AZIMUTHS) // the corner cell has no horizon data
   assert.equal(probeCell(t, buildCellFrames(t), 0, SAMPLES, 0, REQ), null)
+})
+
+test('a direction built from azimuth and elevation reads back the same, and ground rings end at the horizon', () => {
+  const frame = localFrame(-88.8, 123)
+  const back = azEl(frame, horizonDirection(frame, 247.5, 3.2))
+  close(back.az, 247.5, 1e-9)
+  close(back.el, 3.2, 1e-9)
+  for (const horizon of [-5.5, 0, 12]) {
+    const rings = groundRings(horizon)
+    assert.equal(rings.at(-1), horizon)
+    assert.ok(rings.every((el, i) => i === 0 || el > rings[i - 1]), 'rings go up')
+  }
 })

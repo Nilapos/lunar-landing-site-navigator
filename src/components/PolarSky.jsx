@@ -66,6 +66,7 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   const [exaggeration, setExaggeration] = useState(2)
   const [hoverCell, setHoverCell] = useState(null)
   const [pinnedCell, setPinnedCell] = useState(null)
+  const [standing, setStanding] = useState(false) // camera on the site (true) or in orbit (false)
   const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
   const { sample, samples, index, playing } = timeline
 
@@ -76,7 +77,7 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
     [site, sample, requirements],
   )
 
-  const shownCell = pinnedCell ?? hoverCell
+  const shownCell = standing ? null : (pinnedCell ?? hoverCell)
   const probe = useMemo(
     () => (shownCell !== null && terrain && frames && samples ? probeCell(terrain, frames, shownCell, samples, index, requirements) : null),
     [shownCell, terrain, frames, samples, index, requirements],
@@ -127,6 +128,11 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   }, [terrain, hillshade, site, states])
 
   useEffect(() => {
+    const profile = site && horizonFile.profiles[site.id]
+    sceneRef.current?.setView(standing && profile ? { lat: site.lat, lon: site.lon, profile } : null)
+  }, [terrain, hillshade, standing, site])
+
+  useEffect(() => {
     sceneRef.current?.setReticle(probe ? shownCell : null)
   }, [terrain, hillshade, probe, shownCell])
 
@@ -134,10 +140,36 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   return (
     <div className="view3d">
       <div className="view3d__controls">
+        <div className="tabs" role="group" aria-label="Camera">
+          <button type="button" className={`tabs__tab${standing ? '' : ' tabs__tab--active'}`} aria-pressed={!standing} onClick={() => setStanding(false)}>
+            Orbit
+          </button>
+          <button
+            type="button"
+            className={`tabs__tab${standing ? ' tabs__tab--active' : ''}`}
+            aria-pressed={standing}
+            disabled={!site}
+            onClick={() => setStanding(true)}
+          >
+            On the site{site ? `: ${site.shortName}` : ''}
+          </button>
+        </div>
+        {standing && (
+          <>
+            <button type="button" className="button" onClick={() => sceneRef.current?.lookAt('sun')}>
+              Look at the Sun
+            </button>
+            <button type="button" className="button" onClick={() => sceneRef.current?.lookAt('earth')}>
+              Look at the Earth
+            </button>
+          </>
+        )}
+        {!standing && (
         <label className="view3d__slider">
           <span className="controls__label">Relief x{exaggeration}</span>
           <input type="range" min="1" max="4" step="1" value={exaggeration} onChange={(e) => setExaggeration(Number(e.target.value))} />
         </label>
+        )}
         <button type="button" className="button" onClick={() => sceneRef.current?.resetView()}>
           Reset view
         </button>
@@ -166,7 +198,9 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
         right-drag to move; click the view, then scroll to zoom. The lines go from the site of scenario A to the Sun (yellow) and the
         Earth (blue), faint when the terrain hides the body from that site. Move over the ground to judge a 2.4 km cell, click to pin
         the card; click a pin to analyze that site. The cells are an overview: on summits and slopes near the pole they can differ
-        from the precise site analysis, which is the one to use for decisions.
+        from the precise site analysis, which is the one to use for decisions. &quot;On the site&quot; puts the camera 2 m above the
+        site of scenario A: the skyline is that site&apos;s real terrain horizon (LOLA, one value per degree of azimuth), the ground
+        below it is a drawing; drag to look around, click then scroll to zoom in on the Sun or the Earth.
       </p>
     </div>
   )

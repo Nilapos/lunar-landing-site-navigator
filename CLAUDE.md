@@ -48,6 +48,12 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   terrain horizon of every 2.4 km cell (`public/south-pole-horizon.bin`, 72 azimuths); `src/lib/illumination.js` paints
   one instant. It is an overview (cells of 2.4 km): near the pole, on summits and slopes, a cell can differ from the
   precise per-site analysis (99-100% agreement on smooth terrain).
+- Polar sky view (phase A of `BRIEF-V2.md`, done): `View3DPanel` switches between `Terrain3D` and `PolarSky` (lazy), both fed by one
+  timeline (`src/lib/useTimeline.js`) and one ground painting (`src/lib/groundTexture.js`). `src/lib/polarSky.js` (tested) holds the
+  geometry and wording (cap vertices on the sphere, true direction and angular size of the bodies, cause text), `src/lib/cellProbe.js`
+  (tested) the hover card of a 2.4 km cell (rules of `verdict.js` / `scores.js`), `src/lib/polarSkyScene.js` the three.js scene with
+  two cameras: orbit, and standing on the site of scenario A with its real horizon profile as the skyline. Earth, Sun glare and
+  ground textures are drawn by code (`src/lib/skyTextures.js`): stylized, no downloaded asset.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted). Functional first version, not styled
