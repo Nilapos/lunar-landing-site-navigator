@@ -15,6 +15,7 @@ import {
   horizonDirection,
   MOON_RADIUS_KM,
   placeBody,
+  polarUv,
   siteBodyStates,
   surfacePoint,
 } from './polarSky.js'
@@ -148,5 +149,19 @@ test('a direction built from azimuth and elevation reads back the same, and grou
     const rings = groundRings(horizon)
     assert.equal(rings.at(-1), horizon)
     assert.ok(rings.every((el, i) => i === 0 || el > rings[i - 1]), 'rings go up')
+  }
+})
+
+test('the Moon picture is centered on the south pole: pole in the middle, north pole on the edge, no seam in longitude', () => {
+  const [u0, v0] = polarUv(0, 0, -1)
+  close(u0, 0.5, 1e-9)
+  close(v0, 0.5, 1e-9)
+  const [un, vn] = polarUv(0, 0, 1)
+  close(Math.hypot(un - 0.5, vn - 0.5), 0.5, 1e-9)
+  // Points on a small circle around the south pole stay on a circle in the picture.
+  for (const lon of [0, 90, 200, 359]) {
+    const lat = (-80 * Math.PI) / 180
+    const [u, v] = polarUv(Math.cos(lat) * Math.cos((lon * Math.PI) / 180), Math.cos(lat) * Math.sin((lon * Math.PI) / 180), Math.sin(lat))
+    close(Math.hypot(u - 0.5, v - 0.5), 0.5 * (10 / 180), 1e-9)
   }
 })

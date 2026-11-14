@@ -10,6 +10,7 @@ import {
   EARTH_RADIUS_KM,
   earthPosition,
   groundRings,
+  polarUv,
   horizonDirection,
   MOON_RADIUS_KM,
   placeBody,
@@ -18,7 +19,7 @@ import {
   surfacePoint,
 } from './polarSky.js'
 import { azEl, localFrame } from './sky.js'
-import { makeEarthCanvas, makeGrainCanvas, makeMoonCanvas, makeReticleCanvas, makeStarField, makeSunGlowCanvas } from './skyTextures.js'
+import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeReticleCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
 import { LEVEL_COLOR, makeLabel } from './terrainScene.js'
 
 const RAD = Math.PI / 180
@@ -117,38 +118,58 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   // The rest of the Moon: a sphere open at the south (the cap covers the hole), just under the cap's rim.
   const moonGeometry = new THREE.SphereGeometry(MOON_RADIUS_KM - 0.3, 144, 72, 0, Math.PI * 2, 0, Math.PI - 9.9 * RAD)
   moonGeometry.rotateX(Math.PI / 2) // the sphere's axis (y) becomes the polar axis (z)
+  // The Moon picture is centered on the south pole (no pinching where the camera looks): set the coordinates to match.
+  {
+    const pos = moonGeometry.attributes.position
+    const uv = new Float32Array(pos.count * 2)
+    for (let k = 0; k < pos.count; k++) {
+      const len = Math.hypot(pos.getX(k), pos.getY(k), pos.getZ(k))
+      uv.set(polarUv(pos.getX(k) / len, pos.getY(k) / len, pos.getZ(k) / len), k * 2)
+    }
+    moonGeometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+  }
   const moonTexture = canvasTexture(makeMoonCanvas())
-  // Big crisp squares, like the pixelated Moon reference: no smoothing between texture pixels.
-  moonTexture.magFilter = THREE.NearestFilter
-  moonTexture.minFilter = THREE.NearestFilter
-  moonTexture.generateMipmaps = false
+  moonTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
   const moon = new THREE.Mesh(
     moonGeometry,
     new THREE.MeshLambertMaterial({ map: moonTexture, emissive: 0xffffff, emissiveMap: moonTexture, emissiveIntensity: 0.32 }),
   )
   scene.add(moon)
 
-  // Generic starry sky (not the real constellations): fixed directions, drawn at the far limit so it never
-  // hides anything, and moved with the camera so it behaves like a sky at infinity.
-  const stars = makeStarField()
-  const starPositions = new Float32Array((stars.length / 4) * 3)
-  const starColors = new Float32Array((stars.length / 4) * 3)
-  for (let k = 0; k < stars.length / 4; k++) {
-    for (let c = 0; c < 3; c++) {
-      starPositions[k * 3 + c] = stars[k * 4 + c] * 100000
-      starColors[k * 3 + c] = stars[k * 4 + 3] * (c === 2 ? 1 : 0.92)
-    }
-  }
-  const starGeometry = new THREE.BufferGeometry()
-  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
-  starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3))
-  const starPoints = new THREE.Points(
-    starGeometry,
-    new THREE.PointsMaterial({ size: 1.7, sizeAttenuation: false, vertexColors: true, depthWrite: false }),
+  // Sky: a faint Milky Way and three layers of stars (many faint, some medium, a few bright and glowing), all at the
+  // far limit so they never hide anything, and moved with the camera so they behave like a sky at infinity.
+  const skyDome = new THREE.Group()
+  const milkyWay = new THREE.Mesh(
+    new THREE.SphereGeometry(98000, 48, 24),
+    new THREE.MeshBasicMaterial({ map: canvasTexture(makeMilkyWayCanvas()), side: THREE.BackSide, depthWrite: false }),
   )
-  starPoints.frustumCulled = false
-  starPoints.renderOrder = -1
-  scene.add(starPoints)
+  milkyWay.renderOrder = -3
+  skyDome.add(milkyWay)
+  const starSprite = canvasTexture(makeStarSpriteCanvas())
+  const STAR_SIZES = [3, 4.4, 9]
+  makeStarField().forEach(({ unit, color, count }, layer) => {
+    const geometry = new THREE.BufferGeometry()
+    const positions = new Float32Array(count * 3)
+    for (let k = 0; k < count * 3; k++) positions[k] = unit[k] * 100000
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geometry.setAttribute('color', new THREE.BufferAttribute(color, 3))
+    const points = new THREE.Points(
+      geometry,
+      new THREE.PointsMaterial({
+        size: STAR_SIZES[layer],
+        sizeAttenuation: false,
+        vertexColors: true,
+        map: starSprite,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    )
+    points.frustumCulled = false
+    points.renderOrder = -1
+    skyDome.add(points)
+  })
+  scene.add(skyDome)
 
   // --- Sky: the Sun (true-size disc + glare) and the Earth (lit by the Sun, so its phase is right).
   const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }))
@@ -478,7 +499,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
         onProbe(cell)
       }
     }
-    starPoints.position.copy(camera.position)
+    skyDome.position.copy(camera.position)
     updateSky()
     renderer.render(scene, camera)
   })

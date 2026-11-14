@@ -102,54 +102,183 @@ export function makeSunGlowCanvas(size = 512) {
   return canvas
 }
 
-// Craters on the sphere: a jittered 3D lattice per scale, each cell may hold one crater with a bowl and a raised rim.
-const CRATER_SCALES = [
-  [3, 0.55, 10], // big basins
-  [7, 0.4, 30],
-  [16, 0.28, 50],
-  [34, 0.2, 70], // small craters
-]
-function craterHeight(x, y, z) {
-  let h = 0
-  for (const [scale, amp, seed] of CRATER_SCALES) {
-    const px = x * scale
-    const py = y * scale
-    const pz = z * scale
-    const cx = Math.floor(px)
-    const cy = Math.floor(py)
-    const cz = Math.floor(pz)
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dz = -1; dz <= 1; dz++) {
-          const ix = cx + dx
-          const iy = cy + dy
-          const iz = cz + dz
-          if (hash(ix, iy, iz + seed) < 0.55) continue
-          const ox = ix + hash(ix, iy, iz + seed + 1)
-          const oy = iy + hash(ix, iy, iz + seed + 2)
-          const oz = iz + hash(ix, iy, iz + seed + 3)
-          const radius = 0.16 + 0.3 * hash(ix, iy, iz + seed + 4)
-          const d = Math.hypot(px - ox, py - oy, pz - oz) / radius
-          if (d > 1.6) continue
-          h += amp * ((d < 1 ? -(1 - d * d) : 0) + 0.5 * Math.exp(-(((d - 1) / 0.2) ** 2)))
-        }
+// Small seeded random generator, so the Moon is always the same.
+function mulberry32(seed) {
+  let a = seed
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// Height profile of a crater at distance d (1 = rim): a smooth bowl, a sharp raised rim, a soft ejecta apron.
+function craterProfile(d) {
+  const bowl = d < 1 ? -(1 - d * d) * 0.9 : 0
+  const rim = 0.55 * Math.exp(-(((d - 1) / 0.14) ** 2))
+  const apron = d >= 1 ? 0.12 * Math.exp(-((d - 1) * 3)) : 0
+  return bowl + rim + apron
+}
+
+let moonCache = null
+
+/**
+ * Picture of the whole Moon in an azimuthal equidistant projection centered on the south pole (distance from the pole
+ * along the radius, north pole at the edge of the circle). Unlike an equirectangular map it does not pinch at the pole,
+ * which is where the camera looks. See polarUv (polarSky.js) for the matching texture coordinates.
+ * Classic look: bright cratered highlands, dark smooth maria, craters lit from the upper left, fine grain, warm gray.
+ * Craters are splatted onto a height map (thousands, many small and a few large), then lit.
+ * Made up, not LOLA data: it only says "this is the rest of the Moon". Built once, then reused.
+ */
+export function makeMoonCanvas(size = 1024) {
+  if (moonCache) return moonCache
+  const heights = new Float32Array(size * size)
+  const albedo = new Float32Array(size * size)
+  const dirs = new Float32Array(size * size * 3)
+  const inside = new Uint8Array(size * size)
+  const perRadian = size / (2 * Math.PI) // pixels per radian of distance from the pole
+
+  // Direction of every pixel, then the albedo: dark seas, broad brightness patches, a little grain.
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const px = (2 * (i + 0.5)) / size - 1
+      const py = (2 * (j + 0.5)) / size - 1
+      const rho = Math.hypot(px, py)
+      if (rho > 1) continue
+      const theta = rho * Math.PI // angle from the south pole
+      const phi = Math.atan2(py, px)
+      const k = j * size + i
+      const x = Math.sin(theta) * Math.cos(phi)
+      const y = Math.sin(theta) * Math.sin(phi)
+      const z = -Math.cos(theta)
+      dirs[k * 3] = x
+      dirs[k * 3 + 1] = y
+      dirs[k * 3 + 2] = z
+      inside[k] = 1
+      const mare = step(0.5, 0.64, fbm(x * 1.5 + 11, y * 1.5 + 3, z * 1.5 + 7, 3))
+      const patch = fbm(x * 5 + 2, y * 5 + 8, z * 5 + 4, 3) - 0.5
+      albedo[k] = mix(0.6, 0.32, mare) + 0.16 * patch + 0.07 * (hash(i, j, 3) - 0.5)
+    }
+  }
+
+  // Craters: radius from 3 pixels up to about 40, many small ones and a few large ones; depth in proportion to the radius.
+  const random = mulberry32(20261114)
+  for (let n = 0; n < 5500; n++) {
+    const lat0 = Math.asin(random() * 2 - 1)
+    const lon0 = random() * 2 * Math.PI
+    const rPx = (3 * 14 ** (random() ** 2.6) * size) / 1024
+    const r = rPx / perRadian
+    const cx = Math.cos(lat0) * Math.cos(lon0)
+    const cy = Math.cos(lat0) * Math.sin(lon0)
+    const cz = Math.sin(lat0)
+    const reach = 1.7 * r
+    const cosReach = Math.cos(reach)
+    // Where the crater lands in the picture, and how far it can reach there (tangential stretch of the projection).
+    const theta0 = Math.acos(-cz)
+    const stretch = Math.min(theta0 < 1e-3 ? 1 : theta0 / Math.sin(theta0), 8)
+    const cxImg = (0.5 + (0.5 * (theta0 / Math.PI)) * (cx / Math.max(Math.sin(theta0), 1e-6))) * size
+    const cyImg = (0.5 + (0.5 * (theta0 / Math.PI)) * (cy / Math.max(Math.sin(theta0), 1e-6))) * size
+    const half = Math.ceil(reach * perRadian * stretch) + 1
+    const i0 = Math.max(0, Math.floor(cxImg - half))
+    const i1 = Math.min(size - 1, Math.ceil(cxImg + half))
+    const j0 = Math.max(0, Math.floor(cyImg - half))
+    const j1 = Math.min(size - 1, Math.ceil(cyImg + half))
+    const depth = 0.35 * rPx
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const k = j * size + i
+        if (!inside[k]) continue
+        const dot = dirs[k * 3] * cx + dirs[k * 3 + 1] * cy + dirs[k * 3 + 2] * cz
+        if (dot < cosReach) continue
+        const d = Math.sqrt(2 * (1 - dot)) / r
+        if (d <= 1.7) heights[k] += depth * craterProfile(d)
       }
     }
   }
-  return h
+
+  const canvas = newCanvas(size, size)
+  const ctx = canvas.getContext('2d')
+  const image = ctx.createImageData(size, size)
+  const at = (i, j) => heights[Math.min(Math.max(j, 0), size - 1) * size + Math.min(Math.max(i, 0), size - 1)]
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const k = j * size + i
+      const o = k * 4
+      image.data[o + 3] = 255
+      if (!inside[k]) {
+        image.data.fill(110, o, o + 3)
+        continue
+      }
+      // Light from the upper left: surfaces rising toward the right or toward the south face it.
+      const slope = at(i + 1, j) - at(i - 1, j) + (at(i, j + 1) - at(i, j - 1))
+      const shade = Math.min(Math.max(slope * 0.45, -0.7), 0.7)
+      const v = Math.min(Math.max(albedo[k] * (1 + shade), 0.04), 1) * 255
+      image.data[o] = v
+      image.data[o + 1] = v * 0.985
+      image.data[o + 2] = v * 0.955
+    }
+  }
+  ctx.putImageData(image, 0, 0)
+  moonCache = canvas
+  return canvas
 }
 
 /**
- * Equirectangular picture for the Moon outside the mapped cap: a pixel-art Moon with fine squares (0.67 degrees),
- * darker maria, craters with lit rims and shaded floors, in 24 gray levels with a faint cool tint. Draw it with
- * nearest-neighbor filtering. Made up, not LOLA data: it only says "this is the rest of the Moon".
+ * Generic starry sky (not the real constellations): [{ unit: Float32Array xyz, color: Float32Array rgb, count }] in
+ * three layers, from many faint stars to a few bright ones. Always the same stars (seeded).
  */
-export function makeMoonCanvas(width = 540, height = 270) {
+export function makeStarField() {
+  const layers = [
+    { count: 2600, min: 0.3, max: 0.6 },
+    { count: 700, min: 0.6, max: 0.9 },
+    { count: 90, min: 0.9, max: 1 },
+  ]
+  let id = 0
+  return layers.map(({ count, min, max }) => {
+    const unit = new Float32Array(count * 3)
+    const color = new Float32Array(count * 3)
+    for (let k = 0; k < count; k++, id++) {
+      const z = hash(id, 1, 2) * 2 - 1
+      const lon = hash(id, 3, 4) * 2 * Math.PI
+      const r = Math.sqrt(1 - z * z)
+      unit.set([r * Math.cos(lon), r * Math.sin(lon), z], k * 3)
+      const b = min + (max - min) * hash(id, 5, 6)
+      const t = hash(id, 7, 8) // spectral tint: some blue-white, most white, some warm
+      const tint = t < 0.2 ? [0.72, 0.82, 1] : t < 0.7 ? [1, 0.98, 0.95] : t < 0.9 ? [1, 0.9, 0.76] : [1, 0.76, 0.6]
+      color.set([tint[0] * b, tint[1] * b, tint[2] * b], k * 3)
+    }
+    return { unit, color, count }
+  })
+}
+
+/** A round soft star: bright core and a halo, for additive points. */
+export function makeStarSpriteCanvas(size = 64) {
+  const canvas = newCanvas(size, size)
+  const ctx = canvas.getContext('2d')
+  const c = size / 2
+  const g = ctx.createRadialGradient(c, c, 0, c, c, c)
+  g.addColorStop(0, 'rgba(255,255,255,1)')
+  g.addColorStop(0.18, 'rgba(255,255,255,0.9)')
+  g.addColorStop(0.45, 'rgba(255,255,255,0.22)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, size, size)
+  return canvas
+}
+
+/**
+ * Equirectangular picture of a faint Milky Way: a bright band along a tilted great circle, thickest toward a core,
+ * broken by dark dust lanes, with a cool-to-warm tint. Very dark overall: it must not wash out the stars.
+ */
+export function makeMilkyWayCanvas(width = 768, height = 384) {
   const canvas = newCanvas(width, height)
   const ctx = canvas.getContext('2d')
   const image = ctx.createImageData(width, height)
-  const light = [0.6, -0.5, 0.62] // light from the upper left, in lattice units
-  const eps = 0.012
+  const normal = [0.28, -0.36, 0.89]
+  const core = [0.62, 0.6, -0.5]
+  const nl = Math.hypot(...normal)
+  const cl = Math.hypot(...core)
   for (let j = 0; j < height; j++) {
     const lat = (0.5 - (j + 0.5) / height) * Math.PI
     for (let i = 0; i < width; i++) {
@@ -157,33 +286,21 @@ export function makeMoonCanvas(width = 540, height = 270) {
       const x = Math.cos(lat) * Math.cos(lon)
       const y = Math.cos(lat) * Math.sin(lon)
       const z = Math.sin(lat)
-      const mare = step(0.5, 0.62, fbm(x * 1.6 + 11, y * 1.6 + 3, z * 1.6 + 7, 4)) // large dark seas
-      const dust = fbm(x * 9 + 2, y * 9 + 8, z * 9 + 4, 4) - 0.5
-      const slope = (craterHeight(x + light[0] * eps, y + light[1] * eps, z + light[2] * eps) - craterHeight(x, y, z)) / eps
-      const base = mix(176, 96, mare) + 70 * dust
-      const v = Math.min(Math.max(Math.round((base - 26 * slope) / 9) * 9, 40), 245)
+      const s = (x * normal[0] + y * normal[1] + z * normal[2]) / nl // 0 on the band
+      const toCore = (x * core[0] + y * core[1] + z * core[2]) / cl
+      const band = Math.exp(-((s / 0.16) ** 2)) * (0.55 + 0.45 * Math.max(toCore, 0))
+      const cloud = 0.35 + 1.3 * fbm(x * 5 + 3, y * 5 + 6, z * 5 + 9, 5)
+      const dust = 1 - 0.75 * step(0.52, 0.66, fbm(x * 9 + 40, y * 9 + 40, z * 9 + 40, 4)) * Math.exp(-((s / 0.12) ** 2))
+      const v = Math.min(band * cloud * dust, 1.2)
       const o = (j * width + i) * 4
-      image.data[o] = v
-      image.data[o + 1] = v + 1
-      image.data[o + 2] = v + 5
+      image.data[o] = 78 * v
+      image.data[o + 1] = 74 * v
+      image.data[o + 2] = 92 * v
       image.data[o + 3] = 255
     }
   }
   ctx.putImageData(image, 0, 0)
   return canvas
-}
-
-/** Direction (unit vectors) and brightness of `count` stars, always the same ones (seeded): [x, y, z, brightness, ...]. */
-export function makeStarField(count = 1800) {
-  const out = new Float32Array(count * 4)
-  for (let k = 0; k < count; k++) {
-    // Uniform on the sphere.
-    const z = hash(k, 1, 2) * 2 - 1
-    const lon = hash(k, 3, 4) * 2 * Math.PI
-    const r = Math.sqrt(1 - z * z)
-    out.set([r * Math.cos(lon), r * Math.sin(lon), z, 0.35 + 0.65 * hash(k, 5, 6) ** 3], k * 4)
-  }
-  return out
 }
 
 /** Reticle of the hover probe: a ring with four ticks, as on a targeting display. */

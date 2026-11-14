@@ -157,3 +157,14 @@ export function horizonDirection(frame, azDeg, elDeg) {
 export function groundRings(horizonDeg) {
   return [-89, Math.min(-30, horizonDeg - 12), Math.min(-8, horizonDeg - 4), horizonDeg - 1.2, horizonDeg]
 }
+
+/**
+ * Texture coordinates (u, v) of a direction (unit vector, z north) in the azimuthal picture of makeMoonCanvas:
+ * the distance from the south pole is the radius (north pole at the edge), the longitude the angle.
+ */
+export function polarUv(x, y, z) {
+  const theta = Math.acos(Math.min(1, Math.max(-1, -z)))
+  const rho = theta / Math.PI
+  const phi = Math.atan2(y, x)
+  return [0.5 + 0.5 * rho * Math.cos(phi), 0.5 - 0.5 * rho * Math.sin(phi)] // v is measured from the bottom of the picture
+}
