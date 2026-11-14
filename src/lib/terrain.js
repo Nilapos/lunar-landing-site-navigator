@@ -16,6 +16,15 @@ export function createDem(data, { size = 7600, scaleM = 80, heightFactor = 0.5 }
   return { data, size, scaleM, heightFactor, center: (size - 1) / 2 }
 }
 
+/**
+ * Wrap raw int16 data of any LDEM_80S product (80 m: 7600 px, 40 m: 15200, 20 m: 30400; same projection, same covered
+ * area) as a DEM, taking the size from the data and the pixel scale from the size.
+ */
+export function createDemAuto(data, { heightFactor = 0.5 } = {}) {
+  const size = Math.round(Math.sqrt(data.length))
+  return createDem(data, { size, scaleM: (80 * 7600) / size, heightFactor })
+}
+
 /** Pixel position [column, row] (fractional) of a lat/lon on the map. */
 export function toPixel(dem, latDeg, lonDeg) {
   const colat = (latDeg + 90) * RAD
@@ -45,7 +54,7 @@ export function heightAt(dem, latDeg, lonDeg) {
 }
 
 /** Slope (deg) at an integer pixel from its 8 neighbors (Horn's method); NaN on the map border. */
-function slopeAtPixel(dem, col, row) {
+export function slopeAtPixel(dem, col, row) {
   const { data, size, scaleM, heightFactor } = dem
   if (col < 1 || row < 1 || col >= size - 1 || row >= size - 1) return NaN
   const i = row * size + col

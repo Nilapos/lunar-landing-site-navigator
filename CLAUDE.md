@@ -59,6 +59,13 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   (`Why`, `SkyChart`, `CauseStrip`, `RayDiagram`) uses the pure `src/lib/cause.js`. "Scores follow the timeline" uses
   `src/lib/momentScores.js` (scores measured after the moment shown). The pitch demo button and its checked numbers are in `App.jsx`.
   `README.md` is the page for the jury and `SUBMISSION.md` the checklist of what the team still has to deliver.
+- Fine zones (2.4 km overview, then 100-250 m cells): `scripts/build-zones.mjs <ldem_80s_*.img> [--cell 125] [--size 16]` writes, for each
+  analyzable site, `public/zones/<id>.json|bin|png` (heights, slope, 72-azimuth horizon per cell, and a hillshade). `src/lib/zones.js` (tested)
+  parses them and builds the patch geometry; `useZone` loads one when the camera comes within about 90 km of the selected site (`near`,
+  reported by `polarSkyScene.js`); `paintZone` paints the same layers on its cells and `paintGround` cuts a hole in the overview texture
+  under it. The "Zoom to site" button flies the camera down to it. `createDemAuto` (terrain.js) reads any LDEM_80S product (80, 40 or 20 m).
+  The committed zones come from the 80 m map (250 m cells); rebuild them with the 20 m map (`LOLA data/ldem_80s_20m/`, 1.85 GB) for 125 m
+  cells. The other scripts (compute-horizons, build-3d-data, build-horizon-grid, render-map) still assume the 80 m map.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

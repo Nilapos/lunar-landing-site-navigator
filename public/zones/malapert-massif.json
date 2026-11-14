@@ -1,0 +1,17 @@
+{
+ "id": "malapert-massif",
+ "lat": -85.988,
+ "lon": 2.053,
+ "centerXKm": 4.36,
+ "centerYKm": 121.63,
+ "sizeKm": 16,
+ "cells": 64,
+ "cellM": 250,
+ "demScaleM": 80,
+ "azimuths": 72,
+ "slopeOffset": 8192,
+ "horizonOffset": 12288,
+ "minHeightM": 1934,
+ "maxHeightM": 5168,
+ "note": "LOLA LDEM_80S (NASA PDS). Heights: cell mean in m above the 1737.4 km sphere. Slope: 90th percentile of the map-resolution slopes per cell, degrees."
+}

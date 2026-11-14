@@ -1,67 +1,99 @@
-// The ground texture shared by the 3D views (Terrain and Polar sky): the hillshade picture, then the layers
-// (sunlight and shadows, Earth visibility, forbidden zones), painted on a canvas that covers the whole map.
+// The ground textures shared by the 3D view: the hillshade picture, then the layers (sunlight and shadows, Earth
+// visibility, forbidden zones, "Optimal"), painted on a canvas. One covers the whole map (2.4 km cells), another covers
+// a fine zone around a site (100 to 250 m cells, see zones.js) and is shown in place of the overview when zoomed in.
 import { goFractionOverlay, goFractions, goOverlay, visibilityOverlay } from './illumination.js'
 import { GRID_LATS, GRID_LONS, circleRadius, projectToMap, regionSquare } from './polarMap.js'
 import { slopeOverlayRgba } from './terrain3d.js'
 
 export const TEXTURE_SIZE = 1024
+export const ZONE_TEXTURE_SIZE = 512
 
-// Draws a grid-sized RGBA layer onto the texture, only inside the 80 S disc (the corners hold no data).
-function drawLayer(ctx, rgba, grid) {
+// The share-of-period map does not depend on the moment shown: keep it per terrain instead of recomputing at every step.
+const periodCache = new WeakMap()
+function periodFractions(terrain, frames, samples, options) {
+  const key = `${options.minSunDeg}|${options.minEarthDeg}|${options.maxSlopeDeg}`
+  const cached = periodCache.get(terrain)
+  if (cached && cached.samples === samples && cached.key === key) return cached.fractions
+  const fractions = goFractions(terrain, frames, samples, options)
+  periodCache.set(terrain, { samples, key, fractions })
+  return fractions
+}
+
+/** The RGBA layers (grid x grid each) to paint, bottom first, for a terrain (the whole map or a zone). */
+function layerPixels({ terrain, frames, sample, samples, layers, requirements }) {
+  const out = []
+  if (layers.go && sample && frames) {
+    const options = { minSunDeg: requirements.minSunDeg, minEarthDeg: requirements.minEarthDeg, maxSlopeDeg: requirements.maxSlopeDeg }
+    out.push(
+      layers.goPeriod && samples
+        ? goFractionOverlay(terrain, frames, periodFractions(terrain, frames, samples, options))
+        : goOverlay(terrain, frames, sample, options),
+    )
+  } else if ((layers.sun || layers.earth) && sample && frames) {
+    out.push(
+      visibilityOverlay(terrain, frames, sample, {
+        sun: layers.sun,
+        earth: layers.earth,
+        minSunDeg: requirements.minSunDeg,
+        minEarthDeg: requirements.minEarthDeg,
+      }),
+    )
+  }
+  if (layers.slope && !layers.go) out.push(slopeOverlayRgba(terrain, requirements.maxSlopeDeg))
+  return out
+}
+
+function gridCanvas(rgba, grid) {
   const small = document.createElement('canvas')
   small.width = grid
   small.height = grid
   small.getContext('2d').putImageData(new ImageData(rgba, grid, grid), 0, 0)
+  return small
+}
+
+// Draws a grid-sized RGBA layer onto the whole-map texture, only inside the 80 S disc (the corners hold no data).
+function drawLayer(ctx, rgba, grid) {
   ctx.save()
   ctx.beginPath()
   ctx.arc(TEXTURE_SIZE / 2, TEXTURE_SIZE / 2, TEXTURE_SIZE / 2 - 2, 0, Math.PI * 2)
   ctx.clip()
   ctx.imageSmoothingEnabled = true
-  ctx.drawImage(small, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+  ctx.drawImage(gridCanvas(rgba, grid), 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   ctx.restore()
 }
 
 /**
- * Repaints `canvas` (TEXTURE_SIZE square).
+ * Repaints `canvas` (TEXTURE_SIZE square), the texture of the whole map.
  *   hillshade: the relief picture; terrain, frames: see loadTerrain3d and buildCellFrames;
  *   sample: one entry of /api/sky (or null: no sunlight / Earth layer);
  *   samples: all the sky samples of the period (for the Optimal layer over the period);
  *   layers: { sun, earth, slope, go, goPeriod }; requirements: { maxSlopeDeg, minSunDeg, minEarthDeg };
  *   overlay (optional): { regions: [{ lat, lon }], colors: { grid, regionFill, regionEdge } }, the graticule and the
- *   candidate region squares in the style of NASA's Artemis III videos, drawn over the layers.
+ *   candidate region squares in the style of NASA's Artemis III videos, drawn over the layers;
+ *   holes (optional): [{ x, y, side }] squares of the map (fractions of its width) left transparent, where a fine zone
+ *   takes over.
  */
-// The share-of-period map does not depend on the moment shown: keep the last one instead of recomputing at every step.
-let periodCache = null
-function periodFractions(terrain, frames, samples, options) {
-  const key = `${options.minSunDeg}|${options.minEarthDeg}|${options.maxSlopeDeg}`
-  if (!periodCache || periodCache.samples !== samples || periodCache.terrain !== terrain || periodCache.key !== key) {
-    periodCache = { samples, terrain, key, fractions: goFractions(terrain, frames, samples, options) }
-  }
-  return periodCache.fractions
-}
-
-export function paintGround(canvas, { hillshade, terrain, frames, sample, samples, layers, requirements, overlay }) {
+export function paintGround(canvas, { hillshade, terrain, frames, sample, samples, layers, requirements, overlay, holes = [] }) {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  if (layers.go && sample && frames) {
-    const options = { minSunDeg: requirements.minSunDeg, minEarthDeg: requirements.minEarthDeg, maxSlopeDeg: requirements.maxSlopeDeg }
-    const rgba =
-      layers.goPeriod && samples
-        ? goFractionOverlay(terrain, frames, periodFractions(terrain, frames, samples, options))
-        : goOverlay(terrain, frames, sample, options)
-    drawLayer(ctx, rgba, terrain.grid)
-  } else if ((layers.sun || layers.earth) && sample && frames) {
-    const rgba = visibilityOverlay(terrain, frames, sample, {
-      sun: layers.sun,
-      earth: layers.earth,
-      minSunDeg: requirements.minSunDeg,
-      minEarthDeg: requirements.minEarthDeg,
-    })
-    drawLayer(ctx, rgba, terrain.grid)
-  }
-  if (layers.slope && !layers.go) drawLayer(ctx, slopeOverlayRgba(terrain, requirements.maxSlopeDeg), terrain.grid)
+  for (const rgba of layerPixels({ terrain, frames, sample, samples, layers, requirements })) drawLayer(ctx, rgba, terrain.grid)
   if (overlay) drawOverlay(ctx, overlay)
+  for (const h of holes) ctx.clearRect(h.x * TEXTURE_SIZE, h.y * TEXTURE_SIZE, h.side * TEXTURE_SIZE, h.side * TEXTURE_SIZE)
+}
+
+/**
+ * Repaints `canvas` (ZONE_TEXTURE_SIZE square), the texture of a fine zone: its own hillshade, then the same layers
+ * computed on its cells (drawn without smoothing, so each cell stays a visible square).
+ *   zone: see zones.js;  frames: zoneFrames(zone);  hillshade: the zone's picture; the other fields as for paintGround.
+ */
+export function paintZone(canvas, { hillshade, zone, frames, sample, samples, layers, requirements }) {
+  const S = ZONE_TEXTURE_SIZE
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, S, S)
+  ctx.drawImage(hillshade, 0, 0, S, S)
+  ctx.imageSmoothingEnabled = false
+  for (const rgba of layerPixels({ terrain: zone, frames, sample, samples, layers, requirements })) ctx.drawImage(gridCanvas(rgba, zone.grid), 0, 0, S, S)
 }
 
 // Graticule (thin lines) then one translucent square with a bright edge per candidate region.

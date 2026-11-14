@@ -1,0 +1,17 @@
+{
+ "id": "shackleton-floor",
+ "lat": -89.6667,
+ "lon": 129.7833,
+ "centerXKm": 7.77,
+ "centerYKm": -6.47,
+ "sizeKm": 16,
+ "cells": 64,
+ "cellM": 250,
+ "demScaleM": 80,
+ "azimuths": 72,
+ "slopeOffset": 8192,
+ "horizonOffset": 12288,
+ "minHeightM": -2852,
+ "maxHeightM": 1386,
+ "note": "LOLA LDEM_80S (NASA PDS). Heights: cell mean in m above the 1737.4 km sphere. Slope: 90th percentile of the map-resolution slopes per cell, degrees."
+}

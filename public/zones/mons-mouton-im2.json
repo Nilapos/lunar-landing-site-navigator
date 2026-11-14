@@ -1,0 +1,17 @@
+{
+ "id": "mons-mouton-im2",
+ "lat": -84.78,
+ "lon": 29.13,
+ "centerXKm": 77.11,
+ "centerYKm": 138.36,
+ "sizeKm": 16,
+ "cells": 64,
+ "cellM": 250,
+ "demScaleM": 80,
+ "azimuths": 72,
+ "slopeOffset": 8192,
+ "horizonOffset": 12288,
+ "minHeightM": 4841,
+ "maxHeightM": 5628,
+ "note": "LOLA LDEM_80S (NASA PDS). Heights: cell mean in m above the 1737.4 km sphere. Slope: 90th percentile of the map-resolution slopes per cell, degrees."
+}

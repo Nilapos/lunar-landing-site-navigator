@@ -4,7 +4,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { cssToken } from './cssTokens.js'
-import { TEXTURE_SIZE } from './groundTexture.js'
+import { TEXTURE_SIZE, ZONE_TEXTURE_SIZE } from './groundTexture.js'
 import {
   capIndices,
   capPositions,
@@ -19,7 +19,8 @@ import {
   sunDirection,
   surfacePoint,
 } from './polarSky.js'
-import { azEl, localFrame } from './sky.js'
+import { azEl, localFrame, unitVector } from './sky.js'
+import { zoneHeightAt, zoneIndices, zonePositions } from './zones.js'
 import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeReticleCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
 import { levelColor, makeLabel, selectionColor } from './terrainScene.js'
 
@@ -57,7 +58,7 @@ function disposeTree(root) {
  * Creates the scene inside `container`. Callbacks: onPick(siteId) for a click on a pin, onProbe(cell | null)
  * when the pointer moves over the ground, onPin(cell) for a click on the ground.
  */
-export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin }) {
+export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin, onNear }) {
   const N = terrain.grid
   let exaggeration = 2
   let sites = []
@@ -76,7 +77,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   camera.up.copy(SOUTH) // must be set before the controls are created
   const controls = new OrbitControls(camera, el)
   controls.enableDamping = true
-  controls.minDistance = 80
+  controls.minDistance = 10
   controls.maxDistance = 9000
   controls.maxPolarAngle = Math.PI * 0.47
 
@@ -108,9 +109,9 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     camera.position.set(target[0] + horizontal * Math.cos(azimuth), target[1] + horizontal * Math.sin(azimuth), target[2] - up)
     controls.update()
   }
-  function goToPose(name, animate = true) {
-    poseName = name
-    const to = POSES[name]
+  function goToPose(nameOrPose, animate = true) {
+    const to = typeof nameOrPose === 'string' ? POSES[nameOrPose] : nameOrPose
+    if (typeof nameOrPose === 'string') poseName = nameOrPose
     if (!animate || reducedMotion()) {
       tween = null
       applyPose(to)
@@ -171,6 +172,47 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   capGeometry.computeBoundingSphere()
   const cap = new THREE.Mesh(capGeometry, new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, side: THREE.DoubleSide }))
   scene.add(cap)
+
+  // A fine zone (100 to 250 m cells) around a site, shown in place of the overview when the camera comes close: its own
+  // mesh and texture, and a hole in the overview texture (cut by paintGround).
+  let zone = null
+  let zoneShown = false
+  let zoneMesh = null
+  const zoneCanvas = document.createElement('canvas')
+  zoneCanvas.width = ZONE_TEXTURE_SIZE
+  zoneCanvas.height = ZONE_TEXTURE_SIZE
+  const zoneTexture = canvasTexture(zoneCanvas)
+  zoneTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+  zoneTexture.magFilter = THREE.NearestFilter // each cell stays a crisp square
+  const zoneMaterial = new THREE.MeshBasicMaterial({ map: zoneTexture, side: THREE.DoubleSide })
+  function buildZoneMesh() {
+    if (zoneMesh) {
+      scene.remove(zoneMesh)
+      zoneMesh.geometry.dispose()
+      zoneMesh = null
+    }
+    if (!zone) return
+    const n = zone.cells
+    const uvs = new Float32Array(n * n * 2)
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) uvs.set([(i + 0.5) / n, 1 - (j + 0.5) / n], (j * n + i) * 2)
+    }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(zonePositions(zone, exaggeration), 3))
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+    geometry.setIndex(new THREE.BufferAttribute(zoneIndices(n), 1))
+    geometry.computeBoundingSphere()
+    zoneMesh = new THREE.Mesh(geometry, zoneMaterial)
+    zoneMesh.frustumCulled = false
+    scene.add(zoneMesh)
+  }
+  // Position of a site on the surface that is shown (the zone's relief when it is, else the overview's).
+  function sitePosition(lat, lon, liftKm = 0) {
+    const h = zone && zoneShown ? zoneHeightAt(zone, lat, lon) : null
+    if (h === null) return surfacePoint(terrain, lat, lon, exaggeration, liftKm)
+    return unitVector(lat, lon).map((v) => v * (MOON_RADIUS_KM + (h / 1000) * exaggeration + liftKm))
+  }
+  let near = false
 
   // The rest of the Moon: a sphere open at the south (the cap covers the hole), just under the cap's rim.
   const moonGeometry = new THREE.SphereGeometry(MOON_RADIUS_KM - 0.3, 144, 72, 0, Math.PI * 2, 0, Math.PI - 9.9 * RAD)
@@ -263,7 +305,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     sunLine.visible = show
     earthLine.visible = show
     if (!show) return
-    focusPoint.fromArray(surfacePoint(terrain, focus.lat, focus.lon, exaggeration, 1))
+    focusPoint.fromArray(sitePosition(focus.lat, focus.lon, 1))
     // Yellow to the Sun and blue to the Earth while they are above the site's terrain horizon; red when the terrain hides them
     // (same test as the numbers in the score card, not a ray against the exaggerated relief).
     const hidden = levelColor('fail')
@@ -314,7 +356,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     clearMarkers()
     for (const s of sites) {
       const group = new THREE.Group()
-      group.position.fromArray(surfacePoint(terrain, s.lat, s.lon, exaggeration))
+      group.position.fromArray(sitePosition(s.lat, s.lon))
       group.quaternion.setFromUnitVectors(Y_AXIS, group.position.clone().normalize())
       const color = levelColor(s.level)
       const pinHeight = 16
@@ -563,6 +605,19 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       }
     }
     skyDome.position.copy(camera.position)
+    // Pins shrink as the camera comes close, so they stay small marks on a fine zone.
+    const pinScale = Math.min(1, Math.max(0.02, camera.position.distanceTo(controls.target) / 900))
+    for (const pin of markers.children) pin.scale.setScalar(pinScale)
+    if (zoneMesh) zoneMesh.visible = zoneShown && view === null
+    // Tell React when the camera is close enough to the selected site for its fine zone (with some hysteresis).
+    if (focus && view === null) {
+      const distance = camera.position.distanceTo(focusPoint)
+      const next = near ? distance < 140 : distance < 90
+      if (next !== near) {
+        near = next
+        onNear?.(near)
+      }
+    }
     updateSky()
     renderer.render(scene, camera)
   })
@@ -576,6 +631,10 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     setExaggeration(value) {
       exaggeration = value
       capPositions(terrain, exaggeration, positions)
+      if (zoneMesh) {
+        zonePositions(zone, exaggeration, zoneMesh.geometry.attributes.position.array)
+        zoneMesh.geometry.attributes.position.needsUpdate = true
+      }
       capGeometry.attributes.position.needsUpdate = true
       capGeometry.computeBoundingSphere()
       buildMarkers()
@@ -612,6 +671,29 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
      * Camera: null = orbit above the cap; { lat, lon, profile } = standing on that site, with its terrain horizon
      * (360 values, one per degree of azimuth) as the skyline.
      */
+    /** The canvas behind the fine zone's texture (paintZone), then refreshZoneTexture(). */
+    zoneCanvas,
+    refreshZoneTexture() {
+      zoneTexture.needsUpdate = true
+    },
+    /** The fine zone to draw (see zones.js) or null, and whether it is shown (the camera is close to it). */
+    setZone(value, shown) {
+      const changed = value !== zone
+      zone = value
+      const wasShown = zoneShown
+      zoneShown = !!(value && shown)
+      if (changed) buildZoneMesh()
+      if (changed || wasShown !== zoneShown) {
+        buildMarkers()
+        updateFocus()
+      }
+    },
+    /** Fly down to the selected site, close enough to see its fine zone. */
+    zoomToSite() {
+      if (!focus || view) return
+      const target = sitePosition(focus.lat, focus.lon)
+      goToPose({ target, radius: 26, polar: 0.75, azimuth: Math.PI })
+    },
     /** Orbit camera pose: 'orbit' (oblique, over the pole) or 'top' (straight down). Animated unless animate is false. */
     setOrbitPose(name, animate = true) {
       poseName = name
@@ -657,6 +739,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       clearMarkers()
       disposeTree(scene)
       texture.dispose()
+      zoneTexture.dispose()
+      zoneMaterial.dispose()
       moonTexture.dispose()
       controls.dispose()
       renderer.dispose()

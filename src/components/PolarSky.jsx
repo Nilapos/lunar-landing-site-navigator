@@ -4,11 +4,13 @@ import { southPoleSites } from '../data/south-pole-sites.js'
 import { probeCell } from '../lib/cellProbe.js'
 import { groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent } from '../lib/format.js'
-import { paintGround } from '../lib/groundTexture.js'
+import { paintGround, paintZone } from '../lib/groundTexture.js'
 import { buildCellFrames } from '../lib/illumination.js'
 import { siteBodyStates } from '../lib/polarSky.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
 import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
+import { useZone } from '../lib/useZone.js'
+import { zoneFrames, zonePatchRect } from '../lib/zones.js'
 import { LEVEL_LABEL } from '../lib/verdict.js'
 import LayerToggles from './LayerToggles.jsx'
 import Pop from './Pop.jsx'
@@ -74,6 +76,7 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   const [exaggeration, setExaggeration] = useState(2)
   const [hoverCell, setHoverCell] = useState(null)
   const [pinnedCell, setPinnedCell] = useState(null)
+  const [near, setNear] = useState(false) // the camera is close to the selected site: its fine zone replaces the overview
   const standing = view === 'site'
   const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
   const { sample, samples, index, playing } = timeline
@@ -84,6 +87,11 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
     () => (site && sample ? siteBodyStates(site, sample, horizonFile.profiles[site.id], requirements) : null),
     [site, sample, requirements],
   )
+
+  // Fine zone (100 to 250 m cells) of the selected site, loaded when the camera first comes close.
+  const zoneData = useZone(site?.id ?? null, near)
+  const zoneGrid = useMemo(() => (zoneData.zone ? zoneFrames(zoneData.zone) : null), [zoneData.zone])
+  const zoneShown = near && !standing && !!zoneData.zone && !!zoneData.image
 
   const shownCell = standing ? null : (pinnedCell ?? hoverCell)
   const probe = useMemo(
@@ -101,6 +109,7 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
       onPick: (id) => onSelectRef.current(id),
       onProbe: setHoverCell,
       onPin: (cell) => setPinnedCell((current) => (current === cell ? null : cell)),
+      onNear: setNear,
     })
     sceneRef.current = scene
     flightRef.current = false
@@ -123,9 +132,22 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
       layers,
       requirements,
       overlay: { regions: REGIONS, colors: groundOverlayColors() },
+      holes: zoneShown ? [zonePatchRect(zoneData.zone)] : [],
     })
     scene.refreshTexture()
-  }, [terrain, hillshade, frames, sample, samples, layers, requirements])
+  }, [terrain, hillshade, frames, sample, samples, layers, requirements, zoneShown, zoneData.zone])
+
+  // The fine zone: its mesh when shown, and its own texture (same layers, computed on its cells).
+  useEffect(() => {
+    sceneRef.current?.setZone(zoneData.zone, zoneShown)
+  }, [terrain, hillshade, zoneData.zone, zoneShown])
+
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene || !zoneShown) return
+    paintZone(scene.zoneCanvas, { hillshade: zoneData.image, zone: zoneData.zone, frames: zoneGrid, sample, samples, layers, requirements })
+    scene.refreshZoneTexture()
+  }, [zoneShown, zoneData, zoneGrid, sample, samples, layers, requirements])
 
   useEffect(() => {
     sceneRef.current?.setExaggeration(exaggeration)
@@ -193,11 +215,22 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
           ) : (
             <div className="tabs" role="group" aria-label="Camera">
               {VIEWS.map((v) => (
-                <button key={v.key} type="button" className={`tabs__tab${view === v.key ? ' tabs__tab--active' : ''}`} aria-pressed={view === v.key} onClick={() => onView(v.key)}>
+                <button
+                  key={v.key}
+                  type="button"
+                  className={`tabs__tab${view === v.key ? ' tabs__tab--active' : ''}`}
+                  aria-pressed={view === v.key}
+                  onClick={() => (view === v.key ? sceneRef.current?.setOrbitPose(v.key) : onView(v.key))}
+                >
                   {v.label}
                 </button>
               ))}
             </div>
+          )}
+          {!standing && (
+            <button type="button" className="button" title="Fly down to the selected site and show its fine cells" onClick={() => sceneRef.current?.zoomToSite()}>
+              Zoom to site
+            </button>
           )}
           <LayerToggles layers={layers} onChange={onLayers} maxSlopeDeg={requirements.maxSlopeDeg} />
           <Pop icon="tune" label="View settings">

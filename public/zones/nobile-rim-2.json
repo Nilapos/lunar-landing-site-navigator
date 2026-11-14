@@ -1,0 +1,17 @@
+{
+ "id": "nobile-rim-2",
+ "lat": -84.20156,
+ "lon": 60.69989,
+ "centerXKm": 153.47,
+ "centerYKm": 86.12,
+ "sizeKm": 16,
+ "cells": 64,
+ "cellM": 250,
+ "demScaleM": 80,
+ "azimuths": 72,
+ "slopeOffset": 8192,
+ "horizonOffset": 12288,
+ "minHeightM": -1020,
+ "maxHeightM": 1597,
+ "note": "LOLA LDEM_80S (NASA PDS). Heights: cell mean in m above the 1737.4 km sphere. Slope: 90th percentile of the map-resolution slopes per cell, degrees."
+}

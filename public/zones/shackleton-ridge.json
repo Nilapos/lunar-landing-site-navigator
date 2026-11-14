@@ -1,0 +1,17 @@
+{
+ "id": "shackleton-ridge",
+ "lat": -89.507,
+ "lon": 221.748,
+ "centerXKm": -9.95,
+ "centerYKm": -11.15,
+ "sizeKm": 16,
+ "cells": 64,
+ "cellM": 250,
+ "demScaleM": 80,
+ "azimuths": 72,
+ "slopeOffset": 8192,
+ "horizonOffset": 12288,
+ "minHeightM": -175,
+ "maxHeightM": 1956,
+ "note": "LOLA LDEM_80S (NASA PDS). Heights: cell mean in m above the 1737.4 km sphere. Slope: 90th percentile of the map-resolution slopes per cell, degrees."
+}

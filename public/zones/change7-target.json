@@ -1,0 +1,17 @@
+{
+ "id": "change7-target",
+ "lat": -88.8,
+ "lon": 123.4,
+ "centerXKm": 30.38,
+ "centerYKm": -20.03,
+ "sizeKm": 16,
+ "cells": 64,
+ "cellM": 250,
+ "demScaleM": 80,
+ "azimuths": 72,
+ "slopeOffset": 8192,
+ "horizonOffset": 12288,
+ "minHeightM": -478,
+ "maxHeightM": 1642,
+ "note": "LOLA LDEM_80S (NASA PDS). Heights: cell mean in m above the 1737.4 km sphere. Slope: 90th percentile of the map-resolution slopes per cell, degrees."
+}
