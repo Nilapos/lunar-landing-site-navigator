@@ -1,6 +1,6 @@
 // The ground texture shared by the 3D views (Terrain and Polar sky): the hillshade picture, then the layers
 // (sunlight and shadows, Earth visibility, forbidden zones), painted on a canvas that covers the whole map.
-import { visibilityOverlay } from './illumination.js'
+import { goFractionOverlay, goFractions, goOverlay, visibilityOverlay } from './illumination.js'
 import { GRID_LATS, GRID_LONS, circleRadius, projectToMap, regionSquare } from './polarMap.js'
 import { slopeOverlayRgba } from './terrain3d.js'
 
@@ -25,15 +25,33 @@ function drawLayer(ctx, rgba, grid) {
  * Repaints `canvas` (TEXTURE_SIZE square).
  *   hillshade: the relief picture; terrain, frames: see loadTerrain3d and buildCellFrames;
  *   sample: one entry of /api/sky (or null: no sunlight / Earth layer);
- *   layers: { sun, earth, slope }; requirements: { maxSlopeDeg, minSunDeg, minEarthDeg };
+ *   samples: all the sky samples of the period (for the Optimal layer over the period);
+ *   layers: { sun, earth, slope, go, goPeriod }; requirements: { maxSlopeDeg, minSunDeg, minEarthDeg };
  *   overlay (optional): { regions: [{ lat, lon }], colors: { grid, regionFill, regionEdge } }, the graticule and the
  *   candidate region squares in the style of NASA's Artemis III videos, drawn over the layers.
  */
-export function paintGround(canvas, { hillshade, terrain, frames, sample, layers, requirements, overlay }) {
+// The share-of-period map does not depend on the moment shown: keep the last one instead of recomputing at every step.
+let periodCache = null
+function periodFractions(terrain, frames, samples, options) {
+  const key = `${options.minSunDeg}|${options.minEarthDeg}|${options.maxSlopeDeg}`
+  if (!periodCache || periodCache.samples !== samples || periodCache.terrain !== terrain || periodCache.key !== key) {
+    periodCache = { samples, terrain, key, fractions: goFractions(terrain, frames, samples, options) }
+  }
+  return periodCache.fractions
+}
+
+export function paintGround(canvas, { hillshade, terrain, frames, sample, samples, layers, requirements, overlay }) {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  if ((layers.sun || layers.earth) && sample && frames) {
+  if (layers.go && sample && frames) {
+    const options = { minSunDeg: requirements.minSunDeg, minEarthDeg: requirements.minEarthDeg, maxSlopeDeg: requirements.maxSlopeDeg }
+    const rgba =
+      layers.goPeriod && samples
+        ? goFractionOverlay(terrain, frames, periodFractions(terrain, frames, samples, options))
+        : goOverlay(terrain, frames, sample, options)
+    drawLayer(ctx, rgba, terrain.grid)
+  } else if ((layers.sun || layers.earth) && sample && frames) {
     const rgba = visibilityOverlay(terrain, frames, sample, {
       sun: layers.sun,
       earth: layers.earth,
@@ -42,7 +60,7 @@ export function paintGround(canvas, { hillshade, terrain, frames, sample, layers
     })
     drawLayer(ctx, rgba, terrain.grid)
   }
-  if (layers.slope) drawLayer(ctx, slopeOverlayRgba(terrain, requirements.maxSlopeDeg), terrain.grid)
+  if (layers.slope && !layers.go) drawLayer(ctx, slopeOverlayRgba(terrain, requirements.maxSlopeDeg), terrain.grid)
   if (overlay) drawOverlay(ctx, overlay)
 }
 

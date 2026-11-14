@@ -367,6 +367,7 @@ a:hover { color: var(--color-accent-strong); }
 .swatch--shadow { background: var(--color-layer-shadow); box-shadow: 0 0 0 1px var(--color-border-strong) inset; }
 .swatch--earth { background: var(--color-layer-earth); }
 .swatch--slope { background: var(--color-layer-slope); }
+.swatch--go { background: var(--color-layer-go); box-shadow: 0 0 6px var(--color-layer-go); }
 
 .view3d { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
 .view3d--fill { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -536,3 +537,6 @@ a:hover { color: var(--color-accent-strong); }
 .scorecard__details li { display: flex; align-items: baseline; }
 .scorecard__details strong { color: var(--color-text); font-weight: 600; }
 .view3d__canvas .skycard--probe { left: auto; right: var(--space-3); bottom: var(--space-3); }
+.layers__pill--go.layers__pill--on { border-color: var(--color-layer-go); }
+.layers__mode { padding: 2px; }
+.layers__mode .tabs__tab { padding: 2px var(--space-2); font-size: var(--text-xs); }

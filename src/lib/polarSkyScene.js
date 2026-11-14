@@ -264,8 +264,13 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     earthLine.visible = show
     if (!show) return
     focusPoint.fromArray(surfacePoint(terrain, focus.lat, focus.lon, exaggeration, 1))
-    sunLine.material.opacity = focus.sunVisible ? 0.95 : 0.25
-    earthLine.material.opacity = focus.earthVisible ? 0.95 : 0.25
+    // Yellow to the Sun and blue to the Earth while they are above the site's terrain horizon; red when the terrain hides them
+    // (same test as the numbers in the score card, not a ray against the exaggerated relief).
+    const hidden = levelColor('fail')
+    sunLine.material.color.set(focus.sunVisible ? SUN_COLOR : hidden)
+    earthLine.material.color.set(focus.earthVisible ? EARTH_COLOR : hidden)
+    sunLine.material.opacity = focus.sunVisible ? 0.95 : 0.85
+    earthLine.material.opacity = focus.earthVisible ? 0.95 : 0.85
   }
   function setLine(line, end) {
     const p = line.geometry.attributes.position

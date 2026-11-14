@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { AZIMUTHS, encodeHorizon } from './horizonGrid.js'
-import { buildCellFrames, visibilityOverlay } from './illumination.js'
+import { buildCellFrames, goFractionOverlay, goFractions, goOverlay, visibilityOverlay } from './illumination.js'
 
 // A 4 x 4 grid whose cells all have the same horizon (flat = 0 degrees, or a wall of 30 degrees).
-function makeTerrain(horizonDeg) {
+function makeTerrain(horizonDeg, slopeDeg = 5) {
   const N = 4
   const horizon = new Uint8Array(N * N * AZIMUTHS).fill(encodeHorizon(horizonDeg))
-  return { grid: N, horizon }
+  return { grid: N, horizon, slope: new Uint8Array(N * N).fill(slopeDeg) }
 }
 const alpha = (rgba, cell) => rgba[cell * 4 + 3]
 const isWarm = (rgba, cell) => rgba[cell * 4] === 255 && rgba[cell * 4 + 2] === 70 // sunlit color
@@ -60,4 +60,41 @@ test('the real horizon file exists and matches its description', () => {
   assert.equal(meta.horizon.azimuths, AZIMUTHS)
   assert.equal(horizon.length, meta.grid ** 2 * AZIMUTHS)
   assert.ok(horizon.some((b) => b > 0))
+})
+
+const isGreen = (rgba, cell) => rgba[cell * 4] === 57 && rgba[cell * 4 + 1] === 255 && rgba[cell * 4 + 2] === 20
+const REQ = { minSunDeg: 0, minEarthDeg: 0, maxSlopeDeg: 15 }
+
+test('Optimal layer: green only where slope, Sun and Earth are all fine', () => {
+  const t = makeTerrain(0, 5)
+  const frames = buildCellFrames(t)
+  const rgba = goOverlay(t, frames, SAMPLE, REQ)
+  assert.ok(isGreen(rgba, TOP_MIDDLE), 'flat, Sun and Earth up: good')
+  assert.ok(!isGreen(rgba, BOTTOM_MIDDLE) && alpha(rgba, BOTTOM_MIDDLE) > 0, 'Sun and Earth below the horizon: veiled')
+  const steep = makeTerrain(0, 20)
+  assert.ok(!isGreen(goOverlay(steep, buildCellFrames(steep), SAMPLE, REQ), TOP_MIDDLE), 'too steep: not good')
+  const walled = makeTerrain(30, 5)
+  assert.ok(!isGreen(goOverlay(walled, buildCellFrames(walled), SAMPLE, REQ), TOP_MIDDLE), 'a high ridge hides them: not good')
+  assert.ok(!isGreen(goOverlay(t, frames, SAMPLE, { ...REQ, minSunDeg: 60 }), TOP_MIDDLE), 'minimum elevation applies')
+})
+
+test('Optimal layer: the Earth hidden alone is enough to lose the cell', () => {
+  const t = makeTerrain(0, 5)
+  const frames = buildCellFrames(t)
+  const earthBehind = { ...SAMPLE, earthLon: 180 } // Sun up, Earth on the far side of the Moon
+  assert.ok(!isGreen(goOverlay(t, frames, earthBehind, REQ), TOP_MIDDLE))
+})
+
+test('Optimal layer over a period: the share of samples where the cell is good', () => {
+  const t = makeTerrain(0, 5)
+  const frames = buildCellFrames(t)
+  const away = { ...SAMPLE, sunLon: 180 } // Sun gone from the top of the map
+  const f = goFractions(t, frames, [SAMPLE, away], REQ)
+  assert.equal(f[TOP_MIDDLE], 0.5)
+  assert.equal(f[BOTTOM_MIDDLE], 0) // the Sun comes round, but the Earth never rises there
+  assert.equal(goFractions(t, frames, [SAMPLE, SAMPLE], REQ)[TOP_MIDDLE], 1)
+  const steep = makeTerrain(0, 20)
+  assert.equal(goFractions(steep, buildCellFrames(steep), [SAMPLE], REQ)[TOP_MIDDLE], 0)
+  const rgba = goFractionOverlay(t, frames, f)
+  assert.ok(isGreen(rgba, TOP_MIDDLE) && alpha(rgba, TOP_MIDDLE) > 100)
 })

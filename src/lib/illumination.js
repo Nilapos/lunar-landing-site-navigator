@@ -107,3 +107,101 @@ export function visibilityOverlay(terrain, frames, sample, { sun = true, earth =
   }
   return rgba
 }
+
+// --- "Optimal" layer: where a rover could land. A cell is good when its slope is under the rover's limit, the Sun is
+// above its local horizon and the Earth is above its local horizon, all at once (same rules as the per-site analysis).
+
+/** Neon green of the "Optimal" layer (keep in sync with --color-layer-go in tokens.css). */
+const GO_RGB = [57, 255, 20]
+
+const sunMargin = (terrain, frames, c, sunDir, minDeg) => {
+  const i = c * 3
+  const el = clampAsin(dot3(frames.up, i, sunDir))
+  const az = (Math.atan2(dot3(frames.east, i, sunDir), dot3(frames.north, i, sunDir)) * DEG + 360) % 360
+  return el - horizonAtCell(terrain.horizon, c, az) - minDeg
+}
+
+const earthMargin = (terrain, frames, c, sample, earthUnit, cellUp, minDeg) => {
+  const i = c * 3
+  cellUp[0] = frames.up[i]
+  cellUp[1] = frames.up[i + 1]
+  cellUp[2] = frames.up[i + 2]
+  const dir = earthDirection(cellUp, sample.earthLat, sample.earthLon, sample.earthKm, earthUnit)
+  const el = clampAsin(dir[0] * cellUp[0] + dir[1] * cellUp[1] + dir[2] * cellUp[2])
+  const az = (Math.atan2(dot3(frames.east, i, dir), dot3(frames.north, i, dir)) * DEG + 360) % 360
+  return el - horizonAtCell(terrain.horizon, c, az) - minDeg
+}
+
+/**
+ * RGBA pixels (grid x grid) of the "Optimal" layer at one instant: neon green where the slope is under maxSlopeDeg and
+ * the Sun and the Earth are both above the local horizon (plus the minimum elevations), a dark veil elsewhere.
+ *   options: { minSunDeg, minEarthDeg, maxSlopeDeg }
+ */
+export function goOverlay(terrain, frames, sample, { minSunDeg = 0, minEarthDeg = 0, maxSlopeDeg = 15 } = {}) {
+  const N = terrain.grid
+  const rgba = new Uint8ClampedArray(N * N * 4)
+  const sunDir = unitVector(sample.sunLat, sample.sunLon)
+  const earthUnit = unitVector(sample.earthLat, sample.earthLon)
+  const cellUp = [0, 0, 0]
+  for (let c = 0; c < N * N; c++) {
+    if (!frames.valid[c]) continue
+    const o = c * 4
+    const good =
+      terrain.slope[c] < maxSlopeDeg &&
+      sunMargin(terrain, frames, c, sunDir, minSunDeg) > 0 &&
+      earthMargin(terrain, frames, c, sample, earthUnit, cellUp, minEarthDeg) > 0
+    if (good) {
+      rgba[o] = GO_RGB[0]
+      rgba[o + 1] = GO_RGB[1]
+      rgba[o + 2] = GO_RGB[2]
+      rgba[o + 3] = 210
+    } else {
+      rgba[o + 3] = 120 // dark veil so the good cells stand out
+    }
+  }
+  return rgba
+}
+
+/**
+ * Share (0..1) of the period during which each cell is good (slope under the limit, Sun and Earth both up), as a
+ * Float32Array of grid x grid. Cells outside the map or too steep stay at 0. To stay fast, at most `maxSamples` evenly
+ * spaced samples of the period are tested.
+ */
+export function goFractions(terrain, frames, samples, { minSunDeg = 0, minEarthDeg = 0, maxSlopeDeg = 15 } = {}, maxSamples = 48) {
+  const N = terrain.grid
+  const out = new Float32Array(N * N)
+  const stride = Math.max(1, Math.ceil(samples.length / maxSamples))
+  const picked = samples.filter((_, k) => k % stride === 0)
+  if (picked.length === 0) return out
+  const cellUp = [0, 0, 0]
+  for (const sample of picked) {
+    const sunDir = unitVector(sample.sunLat, sample.sunLon)
+    const earthUnit = unitVector(sample.earthLat, sample.earthLon)
+    for (let c = 0; c < N * N; c++) {
+      if (!frames.valid[c] || terrain.slope[c] >= maxSlopeDeg) continue
+      if (sunMargin(terrain, frames, c, sunDir, minSunDeg) > 0 && earthMargin(terrain, frames, c, sample, earthUnit, cellUp, minEarthDeg) > 0) out[c] += 1
+    }
+  }
+  for (let c = 0; c < N * N; c++) out[c] /= picked.length
+  return out
+}
+
+/** The same layer painted from goFractions: the greener (more opaque), the longer the cell stays good. */
+export function goFractionOverlay(terrain, frames, fractions) {
+  const N = terrain.grid
+  const rgba = new Uint8ClampedArray(N * N * 4)
+  for (let c = 0; c < N * N; c++) {
+    if (!frames.valid[c]) continue
+    const o = c * 4
+    const f = fractions[c]
+    if (f > 0) {
+      rgba[o] = GO_RGB[0]
+      rgba[o + 1] = GO_RGB[1]
+      rgba[o + 2] = GO_RGB[2]
+      rgba[o + 3] = 70 + 160 * f
+    } else {
+      rgba[o + 3] = 120
+    }
+  }
+  return rgba
+}

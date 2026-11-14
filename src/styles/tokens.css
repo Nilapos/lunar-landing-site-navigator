@@ -50,6 +50,7 @@
   --color-layer-shadow: rgb(5 10 40);
   --color-layer-earth: rgb(90 110 255);
   --color-layer-slope: rgb(255 40 40);
+  --color-layer-go: rgb(57 255 20);
 
   /* Lines and labels drawn over the black polar map */
   --color-map-grid: var(--color-grid);

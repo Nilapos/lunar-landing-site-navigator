@@ -119,12 +119,13 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
       terrain,
       frames,
       sample,
+      samples,
       layers,
       requirements,
       overlay: { regions: REGIONS, colors: groundOverlayColors() },
     })
     scene.refreshTexture()
-  }, [terrain, hillshade, frames, sample, layers, requirements])
+  }, [terrain, hillshade, frames, sample, samples, layers, requirements])
 
   useEffect(() => {
     sceneRef.current?.setExaggeration(exaggeration)

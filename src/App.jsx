@@ -52,7 +52,7 @@ export default function App() {
   const [tab, setTab] = useState('sky')
   const [skyView, setSkyView] = useState('orbit') // 'orbit' or 'top': the two cameras of the sky tab
   const [drawer, setDrawer] = useState(null)
-  const [layers, setLayers] = useState({ sun: true, earth: true, slope: true })
+  const [layers, setLayers] = useState({ sun: true, earth: true, slope: true, go: false, goPeriod: false })
   const [compare, setCompare] = useState(false)
   const [requirements, setRequirements] = useState(DEFAULT_REQUIREMENTS)
   const [a, setA] = useState({ siteId: southPoleSites[0].id, start: `${todayUtc()}T00:00`, days: 30 })
