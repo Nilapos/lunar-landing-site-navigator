@@ -60,7 +60,8 @@ person stays in their own area. If you must touch the other's area or a shared f
 
 - **Quentin**: data and logic. Owns `src/data/` and `src/lib/`.
 - **Teo**: interface and design. Owns `src/components/` and `src/styles/`.
-- **Shared** (coordinate first): `src/App.jsx`, `package.json`, `index.html`, this file.
+- **Shared** (coordinate first): `package.json`, `index.html`, this file.
+- `src/App.jsx`: Teo owns the layout, Quentin owns the state and hooks. See `DESIGN.md` for the design pass (Teo's brief).
 
 ## Stack
 
