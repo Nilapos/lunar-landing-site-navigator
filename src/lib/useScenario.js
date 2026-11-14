@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import profilesFile from '../data/horizon-profiles.json'
 import { southPoleSites } from '../data/south-pole-sites.js'
+import terrainFile from '../data/site-terrain.json'
 import { analyzeScenario } from './scenario.js'
 import { useEphemeris } from './useEphemeris.js'
 
@@ -13,6 +14,7 @@ export const DEFAULT_THRESHOLDS = { minSunDeg: 0, minEarthDeg: 0 }
 export function useScenario(state, enabled = true, thresholds = DEFAULT_THRESHOLDS) {
   const site = southPoleSites.find((s) => s.id === state.siteId)
   const profile = profilesFile.profiles[site.id]
+  const terrain = terrainFile.sites[site.id]
   const { data, error, loading } = useEphemeris(site, state.start, state.days, enabled)
   const { minSunDeg, minEarthDeg } = thresholds
 
@@ -20,5 +22,5 @@ export function useScenario(state, enabled = true, thresholds = DEFAULT_THRESHOL
     () => (data ? analyzeScenario(data.series, profile, { minSunDeg, minEarthDeg }) : null),
     [data, profile, minSunDeg, minEarthDeg],
   )
-  return { site, profile, data, error, loading, analysis }
+  return { site, profile, terrain, data, error, loading, analysis }
 }

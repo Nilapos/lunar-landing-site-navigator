@@ -13,7 +13,7 @@ const DELAY_DAYS = 2 // default "what if the landing slips" scenario B
 
 function evaluate(result, requirements) {
   if (!result.analysis) return null
-  return evaluateScenario(result.analysis, requirements, Date.parse(result.data.series[0].t))
+  return evaluateScenario(result.analysis, requirements, Date.parse(result.data.series[0].t), result.terrain)
 }
 
 export default function App() {

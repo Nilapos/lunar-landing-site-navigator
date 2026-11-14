@@ -22,6 +22,15 @@ const VERDICT_ROWS = [
   ['power', 'Power'],
   ['comms', 'Communication'],
   ['window', 'Landing window'],
+  ['terrain', 'Terrain'],
+]
+
+const SCORE_ROWS = [
+  ['global', 'Global score'],
+  ['solar', 'Solar exposure'],
+  ['telecom', 'Telecom'],
+  ['window', 'Window duration'],
+  ['topography', 'Topography'],
 ]
 
 // A versus B: verdicts (green / orange / red) first, then the measured values. The better value is highlighted.
@@ -53,6 +62,18 @@ export default function ComparisonTable({ rows, labelA, labelB, evalA, evalB }) 
                     <VerdictPill level={b} />
                   </td>
                   <td className="compare__delta">{a === b ? '=' : `${LEVEL_LABEL[a]} → ${LEVEL_LABEL[b]}`}</td>
+                </tr>
+              )
+            })}
+            {SCORE_ROWS.map(([key, label]) => {
+              const a = evalA.scores[key]
+              const b = evalB.scores[key]
+              return (
+                <tr key={`score-${key}`}>
+                  <th scope="row">{label} (/100)</th>
+                  <td className={a > b ? 'compare__better' : ''}>{a}</td>
+                  <td className={b > a ? 'compare__better' : ''}>{b}</td>
+                  <td className="compare__delta">{a === b ? '=' : `${b > a ? '+' : '-'}${Math.abs(b - a)}`}</td>
                 </tr>
               )
             })}

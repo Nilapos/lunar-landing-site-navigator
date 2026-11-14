@@ -125,10 +125,24 @@ body {
 .verdict__item { display: flex; align-items: baseline; }
 
 .requirements__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.requirements { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); margin-top: var(--space-2); }
+.requirements { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); margin-top: var(--space-2); }
+
+.scores { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-2); }
+.scores__tile { display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-bottom-width: 3px; border-radius: var(--radius); text-align: center; }
+.scores__tile--ok { border-bottom-color: var(--color-ok); }
+.scores__tile--warn { border-bottom-color: var(--color-warn); }
+.scores__tile--fail { border-bottom-color: var(--color-off); }
+.scores__tile--global { background: var(--color-surface-hover); }
+.scores__label { font-size: 0.75rem; color: var(--color-text-muted); }
+.scores__value { font-size: 1.5rem; font-weight: 700; }
+.scores__tile--global .scores__value { font-size: 1.75rem; }
+.scores__max { font-size: 0.875rem; font-weight: 400; color: var(--color-text-muted); }
+.panel__detail summary { cursor: pointer; }
+.panel__detail ul { margin: var(--space-2) 0 0; padding-left: var(--space-4); }
 .requirements__field { display: grid; gap: var(--space-1); }
 .button { padding: var(--space-1) var(--space-3); background: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border); border-radius: var(--radius); font: inherit; cursor: pointer; }
 .button:hover { background: var(--color-surface-hover); }
+.button--small { padding: 2px var(--space-2); font-size: 0.8125rem; margin-left: var(--space-1); }
 
 .metric__status { display: flex; align-items: center; width: fit-content; padding: 4px 12px; border: 1px solid currentColor; border-radius: 999px; font-size: 0.875rem; }
 
@@ -156,6 +170,7 @@ body {
 }
 @media (max-width: 1000px) {
   .requirements { grid-template-columns: repeat(2, 1fr); }
+  .scores { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 800px) {
   .controls { grid-template-columns: 1fr; }

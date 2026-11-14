@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { MOON_RADIUS_M, computeHorizonProfile, createDem, heightAt, toPixel } from './terrain.js'
+import { MOON_RADIUS_M, SLOPE_BINS, computeHorizonProfile, createDem, heightAt, slopeStats, toPixel } from './terrain.js'
 
 // Small synthetic map: 401 x 401 pixels of 1000 m (+-200 km around the pole), heights in 0.5 m units.
 function makeDem(fill) {
@@ -31,6 +31,18 @@ test('heightAt interpolates and is NaN outside', () => {
   const lat = -90 + (2 * Math.atan(500 / (2 * MOON_RADIUS_M)) * 180) / Math.PI
   assert.ok(Math.abs(heightAt(dem, lat, 270) - 50) < 0.01)
   assert.ok(Number.isNaN(heightAt(dem, -60, 0)))
+})
+
+test('slopeStats recovers the slope of a plane, and 0 on flat ground', () => {
+  // Height grows 100 m per 1000 m pixel eastward: atan(0.1) = 5.71 degrees.
+  const ramp = makeDem((c) => (c - 200) * 100)
+  const s = slopeStats(ramp, -88, 30, { radiusM: 1000, histogramRadiusM: 3000 })
+  assert.ok(Math.abs(s.slopeMeanDeg - 5.71) < 0.15, `mean ${s.slopeMeanDeg}`)
+  assert.ok(Math.abs(s.slopeMaxDeg - 5.71) < 0.15, `max ${s.slopeMaxDeg}`)
+  assert.equal(s.histogram500.length, SLOPE_BINS)
+  assert.ok(s.histogram500[5] > 0 && s.histogram500[10] === 0)
+  const flat = slopeStats(makeDem(() => 0), -88, 30, { radiusM: 1000, histogramRadiusM: 3000 })
+  assert.equal(flat.slopeMaxDeg, 0)
 })
 
 test('flat terrain gives a horizon of about 0 degrees', () => {

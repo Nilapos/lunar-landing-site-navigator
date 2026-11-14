@@ -24,8 +24,12 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 - A **scenario** = a site + a landing date + a period. `src/lib/scenario.js` turns a scenario's series into
   Sun / Earth / "both at once" windows and metrics, and compares two scenarios (`compareScenarios`).
   `src/lib/useScenario.js` (hook, with `useEphemeris.js`) loads and analyzes one scenario.
-- `src/lib/verdict.js`: green / orange / red verdicts (power, communication, landing window) by comparing
-  measured values with the rover requirements typed in `RequirementsPanel` (no home-made scores).
+- `src/lib/verdict.js` + `src/lib/scores.js`: green / orange / red verdicts and /100 scores (Solar Exposure,
+  Telecom, Window Duration, Topography, Global = average) by comparing measured values with the rover
+  requirements typed in `RequirementsPanel`. One rule everywhere: ratio = offered / needed, score =
+  100 x min(ratio / 2, 1) (50 = just met), green from ratio 1.2. No home-made formulas.
+- Slopes: `slopeStats` in `terrain.js` (LOLA 80 m, within 100 m of the site), precomputed with the horizons
+  into `src/data/site-terrain.json` by `scripts/compute-horizons.mjs` (rerun it when sites change).
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted). Functional first version, not styled
   for design yet: Teo's job.

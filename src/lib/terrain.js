@@ -44,6 +44,63 @@ export function heightAt(dem, latDeg, lonDeg) {
   return heightAtPixel(dem, col, row)
 }
 
+/** Slope (deg) at an integer pixel from its 8 neighbors (Horn's method); NaN on the map border. */
+function slopeAtPixel(dem, col, row) {
+  const { data, size, scaleM, heightFactor } = dem
+  if (col < 1 || row < 1 || col >= size - 1 || row >= size - 1) return NaN
+  const i = row * size + col
+  const a = data[i - size - 1]
+  const b = data[i - size]
+  const c = data[i - size + 1]
+  const d = data[i - 1]
+  const f = data[i + 1]
+  const g = data[i + size - 1]
+  const h = data[i + size]
+  const k = data[i + size + 1]
+  const dzdx = ((c + 2 * f + k - (a + 2 * d + g)) * heightFactor) / (8 * scaleM)
+  const dzdy = ((g + 2 * h + k - (a + 2 * b + c)) * heightFactor) / (8 * scaleM)
+  return Math.atan(Math.hypot(dzdx, dzdy)) / RAD
+}
+
+export const SLOPE_BINS = 46 // 1-degree bins from 0; the last one holds 45 degrees and more
+
+/**
+ * Terrain around a site: height, mean and maximum slope within `radiusM` (a lander's landing ellipse,
+ * 100 m), and a slope histogram within `histogramRadiusM` (to tell how much of the surroundings is steeper
+ * than a rover's limit). Slopes are computed at the map resolution (80 m), so they smooth out steeper
+ * local features.
+ */
+export function slopeStats(dem, latDeg, lonDeg, { radiusM = 100, histogramRadiusM = 500 } = {}) {
+  const [col, row] = toPixel(dem, latDeg, lonDeg)
+  const reachM = Math.max(radiusM, histogramRadiusM)
+  const reach = Math.ceil(reachM / dem.scaleM) + 1
+  const histogram = new Array(SLOPE_BINS).fill(0)
+  let sum = 0
+  let count = 0
+  let max = 0
+  for (let r = Math.round(row) - reach; r <= Math.round(row) + reach; r++) {
+    for (let c = Math.round(col) - reach; c <= Math.round(col) + reach; c++) {
+      const dist = Math.hypot(c - col, r - row) * dem.scaleM
+      if (dist > reachM) continue
+      const slope = slopeAtPixel(dem, c, r)
+      if (Number.isNaN(slope)) continue
+      if (dist <= radiusM) {
+        sum += slope
+        count++
+        if (slope > max) max = slope
+      }
+      if (dist <= histogramRadiusM) histogram[Math.min(Math.floor(slope), SLOPE_BINS - 1)]++
+    }
+  }
+  if (count === 0) throw new RangeError('Site is too close to the edge of the elevation map')
+  return {
+    elevationM: Math.round(heightAt(dem, latDeg, lonDeg)),
+    slopeMeanDeg: Math.round((sum / count) * 100) / 100,
+    slopeMaxDeg: Math.round(max * 100) / 100,
+    histogram500: histogram,
+  }
+}
+
 /**
  * Horizon profile seen from a site: 360 elevation angles (deg), index = azimuth in whole degrees
  * (0 = north, 90 = east). For each azimuth we walk outward along the great circle and keep the

@@ -42,6 +42,12 @@ export function addDaysIso(value, days) {
   return hasTime ? iso.slice(0, 16) : iso.slice(0, 10)
 }
 
+/** "2026-11-14T08:30" + 90 minutes -> "2026-11-14T10:00" (a date-only input counts as 00:00). */
+export function addMinutesIso(value, minutes) {
+  const base = value.includes('T') ? value : `${value}T00:00`
+  return new Date(Date.parse(`${base}:00Z`) + minutes * 60000).toISOString().slice(0, 16)
+}
+
 /** Today's date in UTC as "YYYY-MM-DD". */
 export function todayUtc() {
   return new Date().toISOString().slice(0, 10)

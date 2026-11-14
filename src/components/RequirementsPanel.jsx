@@ -1,9 +1,13 @@
+import { ANTENNAS } from '../lib/scores.js'
+
 const FIELDS = [
   { key: 'minSunDeg', label: 'Min Sun elevation', unit: '°', min: 0, max: 30, step: 0.5, help: 'Sun above the terrain horizon by at least this much' },
   { key: 'batteryHours', label: 'Battery autonomy', unit: 'h', min: 1, max: 720, step: 1, help: 'Longest darkness the rover survives' },
   { key: 'minEarthDeg', label: 'Min Earth elevation', unit: '°', min: 0, max: 30, step: 0.5, help: 'Antenna pointing limit above the terrain horizon' },
   { key: 'linkMinPerHour', label: 'Earth link needed', unit: 'min/h', min: 0, max: 60, step: 1, help: 'Direct-to-Earth time needed per hour' },
+  { key: 'bandwidthKbps', label: 'Data rate needed', unit: 'kbps', min: 0, max: 1000000, step: 1, help: 'Data rate the rover must send to Earth' },
   { key: 'landingMinutes', label: 'Landing sequence', unit: 'min', min: 1, max: 600, step: 1, help: 'Sun and Earth both needed for this long after landing' },
+  { key: 'maxSlopeDeg', label: 'Max slope', unit: '°', min: 0, max: 45, step: 0.5, help: 'Steepest slope the rover can drive' },
 ]
 
 // The rover's needs. They apply to both scenarios, so A and B are judged by the same rules.
@@ -36,11 +40,31 @@ export default function RequirementsPanel({ requirements, onChange, onReset }) {
             />
           </label>
         ))}
+        <label className="requirements__field" title="Antenna class: sets the data rate the link can carry">
+          <span className="controls__label">Antenna</span>
+          <select className="controls__input" value={requirements.antenna} onChange={(e) => onChange({ antenna: e.target.value })}>
+            {Object.entries(ANTENNAS).map(([key, a]) => (
+              <option key={key} value={key}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-      <p className="panel__detail">
-        Green: requirement met. Orange: met but within 20% of the limit (landing window: shorter than 3 times the
-        landing sequence). Red: not met.
-      </p>
+      <details className="panel__detail">
+        <summary>How are the scores and colors computed?</summary>
+        <p>
+          For each requirement: ratio = what the site offers / what the rover needs. Score = 100 x min(ratio / 2, 1):
+          50 means the requirement is just met, 100 means at least twice the margin. Green from ratio 1.2 (score 60),
+          orange between 1 and 1.2, red below 1. The global score is the average of the four.
+        </p>
+        <ul>
+          <li>Solar exposure: battery autonomy / longest darkness.</li>
+          <li>Telecom: the lower of (Earth link time per hour / needed) and (antenna data rate / needed).</li>
+          <li>Window duration: time Sun and Earth stay visible together after landing / landing sequence length.</li>
+          <li>Topography: rover max slope / steepest slope within 100 m (LOLA map, 80 m resolution, so local steeper features are smoothed).</li>
+        </ul>
+      </details>
     </section>
   )
 }

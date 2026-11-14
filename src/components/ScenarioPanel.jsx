@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { southPoleSites } from '../data/south-pole-sites.js'
-import { formatDuration, formatPercent, formatUtc } from '../lib/format.js'
+import { addMinutesIso, formatDuration, formatPercent, formatUtc } from '../lib/format.js'
 import { horizonAt, stateAt } from '../lib/visibility.js'
 import ElevationChart from './ElevationChart.jsx'
 import MetricCard from './MetricCard.jsx'
+import ScoreBar from './ScoreBar.jsx'
 import SiteControls from './SiteControls.jsx'
 import SkyView from './SkyView.jsx'
 import Verdict from './Verdict.jsx'
+
+const SHIFT_MARGIN_MIN = 15 // land a little after the window opens, not exactly on its edge
 
 // "Sunset in 3 h 10 min" / "Earthrise in 2.6 days" / "Sun above the horizon until the end of the period".
 function countdown(state, subject) {
@@ -49,7 +52,11 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
 
     body = (
       <>
-        <Verdict evaluation={evaluation} />
+        <ScoreBar evaluation={evaluation} />
+        <Verdict
+          evaluation={evaluation}
+          onShiftLanding={(ms) => update({ start: addMinutesIso(state.start, Math.ceil(ms / 60000) + SHIFT_MARGIN_MIN) })}
+        />
 
         <section className="metrics" aria-label="Key figures">
           <MetricCard
