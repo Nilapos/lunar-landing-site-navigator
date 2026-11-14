@@ -3,12 +3,13 @@
 <head><meta charset="utf-8"><title>Stitch</title></head>
 <body style="background:#111;color:#ddd;font:14px sans-serif">
 <div id="log">starting…</div>
-<canvas id="c" width="4096" height="2048" style="width:800px;height:400px"></canvas>
+<canvas id="c" width="2048" height="1024" style="width:800px;height:400px"></canvas>
 <script>
-// LRO WAC global mosaic (NASA/GSFC/Arizona State University) from NASA Moon Trek, tile level 3: 16 x 8 tiles of 256 px.
-const BASE = 'https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/3'
-const COLS = 16
-const ROWS = 8
+// LRO WAC global mosaic (NASA/GSFC/Arizona State University) from NASA Moon Trek, tile level 2: 8 x 4 tiles of 256 px (2048 x 1024, 5.3 km per pixel at the equator: enough for the globe;
+// the polar cap and its ring have their own, finer pictures). Level 3 would give 16 x 8 tiles (4096 x 2048), four times the memory.
+const BASE = 'https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/2'
+const COLS = 8
+const ROWS = 4
 const canvas = document.getElementById('c')
 const ctx = canvas.getContext('2d')
 const log = document.getElementById('log')

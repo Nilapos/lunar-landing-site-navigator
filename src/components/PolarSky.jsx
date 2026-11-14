@@ -78,6 +78,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const onPickPointRef = useRef(onPickPoint)
   const fineRef = useRef([])
   const lastPaintRef = useRef(0)
+  const pinsShownRef = useRef({ scene: null, json: null })
   const flightRef = useRef(false) // false until the first pose is set: no flight when the view opens
   const { terrain, hillshade, photo, error } = useTerrain3d()
   const [exaggeration, setExaggeration] = useState(1)
@@ -156,6 +157,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
       onView: setViewInfo,
     })
     sceneRef.current = scene
+    if (import.meta.env.DEV) window.__polarSky = scene // profiling from the console: __polarSky.benchmark()
     flightRef.current = false
     return () => {
       scene.dispose()
@@ -245,7 +247,15 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   useEffect(() => {
     // The selected point (if any) gets a pin like a named site, colored by its score.
     const pinItems = site?.custom ? [...items, { site, evaluation }] : items
-    sceneRef.current?.setSites(sitePins(pinItems, selected))
+    // Rebuilding the pins (geometry and label textures) is costly, and `evaluation` changes at every step of the timeline: only
+    // do it when what the pins show has changed.
+    const scene = sceneRef.current
+    if (!scene) return
+    const pins = sitePins(pinItems, selected)
+    const json = JSON.stringify(pins)
+    if (pinsShownRef.current.scene === scene && pinsShownRef.current.json === json) return
+    pinsShownRef.current = { scene, json }
+    scene.setSites(pins)
   }, [terrain, hillshade, items, selected, site, evaluation])
 
   useEffect(() => {

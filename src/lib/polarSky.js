@@ -3,7 +3,7 @@
 // Frame: Moon-fixed (mean Earth / polar axis), kilometers, x toward lon 0, y toward lon 90 E, z north (as sky.js).
 // The Moon is a sphere of radius 1737.4 km at the origin, so the south pole is at (0, 0, -R).
 import { cellLatLon } from './illumination.js'
-import { projectToMap } from './polarMap.js'
+import { MAP_RADIUS_KM, projectToMap } from './polarMap.js'
 import { skyAt, unitVector } from './sky.js'
 import { MOON_RADIUS_M } from './terrain.js'
 import { sampleHeight } from './terrain3d.js'
@@ -61,6 +61,102 @@ export function capIndices(grid) {
     }
   }
   return new Uint32Array(out)
+}
+
+/**
+ * Distance from the Moon's center (km) of every cell of the cap, and the lowest and highest ones inside the 80 S circle: what
+ * pickCap needs. `positions`: see capPositions. Recompute when the positions change.
+ */
+export function capRadii(positions, grid) {
+  const radii = new Float32Array(grid * grid)
+  const width = 2 * MAP_RADIUS_KM
+  let low = Infinity
+  let high = -Infinity
+  for (let gy = 0; gy < grid; gy++) {
+    for (let gx = 0; gx < grid; gx++) {
+      const c = gy * grid + gx
+      const r = Math.hypot(positions[c * 3], positions[c * 3 + 1], positions[c * 3 + 2])
+      radii[c] = r
+      const x = ((gx + 0.5) / grid - 0.5) * width
+      const y = (0.5 - (gy + 0.5) / grid) * width
+      if (Math.hypot(x, y) <= MAP_RADIUS_KM) {
+        low = Math.min(low, r)
+        high = Math.max(high, r)
+      }
+    }
+  }
+  return { radii, grid, low, high }
+}
+
+const PICK_STEP_KM = 0.4
+
+/**
+ * Where a ray first meets the cap, without testing its 130 000 triangles (about 13 ms on a fast computer: too much for a
+ * pointer move). The cap is a height field over the map: the ray is followed through the thin shell between its lowest and
+ * highest points, until it goes under the surface (heights interpolated between the four nearest cells), then refined.
+ *   bounds: capRadii(...);  origin, direction: the ray in scene coordinates (km), direction of unit length.
+ * Returns { point: [x, y, z], index } (index = the nearest cell, one vertex per cell) or null when the ray misses the cap.
+ */
+export function pickCap({ radii, grid, low, high }, origin, direction) {
+  const [ox, oy, oz] = origin
+  const [dx, dy, dz] = direction
+  const b = ox * dx + oy * dy + oz * dz
+  const c = ox * ox + oy * oy + oz * oz - high * high
+  const discriminant = b * b - c
+  if (discriminant < 0) return null
+  const root = Math.sqrt(discriminant)
+  const end = -b + root
+  if (end < 0) return null
+  const width = 2 * MAP_RADIUS_KM
+  const margin = MAP_RADIUS_KM - (width / grid) * 1.5 // keep the four cells of the interpolation inside the map
+  // Height of the surface under a point (km from the center), or NaN where the cap does not reach.
+  const surface = (px, py, pz) => {
+    const length = Math.hypot(px, py, pz)
+    const rho = 2 * MOON_RADIUS_KM * Math.tan((Math.asin(Math.min(1, Math.max(-1, pz / length))) + Math.PI / 2) / 2)
+    if (rho > margin) return NaN
+    const lon = Math.atan2(py, px)
+    const gx = (rho * Math.sin(lon) / width + 0.5) * grid - 0.5
+    const gy = (0.5 - (rho * Math.cos(lon)) / width) * grid - 0.5
+    const x0 = Math.floor(gx)
+    const y0 = Math.floor(gy)
+    if (x0 < 0 || y0 < 0 || x0 >= grid - 1 || y0 >= grid - 1) return NaN
+    const fx = gx - x0
+    const fy = gy - y0
+    const i = y0 * grid + x0
+    return (radii[i] * (1 - fx) + radii[i + 1] * fx) * (1 - fy) + (radii[i + grid] * (1 - fx) + radii[i + grid + 1] * fx) * fy
+  }
+  let t = Math.max(-b - root, 0)
+  let previous = t
+  while (t <= end) {
+    const px = ox + dx * t
+    const py = oy + dy * t
+    const pz = oz + dz * t
+    const r = Math.hypot(px, py, pz)
+    if (r < low - 0.5) return null // already inside the Moon, outside the cap: it cannot be hit any more
+    const s = surface(px, py, pz)
+    if (r < s) {
+      // Under the surface: refine between the last point above it and this one.
+      let a = previous
+      let z = t
+      for (let k = 0; k < 12; k++) {
+        const m = (a + z) / 2
+        const qx = ox + dx * m
+        const qy = oy + dy * m
+        const qz = oz + dz * m
+        const sm = surface(qx, qy, qz)
+        if (Math.hypot(qx, qy, qz) < sm) z = m
+        else a = m
+      }
+      const point = [ox + dx * z, oy + dy * z, oz + dz * z]
+      const { x, y } = mapXY(point)
+      const gx = Math.min(grid - 1, Math.max(0, Math.round((x / width + 0.5) * grid - 0.5)))
+      const gy = Math.min(grid - 1, Math.max(0, Math.round((0.5 - y / width) * grid - 0.5)))
+      return { point, index: gy * grid + gx }
+    }
+    previous = t
+    t += PICK_STEP_KM
+  }
+  return null
 }
 
 /** Position (km) of a point of the map on the exaggerated relief, `liftKm` above the ground. */

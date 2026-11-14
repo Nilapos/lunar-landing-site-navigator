@@ -9,6 +9,7 @@ import { ZONE_TEXTURE_SIZE } from './groundTexture.js'
 import {
   capIndices,
   capPositions,
+  capRadii,
   EARTH_RADIUS_KM,
   earthPosition,
   groundRings,
@@ -19,6 +20,7 @@ import {
   SUN_ANGULAR_RADIUS_DEG,
   sunDirection,
   mapXY,
+  pickCap,
   southPolarUv,
   SOUTH_MOSAIC_WIDTH_M,
   surfacePoint,
@@ -185,6 +187,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   const ground = createCapMaterial(terrain, renderer.capabilities.getMaxAnisotropy())
 
   const positions = capPositions(terrain, exaggeration)
+  let capBounds = capRadii(positions, N) // for pickCap: where a ray meets the cap
   const uvs = new Float32Array(N * N * 2)
   for (let gy = 0; gy < N; gy++) {
     for (let gx = 0; gx < N; gx++) {
@@ -267,7 +270,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   scene.add(moon)
 
   // The real Moon outside the polar cap, from the LRO WAC mosaics (NASA/GSFC/Arizona State University, via NASA Moon Trek): the
-  // global mosaic (equirectangular, public/moon-wac-4096.jpg) for most of the sphere, and the south polar mosaic (polar
+  // global mosaic (equirectangular, public/moon-wac-2048.jpg) for most of the sphere, and the south polar mosaic (polar
   // stereographic, public/moon-wac-south-2048.jpg) for the ring around the cap, where an equirectangular picture is stretched.
   // They replace the picture drawn by code once both are loaded; if a file is missing, the latter stays.
   let moonPhotos = []
@@ -275,7 +278,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   let disposed = false
   const textureLoader = new THREE.TextureLoader()
   const loadPhoto = (url) => new Promise((resolve) => textureLoader.load(url, resolve, undefined, () => resolve(null)))
-  Promise.all([loadPhoto('/moon-wac-4096.jpg'), loadPhoto('/moon-wac-south-2048.jpg')]).then(([globalPhoto, southPhoto]) => {
+  Promise.all([loadPhoto('/moon-wac-2048.jpg'), loadPhoto('/moon-wac-south-2048.jpg')]).then(([globalPhoto, southPhoto]) => {
     if (disposed || !globalPhoto || !southPhoto) {
       globalPhoto?.dispose()
       southPhoto?.dispose()
@@ -612,27 +615,19 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
 
   const raycaster = new THREE.Raycaster()
   const pointer = new THREE.Vector2()
-  const vertex = new THREE.Vector3()
   function pointerRay(e) {
     const rect = el.getBoundingClientRect()
     pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1)
     raycaster.setFromCamera(pointer, camera)
   }
-  // The cell whose center is the closest corner of the triangle under the pointer (one vertex per cell).
+  // The cell (one vertex per cell) under the pointer, and the point of the cap there (lastHit). Not a raycast on the mesh: its
+  // 130 000 triangles cost about 13 ms per test, at every pointer move; see pickCap.
   function cellUnderPointer() {
-    const hit = raycaster.intersectObject(cap, false)[0]
+    const { origin, direction } = raycaster.ray
+    const hit = pickCap(capBounds, origin.toArray(), direction.toArray())
     if (!hit) return null
-    lastHit = hit.point.toArray()
-    let best = null
-    let bestDistance = Infinity
-    for (const index of [hit.face.a, hit.face.b, hit.face.c]) {
-      const d = vertex.fromArray(positions, index * 3).distanceToSquared(hit.point)
-      if (d < bestDistance) {
-        bestDistance = d
-        best = index
-      }
-    }
-    return best
+    lastHit = hit.point
+    return hit.index
   }
 
   let downAt = null
@@ -754,6 +749,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     setExaggeration(value) {
       exaggeration = value
       capPositions(terrain, exaggeration, positions)
+      capBounds = capRadii(positions, N)
       if (zoneMesh) {
         zonePositions(zone, exaggeration, zoneMesh.geometry.attributes.position.array)
         zoneMesh.geometry.attributes.position.needsUpdate = true
@@ -859,6 +855,48 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     /** Site view: turn toward 'sun' or 'earth'. */
     lookAt: lookAtBody,
     resetView,
+    /**
+     * Profiling aid (works while the page is hidden, where the animation loop is paused): renders `frames` frames synchronously,
+     * waiting for the GPU each time, and returns the average ms per frame for the whole scene and with one part left out at a time.
+     */
+    benchmark(frames = 20) {
+      const gl = renderer.getContext()
+      const px = new Uint8Array(4)
+      const measure = () => {
+        renderer.render(scene, camera)
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+        const t = performance.now()
+        for (let i = 0; i < frames; i++) {
+          renderer.render(scene, camera)
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+        }
+        return +((performance.now() - t) / frames).toFixed(2)
+      }
+      const parts = { cap, sky, markers, skyDome, milkyWay, moon: { set visible(v) { for (const m of moonPhotoMeshes) m.visible = v } } }
+      const result = { size: [el.width, el.height], pixelRatio: renderer.getPixelRatio(), full: measure(), without: {} }
+      for (const [name, part] of Object.entries(parts)) {
+        const was = name === 'moon' ? moonPhotoMeshes.map((m) => m.visible) : part.visible
+        part.visible = false
+        result.without[name] = measure()
+        if (name === 'moon') moonPhotoMeshes.forEach((m, i) => (m.visible = was[i]))
+        else part.visible = was
+      }
+      const ratio = renderer.getPixelRatio()
+      renderer.setPixelRatio(1)
+      renderer.setSize(container.clientWidth, container.clientHeight, false)
+      result.pixelRatio1 = measure()
+      renderer.setPixelRatio(ratio)
+      renderer.setSize(container.clientWidth, container.clientHeight, false)
+      const t0 = performance.now()
+      for (let i = 0; i < 20; i++) {
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera)
+        cellUnderPointer()
+      }
+      result.raycastMs = +((performance.now() - t0) / 20).toFixed(2)
+      result.triangles = renderer.info.render.triangles
+      result.drawCalls = renderer.info.render.calls
+      return result
+    },
     dispose() {
       renderer.setAnimationLoop(null)
       observer.disconnect()

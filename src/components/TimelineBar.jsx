@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { formatUtc } from '../lib/format.js'
 import { dayTicks, STEP_UNITS, stepIndex } from '../lib/timelineTools.js'
 import Icon from './Icon.jsx'
@@ -8,8 +8,17 @@ export default function TimelineBar({ timeline }) {
   const { samples, index, sky } = timeline
   const [unitKey, setUnitKey] = useState('hour')
   const unit = STEP_UNITS.find((u) => u.key === unitKey)
-  const ticks = samples ? dayTicks(samples) : []
   const last = samples ? samples.length - 1 : 0
+  // The day marks only depend on the period: not rebuilt at every step of the timeline.
+  const tickMarks = useMemo(
+    () =>
+      (samples ? dayTicks(samples) : []).map((t) => (
+        <span key={t.index} className="timeline__tick" style={{ left: `${(t.index / Math.max(last, 1)) * 100}%` }}>
+          {t.label}
+        </span>
+      )),
+    [samples, last],
+  )
   const move = (direction) => timeline.setIndex(stepIndex(samples, index, unit.ms, direction))
 
   return (
@@ -51,11 +60,7 @@ export default function TimelineBar({ timeline }) {
           aria-label="Moment shown in the views"
         />
         <div className="timeline__ticks" aria-hidden="true">
-          {ticks.map((t) => (
-            <span key={t.index} className="timeline__tick" style={{ left: `${(t.index / Math.max(last, 1)) * 100}%` }}>
-              {t.label}
-            </span>
-          ))}
+          {tickMarks}
         </div>
       </div>
     </div>

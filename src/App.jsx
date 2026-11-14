@@ -88,8 +88,9 @@ export default function App() {
   // Minimum elevations change what counts as "visible", so they feed the analysis itself.
   const resultA = useScenario(a, true, requirements, custom)
   const resultB = useScenario(b ?? a, compare && b !== null, requirements, custom)
-  const evalA = evaluate(resultA, requirements)
-  const evalB = compare ? evaluate(resultB, requirements) : null
+  // Memoized: the sky views re-render at every step of the timeline, the evaluation of the whole period does not change then.
+  const evalA = useMemo(() => evaluate(resultA, requirements), [resultA, requirements])
+  const evalB = useMemo(() => (compare ? evaluate(resultB, requirements) : null), [compare, resultB, requirements])
 
   // "What if we land at this moment?": the scores of the sky view are measured from the moment of the timeline onward.
   const atMs = timeline.sample ? Date.parse(timeline.sample.t) : null

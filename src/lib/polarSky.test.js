@@ -7,6 +7,7 @@ import {
   angularRadiusDeg,
   capIndices,
   capPositions,
+  capRadii,
   causeText,
   EARTH_RADIUS_KM,
   earthPosition,
@@ -14,6 +15,7 @@ import {
   groundRings,
   horizonDirection,
   MOON_RADIUS_KM,
+  pickCap,
   placeBody,
   polarUv,
   siteBodyStates,
@@ -165,3 +167,40 @@ test('the Moon picture is centered on the south pole: pole in the middle, north 
     close(Math.hypot(u - 0.5, v - 0.5), 0.5 * (10 / 180), 1e-9)
   }
 })
+
+test('a ray from above hits the cap where it should, a ray that misses it hits nothing', () => {
+  const terrain = makeTerrain({ grid: 64, heightM: 0 })
+  const bounds = capRadii(capPositions(terrain, 1), 64)
+  // Straight down on the pole.
+  const down = pickCap(bounds, [0, 0, -(MOON_RADIUS_KM + 100)], [0, 0, 1])
+  assert.ok(down)
+  close(length(down.point), MOON_RADIUS_KM, 0.05)
+  assert.ok(Math.hypot(down.point[0], down.point[1]) < 1)
+  // Down on a point 100 km from the pole toward lon 90 E (+y), from 50 km up: the cell is the one under it.
+  const target = surfacePoint(terrain, -90 + 100 / 30.32, 90, 1)
+  const up = target.map((v) => v / length(target))
+  const from = target.map((v, i) => v + up[i] * 50)
+  const hit = pickCap(bounds, from, up.map((v) => -v))
+  assert.ok(hit)
+  close(hit.point[0], target[0], 0.1)
+  close(hit.point[1], target[1], 0.1)
+  close(hit.point[2], target[2], 0.1)
+  // A ray over the far side of the Moon, or passing high above the pole: no hit.
+  assert.equal(pickCap(bounds, [0, 0, MOON_RADIUS_KM + 100], [0, 0, -1]), null)
+  assert.equal(pickCap(bounds, [0, 3000, -2000], [0, -1, 0]), null)
+});
+
+test('the picked cell follows the relief: a bump is hit on its summit, not behind it', () => {
+  const terrain = makeTerrain({ grid: 64, heightM: 0 })
+  // A 4 km high bump around cell (40, 32).
+  for (let gy = 30; gy <= 34; gy++) for (let gx = 38; gx <= 42; gx++) terrain.heights[gy * 64 + gx] = 4000
+  const positions = capPositions(terrain, 1)
+  const bounds = capRadii(positions, 64)
+  const top = positions.slice((32 * 64 + 40) * 3, (32 * 64 + 40) * 3 + 3)
+  const u = Array.from(top).map((v) => v / length(top))
+  const from = Array.from(top).map((v, i) => v + u[i] * 30)
+  const hit = pickCap(bounds, from, u.map((v) => -v))
+  assert.ok(hit)
+  assert.equal(hit.index, 32 * 64 + 40)
+  close(length(hit.point), length(top), 0.2)
+});

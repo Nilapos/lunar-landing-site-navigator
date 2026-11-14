@@ -3,7 +3,7 @@
 // Usage: node scripts/moon-textures/serve.cjs <page.html> <output.jpg> [port]
 //   then open http://127.0.0.1:<port>/ in a browser (the app's built-in browser works). The page fetches the tiles from
 //   NASA Moon Trek (CORS is open), stitches them on a canvas and posts the JPEG back here, which saves it. Stop with Ctrl+C.
-//   Pages: global.html -> public/moon-wac-4096.jpg, south.html -> public/moon-wac-south-2048.jpg, pole.html -> public/south-pole-photo.jpg.
+//   Pages: global.html -> public/moon-wac-2048.jpg, south.html -> public/moon-wac-south-2048.jpg, pole.html -> public/south-pole-photo.jpg.
 const http = require('http')
 const fs = require('fs')
 const path = require('path')
