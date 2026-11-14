@@ -80,11 +80,9 @@ export default function App() {
           items={overview.items}
           selected={compare && b ? { A: a.siteId, B: b.siteId } : { A: a.siteId }}
           onSelect={selectSite}
-          maxSlopeDeg={requirements.maxSlopeDeg}
+          requirements={requirements}
           start={a.start}
           days={a.days}
-          minSunDeg={requirements.minSunDeg}
-          minEarthDeg={requirements.minEarthDeg}
         />
 
         {showTable && (

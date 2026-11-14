@@ -2,13 +2,13 @@
 // World units are kilometers: x to the east (right), z toward lon 180 (toward the viewer), y up.
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { TEXTURE_SIZE } from './groundTexture.js'
 import { projectToMap } from './polarMap.js'
 import { sampleHeight } from './terrain3d.js'
 
-export const TEXTURE_SIZE = 1024
-const LEVEL_COLOR = { ok: 0x6ee7a8, warn: 0xffb74d, fail: 0xff8a80, unknown: 0x9aa3b5 }
+export const LEVEL_COLOR = { ok: 0x6ee7a8, warn: 0xffb74d, fail: 0xff8a80, unknown: 0x9aa3b5 }
 
-function makeLabel(text) {
+export function makeLabel(text) {
   const canvas = document.createElement('canvas')
   canvas.width = 512
   canvas.height = 96

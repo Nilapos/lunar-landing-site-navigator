@@ -22,7 +22,7 @@ const ORDER = { ok: 0, warn: 1, fail: 2 }
 const HOUR = 3600000
 const MINUTE = 60000
 
-function powerItem(sun, req) {
+export function powerItem(sun, req) {
   if (sun.summary.visibleFraction === 0) {
     return { ratio: 0, detail: 'The Sun never rises above the horizon in this period.' }
   }
@@ -33,7 +33,7 @@ function powerItem(sun, req) {
   }
 }
 
-function commsItem(earth, req) {
+export function commsItem(earth, req) {
   const minPerHour = earth.summary.visibleFraction * 60
   const antenna = ANTENNAS[req.antenna]
   const timeRatio = ratio(minPerHour, req.linkMinPerHour)

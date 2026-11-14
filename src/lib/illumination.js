@@ -11,13 +11,25 @@ import { MOON_RADIUS_M } from './terrain.js'
 const DEG = 180 / Math.PI
 const R_KM = MOON_RADIUS_M / 1000
 
+/** Latitude, east longitude (deg) and distance from the pole as a fraction of the map radius, for a cell center. */
+export function cellLatLon(grid, gx, gy) {
+  const width = 2 * MAP_RADIUS_KM
+  const x = ((gx + 0.5) / grid - 0.5) * width
+  const y = (0.5 - (gy + 0.5) / grid) * width
+  const rho = Math.hypot(x, y)
+  return {
+    lat: -90 + 2 * Math.atan(rho / (2 * R_KM)) * DEG,
+    lon: (Math.atan2(x, y) * DEG + 360) % 360,
+    edge: rho / MAP_RADIUS_KM,
+  }
+}
+
 /**
  * Local frame (up, east, north) of every cell center, computed once. Cells without horizon data are marked
  * invalid (the corners of the map, outside the 80 S circle). `terrain` needs grid and horizon (see loadTerrain3d).
  */
 export function buildCellFrames(terrain) {
   const N = terrain.grid
-  const width = 2 * MAP_RADIUS_KM
   const up = new Float32Array(N * N * 3)
   const east = new Float32Array(N * N * 3)
   const north = new Float32Array(N * N * 3)
@@ -26,11 +38,7 @@ export function buildCellFrames(terrain) {
     for (let gx = 0; gx < N; gx++) {
       const c = gy * N + gx
       if (terrain.horizon[c * AZIMUTHS] === 0) continue
-      const x = ((gx + 0.5) / N - 0.5) * width
-      const y = (0.5 - (gy + 0.5) / N) * width
-      const rho = Math.hypot(x, y)
-      const lon = (Math.atan2(x, y) * DEG + 360) % 360
-      const lat = -90 + 2 * Math.atan(rho / (2 * R_KM)) * DEG
+      const { lat, lon } = cellLatLon(N, gx, gy)
       const f = localFrame(lat, lon)
       up.set(f.up, c * 3)
       east.set(f.east, c * 3)
