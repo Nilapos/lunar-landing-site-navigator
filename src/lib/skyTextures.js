@@ -102,27 +102,50 @@ export function makeSunGlowCanvas(size = 512) {
   return canvas
 }
 
-/** Equirectangular picture for the Moon outside the mapped cap: neutral gray with a faint grid every 15 degrees. */
-export function makeMoonCanvas(width = 1024, height = 512) {
+/**
+ * Equirectangular picture for the Moon outside the mapped cap: a pixelated gray Moon (bright highlands, darker
+ * patches, a few dark craters), one coarse square per pixel (2 degrees). Draw it with nearest-neighbor filtering.
+ * Made up, not LOLA data: it only says "this is the rest of the Moon".
+ */
+export function makeMoonCanvas(width = 180, height = 90) {
   const canvas = newCanvas(width, height)
   const ctx = canvas.getContext('2d')
-  ctx.fillStyle = '#7a7c80'
-  ctx.fillRect(0, 0, width, height)
-  ctx.strokeStyle = 'rgba(255,255,255,0.13)'
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  for (let lon = 0; lon <= 360; lon += 15) {
-    const x = Math.round((lon / 360) * width) + 0.5
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, height)
+  const image = ctx.createImageData(width, height)
+  for (let j = 0; j < height; j++) {
+    const lat = (0.5 - (j + 0.5) / height) * Math.PI
+    for (let i = 0; i < width; i++) {
+      const lon = ((i + 0.5) / width) * 2 * Math.PI
+      const x = Math.cos(lat) * Math.cos(lon)
+      const y = Math.cos(lat) * Math.sin(lon)
+      const z = Math.sin(lat)
+      const broad = fbm(x * 1.7 + 11, y * 1.7 + 3, z * 1.7 + 7, 4) // large dark and bright regions
+      const speckle = hash(i, j, 5) - 0.5
+      const crater = hash(Math.floor(i / 3), Math.floor(j / 3), 9) > 0.97 ? -45 : 0
+      // Quantized to 14 gray levels so the squares stay distinct, like the pixel-art reference.
+      const level = Math.round((70 + 215 * broad + 26 * speckle + crater) / 18) * 18
+      const v = Math.min(Math.max(level, 55), 235)
+      const o = (j * width + i) * 4
+      image.data[o] = v
+      image.data[o + 1] = v
+      image.data[o + 2] = v
+      image.data[o + 3] = 255
+    }
   }
-  for (let lat = 15; lat < 180; lat += 15) {
-    const y = Math.round((lat / 180) * height) + 0.5
-    ctx.moveTo(0, y)
-    ctx.lineTo(width, y)
-  }
-  ctx.stroke()
+  ctx.putImageData(image, 0, 0)
   return canvas
+}
+
+/** Direction (unit vectors) and brightness of `count` stars, always the same ones (seeded): [x, y, z, brightness, ...]. */
+export function makeStarField(count = 1800) {
+  const out = new Float32Array(count * 4)
+  for (let k = 0; k < count; k++) {
+    // Uniform on the sphere.
+    const z = hash(k, 1, 2) * 2 - 1
+    const lon = hash(k, 3, 4) * 2 * Math.PI
+    const r = Math.sqrt(1 - z * z)
+    out.set([r * Math.cos(lon), r * Math.sin(lon), z, 0.35 + 0.65 * hash(k, 5, 6) ** 3], k * 4)
+  }
+  return out
 }
 
 /** Reticle of the hover probe: a ring with four ticks, as on a targeting display. */
