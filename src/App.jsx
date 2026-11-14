@@ -1,4 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
+import ArtemisRegions from './components/ArtemisRegions.jsx'
 import ComparisonTable from './components/ComparisonTable.jsx'
 import LayerToggles from './components/LayerToggles.jsx'
 import MissionHistory from './components/MissionHistory.jsx'
@@ -106,17 +107,20 @@ export default function App() {
     content = <Why result={resultA} requirements={requirements} timeline={timeline} />
   } else if (tab === 'sites') {
     content = (
-      <SitesOverview
-        items={overview.items}
-        loadedCount={overview.loadedCount}
-        start={a.start}
-        days={a.days}
-        selected={selected}
-        onSelect={selectSite}
-        compare={compare && b !== null}
-        target={mapTarget}
-        onTargetChange={setMapTarget}
-      />
+      <div className="stage__scroll">
+        <ArtemisRegions onSelect={selectSite} />
+        <SitesOverview
+          items={overview.items}
+          loadedCount={overview.loadedCount}
+          start={a.start}
+          days={a.days}
+          selected={selected}
+          onSelect={selectSite}
+          compare={compare && b !== null}
+          target={mapTarget}
+          onTargetChange={setMapTarget}
+        />
+      </div>
     )
   } else {
     content = (
@@ -150,7 +154,10 @@ export default function App() {
       top={
         <>
           <div className="brand">
-            <span className="brand__name">MOONWALK</span>
+            <span className="brand__name">
+              <span className="brand__mark" aria-hidden="true" />
+              MOONWALK
+            </span>
             <span className="brand__sub">Lunar Landing Site Navigator</span>
           </div>
           <div className="topscores">

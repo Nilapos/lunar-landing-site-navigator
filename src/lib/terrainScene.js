@@ -2,22 +2,34 @@
 // World units are kilometers: x to the east (right), z toward lon 180 (toward the viewer), y up.
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { cssToken } from './cssTokens.js'
 import { TEXTURE_SIZE } from './groundTexture.js'
 import { projectToMap } from './polarMap.js'
 import { sampleHeight } from './terrain3d.js'
 
-export const LEVEL_COLOR = { ok: 0x6ee7a8, warn: 0xffb74d, fail: 0xff8a80, unknown: 0x9aa3b5 }
+// Pin colors come from the design tokens, so the 3D views match the score colors of the interface.
+const LEVEL_TOKEN = { ok: '--color-ok', warn: '--color-warn', fail: '--color-off', unknown: '--color-text-muted' }
+/** Ring around the sites of scenarios A and B: the bright edge of the region squares. */
+export function selectionColor() {
+  return new THREE.Color(cssToken('--color-region-edge') || '#70e0df')
+}
+export function levelColor(level) {
+  return new THREE.Color(cssToken(LEVEL_TOKEN[level] ?? LEVEL_TOKEN.unknown) || '#a6afc0')
+}
 
 export function makeLabel(text) {
   const canvas = document.createElement('canvas')
   canvas.width = 512
   canvas.height = 96
   const ctx = canvas.getContext('2d')
-  ctx.font = 'bold 44px system-ui, sans-serif'
+  // White bold sans with a soft shadow, like the region names in NASA's Artemis III videos.
+  ctx.font = `bold 44px ${cssToken('--font-label') || 'Helvetica, Arial, sans-serif'}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.lineWidth = 8
-  ctx.strokeStyle = '#000'
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+  ctx.shadowBlur = 10
+  ctx.lineWidth = 4
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)'
   ctx.strokeText(text, 256, 48)
   ctx.fillStyle = '#fff'
   ctx.fillText(text, 256, 48)
@@ -127,7 +139,7 @@ export function createTerrainScene(container, terrain, { onPick }) {
       const ground = (sampleHeight(terrain, fx, fy) / 1000) * exaggeration
       const group = new THREE.Group()
       group.position.set((fx - 0.5) * width, ground, (fy - 0.5) * width)
-      const color = LEVEL_COLOR[s.level] ?? LEVEL_COLOR.unknown
+      const color = levelColor(s.level)
       const pinHeight = 22
       const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, pinHeight, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }))
       pin.position.y = pinHeight / 2
@@ -135,7 +147,7 @@ export function createTerrainScene(container, terrain, { onPick }) {
       head.position.y = pinHeight + 3
       group.add(pin, head)
       if (s.selectedLabels.length) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(7.5, 0.9, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd166 }))
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(7.5, 0.9, 8, 32), new THREE.MeshBasicMaterial({ color: selectionColor() }))
         ring.rotation.x = Math.PI / 2
         ring.position.y = 1
         group.add(ring)

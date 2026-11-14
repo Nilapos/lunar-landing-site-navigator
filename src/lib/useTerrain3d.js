@@ -38,3 +38,8 @@ export function sitePins(items, selected) {
       .map(([label]) => label),
   }))
 }
+
+/** Artemis III candidate regions among the sites, drawn as squares on the ground like in NASA's videos. */
+export function candidateRegions(sites) {
+  return sites.filter((s) => s.group === 'artemis').map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }))
+}

@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { southPoleSites } from '../data/south-pole-sites.js'
+import { groundOverlayColors } from '../lib/cssTokens.js'
 import { paintGround } from '../lib/groundTexture.js'
 import { buildCellFrames } from '../lib/illumination.js'
 import { createTerrainScene } from '../lib/terrainScene.js'
-import { sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
+import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
+
+// The Artemis III candidate regions, painted on the ground as in NASA's videos.
+const REGIONS = candidateRegions(southPoleSites)
 
 // 3D relief of the south pole with the sites on it and layers painted on the ground: sunlight and shadows and
 // Earth visibility at the moment of the shared timeline, and the forbidden zones.
@@ -36,7 +41,15 @@ export default function Terrain3D({ items, selected, onSelect, requirements, tim
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene || !terrain || !hillshade) return
-    paintGround(scene.textureCanvas, { hillshade, terrain, frames, sample, layers, requirements })
+    paintGround(scene.textureCanvas, {
+      hillshade,
+      terrain,
+      frames,
+      sample,
+      layers,
+      requirements,
+      overlay: { regions: REGIONS, colors: groundOverlayColors() },
+    })
     scene.refreshTexture()
   }, [terrain, hillshade, frames, sample, layers, requirements])
 

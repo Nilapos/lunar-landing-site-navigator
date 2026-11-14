@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import horizonFile from '../data/horizon-profiles.json'
+import { southPoleSites } from '../data/south-pole-sites.js'
 import { probeCell } from '../lib/cellProbe.js'
+import { groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent, formatUtc } from '../lib/format.js'
 import { paintGround } from '../lib/groundTexture.js'
 import { buildCellFrames } from '../lib/illumination.js'
 import { causeText, siteBodyStates } from '../lib/polarSky.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
-import { sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
+import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
 import { LEVEL_LABEL } from '../lib/verdict.js'
+
+// The Artemis III candidate regions, painted on the ground as in NASA's videos.
+const REGIONS = candidateRegions(southPoleSites)
 
 const signed = (deg) => `${deg >= 0 ? '+' : '−'}${Math.abs(deg).toFixed(1)}°`
 
@@ -105,7 +110,15 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene || !terrain || !hillshade) return
-    paintGround(scene.textureCanvas, { hillshade, terrain, frames, sample, layers, requirements })
+    paintGround(scene.textureCanvas, {
+      hillshade,
+      terrain,
+      frames,
+      sample,
+      layers,
+      requirements,
+      overlay: { regions: REGIONS, colors: groundOverlayColors() },
+    })
     scene.refreshTexture()
   }, [terrain, hillshade, frames, sample, layers, requirements])
 

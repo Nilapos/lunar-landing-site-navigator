@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { artemisRegions } from './artemis-regions.js'
 import { missions } from './missions.js'
 import { SITE_GROUPS, southPoleSites } from './south-pole-sites.js'
 
@@ -43,4 +44,10 @@ test('missions: valid status, coordinates both set or both null, links point to 
     if (m.siteId) assert.ok(siteIds.has(m.siteId), `${m.id} siteId`)
     assert.ok(m.sources.length > 0 && m.sources.every(isHttps), `${m.id} sources`)
   }
+})
+
+test('the Artemis III region list has the 13 regions of 2022 and links only to existing sites', () => {
+  assert.equal(artemisRegions.length, 13)
+  const ids = new Set(southPoleSites.map((s) => s.id))
+  for (const r of artemisRegions) if (r.siteId) assert.ok(ids.has(r.siteId), r.siteId)
 })

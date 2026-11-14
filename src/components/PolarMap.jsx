@@ -1,4 +1,4 @@
-import { circleRadius, projectToMap } from '../lib/polarMap.js'
+import { GRID_LATS, GRID_LONS, circleRadius, projectToMap, regionSquare } from '../lib/polarMap.js'
 import { scoreLevel } from '../lib/scores.js'
 import { LEVEL_LABEL } from '../lib/verdict.js'
 
@@ -11,15 +11,22 @@ const LABEL_OFFSETS = {
 const DEFAULT_OFFSET = { dx: 13, dy: 4, anchor: 'start' }
 
 const SIZE = 640 // drawing units (the SVG scales to any width)
-const LAT_CIRCLES = [-88, -86, -84, -82]
-const SPOKES = [0, 45, 90, 135, 180, 225, 270, 315]
 const spokeLabel = (lon) => (lon === 0 ? '0°' : lon === 180 ? '180°' : lon < 180 ? `${lon}°E` : `${360 - lon}°W`)
 
-// Marker shape per group: circle = Artemis III region, diamond = mission site, triangle = reference point.
-function Shape({ group, r }) {
-  if (group === 'mission') return <path d={`M0 ${-r * 1.3} L${r * 1.3} 0 L0 ${r * 1.3} L${-r * 1.3} 0 Z`} />
-  if (group === 'reference') return <path d={`M0 ${-r * 1.3} L${r * 1.2} ${r} L${-r * 1.2} ${r} Z`} />
-  return <circle r={r} />
+// Marker per group. Artemis III region: a translucent teal square at its real size (about 15 km), as in NASA's videos,
+// with a dot in the corner colored by the score. Mission site: diamond. Reference point: triangle.
+function Marker({ site, r }) {
+  if (site.group === 'artemis') {
+    const side = Math.max(regionSquare(site.lat, site.lon).side * SIZE, 14)
+    return (
+      <>
+        <rect className="polar__region" x={-side / 2} y={-side / 2} width={side} height={side} />
+        <circle className="polar__marker" cx={side / 2} cy={-side / 2} r={4} />
+      </>
+    )
+  }
+  if (site.group === 'mission') return <path className="polar__marker" d={`M0 ${-r * 1.3} L${r * 1.3} 0 L0 ${r * 1.3} L${-r * 1.3} 0 Z`} />
+  return <path className="polar__marker" d={`M0 ${-r * 1.3} L${r * 1.2} ${r} L${-r * 1.2} ${r} Z`} />
 }
 
 // Hillshaded map of the south polar region (LOLA) with the sites on it, colored by feasibility.
@@ -31,7 +38,7 @@ export default function PolarMap({ items, selected, onSelect }) {
       <svg className="polar__svg" viewBox={`0 0 ${SIZE} ${SIZE}`} role="group" aria-label="Map of the lunar south pole with candidate sites">
         <image href="/south-pole-hillshade.png" width={SIZE} height={SIZE} />
 
-        {LAT_CIRCLES.map((lat) => (
+        {GRID_LATS.map((lat) => (
           <g key={lat}>
             <circle className="polar__grid" cx={SIZE / 2} cy={SIZE / 2} r={px(circleRadius(lat))} />
             <text className="polar__tick" x={SIZE / 2 + 4} y={SIZE / 2 - px(circleRadius(lat)) + 11}>
@@ -39,7 +46,7 @@ export default function PolarMap({ items, selected, onSelect }) {
             </text>
           </g>
         ))}
-        {SPOKES.map((lon) => {
+        {GRID_LONS.map((lon) => {
           const edge = projectToMap(-80, lon)
           const label = projectToMap(-80.9, lon)
           return (
@@ -79,7 +86,7 @@ export default function PolarMap({ items, selected, onSelect }) {
             >
               <title>{title}</title>
               {labels.length > 0 && <circle className="polar__ring" r="15" />}
-              <Shape group={site.group} r={8} />
+              <Marker site={site} r={7} />
               <text className="polar__label" x={offset.dx} y={offset.dy} textAnchor={offset.anchor}>
                 {site.shortName}
                 {labels.length > 0 && ` (${labels.join(', ')})`}
@@ -101,7 +108,10 @@ export default function PolarMap({ items, selected, onSelect }) {
         </span>
         <span>
           <span className="dot dot--unknown" /> loading</span>
-        <span>● Artemis III region · ◆ mission site · ▲ reference point</span>
+        <span className="polar__key">
+          <span className="region-swatch" /> Artemis III candidate region (about 15 km, NASA SVS 5013)
+        </span>
+        <span>◆ mission site · ▲ reference point</span>
       </figcaption>
     </figure>
   )

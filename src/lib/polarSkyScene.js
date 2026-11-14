@@ -3,6 +3,7 @@
 // only draws. Frame: Moon-fixed, kilometers, z north, so "up" at the south pole is -z.
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { cssToken } from './cssTokens.js'
 import { TEXTURE_SIZE } from './groundTexture.js'
 import {
   capIndices,
@@ -20,7 +21,7 @@ import {
 } from './polarSky.js'
 import { azEl, localFrame } from './sky.js'
 import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeReticleCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
-import { LEVEL_COLOR, makeLabel } from './terrainScene.js'
+import { levelColor, makeLabel, selectionColor } from './terrainScene.js'
 
 const RAD = Math.PI / 180
 const DISPLAY_KM = 40000 // the bodies are drawn this far from the camera (true direction, true angular size)
@@ -254,7 +255,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       const group = new THREE.Group()
       group.position.fromArray(surfacePoint(terrain, s.lat, s.lon, exaggeration))
       group.quaternion.setFromUnitVectors(Y_AXIS, group.position.clone().normalize())
-      const color = LEVEL_COLOR[s.level] ?? LEVEL_COLOR.unknown
+      const color = levelColor(s.level)
       const pinHeight = 16
       const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, pinHeight, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }))
       pin.position.y = pinHeight / 2
@@ -262,7 +263,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       head.position.y = pinHeight + 2
       group.add(pin, head)
       if (s.selectedLabels.length) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(6, 0.7, 8, 32), new THREE.MeshBasicMaterial({ color: SUN_COLOR }))
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(6, 0.7, 8, 32), new THREE.MeshBasicMaterial({ color: selectionColor() }))
         ring.rotation.x = Math.PI / 2
         ring.position.y = 1
         group.add(ring)
@@ -352,7 +353,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     const ground = new THREE.Mesh(geometry, groundMaterial)
     const lineGeometry = new THREE.BufferGeometry()
     lineGeometry.setAttribute('position', new THREE.BufferAttribute(skyline, 3))
-    const line = new THREE.Line(lineGeometry, new THREE.LineBasicMaterial({ color: 0x8f97a8 }))
+    const line = new THREE.Line(lineGeometry, new THREE.LineBasicMaterial({ color: new THREE.Color(cssToken('--color-grid-line') || '#7480b8') }))
     siteGroup.add(ground, line)
     // Compass marks just above the skyline.
     for (const [text, az] of [['N', 0], ['E', 90], ['S', 180], ['W', 270]]) {
