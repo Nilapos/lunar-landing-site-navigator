@@ -9,6 +9,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { endianness } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { AZIMUTHS, HORIZON_MIN_DEG, HORIZON_STEP_DEG } from '../src/lib/horizonGrid.js'
 import { MAP_RADIUS_KM } from '../src/lib/polarMap.js'
 import { SLOPE_BINS, createDem } from '../src/lib/terrain.js'
 
@@ -80,6 +81,7 @@ writeFileSync(
       cellKm: (2 * MAP_RADIUS_KM) / GRID,
       heightsFile: 'south-pole-heights.bin',
       slopeFile: 'south-pole-slope.bin',
+      horizon: { file: 'south-pole-horizon.bin', azimuths: AZIMUTHS, minDeg: HORIZON_MIN_DEG, stepDeg: HORIZON_STEP_DEG }, // built by scripts/build-horizon-grid.mjs
       minHeightM: Math.min(...hs),
       maxHeightM: Math.max(...hs),
       note: 'LOLA LDEM_80S_80M (NASA PDS). Heights: cell mean in m above the 1737.4 km sphere. Slope: 90th percentile of 80 m slopes per cell, degrees.',

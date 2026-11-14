@@ -4,6 +4,12 @@
  "cellKm": 2.375043812655318,
  "heightsFile": "south-pole-heights.bin",
  "slopeFile": "south-pole-slope.bin",
+ "horizon": {
+  "file": "south-pole-horizon.bin",
+  "azimuths": 72,
+  "minDeg": -10,
+  "stepDeg": 0.25
+ },
  "minHeightM": -6868,
  "maxHeightM": 6912,
  "note": "LOLA LDEM_80S_80M (NASA PDS). Heights: cell mean in m above the 1737.4 km sphere. Slope: 90th percentile of 80 m slopes per cell, degrees."

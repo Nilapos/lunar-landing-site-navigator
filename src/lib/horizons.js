@@ -85,7 +85,7 @@ function enqueue(task) {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function fetchRows(url, fetchImpl, retryDelayMs) {
+async function fetchRows(url, fetchImpl, retryDelayMs, parse) {
   for (let attempt = 0; ; attempt++) {
     const res = await fetchImpl(url, { signal: AbortSignal.timeout(25000) })
     if ((res.status === 503 || res.status === 429) && attempt < MAX_RETRIES) {
@@ -95,23 +95,81 @@ async function fetchRows(url, fetchImpl, retryDelayMs) {
     if (!res.ok) throw new Error(`Horizons HTTP ${res.status}`)
     const json = await res.json()
     if (json.error) throw new Error(`Horizons error: ${json.error}`)
-    return parseHorizonsResult(json.result)
+    return parse(json.result)
   }
 }
 
-function fetchBody(body, params, fetchImpl, options) {
-  const url = buildHorizonsUrl({ body, ...params })
+// One upstream request: queued, retried, cached. `parse` turns the answer text into rows.
+function fetchCached(url, parse, fetchImpl, options) {
   if (options.cache) {
     const hit = cache.get(url)
     if (hit && Date.now() - hit.at < CACHE_MS) return hit.promise
   }
-  const promise = enqueue(() => fetchRows(url, fetchImpl, options.retryDelayMs))
+  const promise = enqueue(() => fetchRows(url, fetchImpl, options.retryDelayMs, parse))
   if (options.cache) {
     if (cache.size >= CACHE_MAX_ENTRIES) cache.delete(cache.keys().next().value)
     cache.set(url, { at: Date.now(), promise })
     promise.catch(() => cache.delete(url))
   }
   return promise
+}
+
+function fetchBody(body, params, fetchImpl, options) {
+  return fetchCached(buildHorizonsUrl({ body, ...params }), parseHorizonsResult, fetchImpl, options)
+}
+
+// --- Sky: the point of the Moon under the Sun and under the Earth, and the Earth's distance -------------------
+
+/** Request for the Moon seen from the Earth's center: sub-Earth point (14), sub-solar point (15), distance (20). */
+export function buildSkyUrl({ start, stop, stepMinutes }) {
+  const params = new URLSearchParams({
+    format: 'json',
+    COMMAND: "'301'",
+    OBJ_DATA: "'NO'",
+    MAKE_EPHEM: "'YES'",
+    EPHEM_TYPE: "'OBSERVER'",
+    CENTER: "'500@399'",
+    START_TIME: `'${start}'`,
+    STOP_TIME: `'${stop}'`,
+    STEP_SIZE: `'${stepMinutes}m'`,
+    QUANTITIES: "'14,15,20'",
+    RANGE_UNITS: "'KM'",
+    CSV_FORMAT: "'YES'",
+    ANG_FORMAT: "'DEG'",
+  })
+  return `${HORIZONS_URL}?${params}`
+}
+
+/** Parse the sky answer into [{ t, earthLon, earthLat, sunLon, sunLat, earthKm }] (degrees east, km). */
+export function parseSkyResult(text) {
+  const a = text.indexOf('$$SOE')
+  const b = text.indexOf('$$EOE')
+  if (a === -1 || b === -1) {
+    const hint = text.split('\n').filter((l) => l.trim()).slice(0, 3).join(' | ')
+    throw new Error(`Horizons returned no ephemeris: ${hint}`)
+  }
+  return text
+    .slice(a + 5, b)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const cols = line.split(',').map((c) => c.trim())
+      const m = /^(\d{4})-([A-Za-z]{3})-(\d{2}) (\d{2}):(\d{2})/.exec(cols[0])
+      const [earthLon, earthLat, sunLon, sunLat, earthKm] = cols.slice(3, 8).map(Number)
+      if (!m || !(m[2] in MONTHS) || [earthLon, earthLat, sunLon, sunLat, earthKm].some(Number.isNaN)) {
+        throw new Error(`Unreadable Horizons row: ${line}`)
+      }
+      const t = new Date(Date.UTC(+m[1], MONTHS[m[2]], +m[3], +m[4], +m[5])).toISOString()
+      return { t, earthLon, earthLat, sunLon, sunLat, earthKm }
+    })
+}
+
+/** Sky samples for a period. Returns { start, stop, stepMinutes, samples }. */
+export async function fetchSky(params, fetchImpl = fetch, options = {}) {
+  const opts = { ...DEFAULT_OPTIONS, ...options }
+  const samples = await fetchCached(buildSkyUrl(params), parseSkyResult, fetchImpl, opts)
+  return { start: params.start, stop: params.stop, stepMinutes: params.stepMinutes, samples }
 }
 
 /** Sun and Earth az/el over time for one site. Returns { site, start, stop, stepMinutes, series }. */
@@ -152,11 +210,8 @@ function numberInRange(value, name, min, max) {
   return n
 }
 
-/** Validate and normalize query parameters (lat, lon, altKm, start, stop, stepMinutes). */
-export function parseQuery(query) {
-  const lat = numberInRange(query.lat, 'lat', -90, 90)
-  const lon = numberInRange(query.lon, 'lon', -180, 360)
-  const altKm = query.altKm === undefined ? 0 : numberInRange(query.altKm, 'altKm', -10, 10)
+/** Validate and normalize the period part of a query (start, stop, stepMinutes). */
+export function parseTimeQuery(query) {
   const stepMinutes = Math.round(
     numberInRange(query.stepMinutes ?? 60, 'stepMinutes', LIMITS.minStepMinutes, LIMITS.maxStepMinutes),
   )
@@ -165,7 +220,31 @@ export function parseQuery(query) {
   if (stop.ms <= start.ms) throw new RangeError('stop must be after start')
   const rows = Math.floor((stop.ms - start.ms) / (stepMinutes * 60000)) + 1
   if (rows > LIMITS.maxRows) throw new RangeError(`Too many rows (${rows}); maximum is ${LIMITS.maxRows}`)
-  return { lat, lon, altKm, start: start.text, stop: stop.text, stepMinutes }
+  return { start: start.text, stop: stop.text, stepMinutes }
+}
+
+/** Validate and normalize query parameters (lat, lon, altKm, start, stop, stepMinutes). */
+export function parseQuery(query) {
+  const lat = numberInRange(query.lat, 'lat', -90, 90)
+  const lon = numberInRange(query.lon, 'lon', -180, 360)
+  const altKm = query.altKm === undefined ? 0 : numberInRange(query.altKm, 'altKm', -10, 10)
+  return { lat, lon, altKm, ...parseTimeQuery(query) }
+}
+
+/** Request handler for /api/sky (same shape as handleRequest). */
+export async function handleSkyRequest(query, fetchImpl = fetch, options = {}) {
+  let params
+  try {
+    params = parseTimeQuery(query)
+  } catch (e) {
+    return { status: 400, body: { error: e.message } }
+  }
+  try {
+    const body = await fetchSky(params, fetchImpl, options)
+    return { status: 200, body, cache: 'public, s-maxage=86400, stale-while-revalidate=604800' }
+  } catch (e) {
+    return { status: 502, body: { error: `Upstream error: ${e.message}` } }
+  }
 }
 
 /** Shared request handler for the Vercel function and the Vite dev middleware. */

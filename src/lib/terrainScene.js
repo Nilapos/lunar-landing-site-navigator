@@ -57,7 +57,6 @@ export function createTerrainScene(container, terrain, { onPick }) {
     controls.update()
   }
   resetView()
-  if (import.meta.env.DEV) window.__terrainDebug = { camera, controls }
 
   // Texture: a canvas the caller paints (hillshade + layers), then refreshTexture().
   const canvas = document.createElement('canvas')

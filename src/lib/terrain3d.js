@@ -1,17 +1,25 @@
 // Data and helpers for the 3D view (no 3D library here, so they can be tested).
 // The files come from scripts/build-3d-data.mjs: a GRID x GRID cell grid of the south polar map.
 
-/** Loads the 3D description and its binary files: { grid, radiusKm, cellKm, heights (Int16, m), slope (Uint8, deg) }. */
+/**
+ * Loads the 3D description and its binary files:
+ * { grid, radiusKm, cellKm, heights (Int16, m), slope (Uint8, deg), horizon (Uint8, grid x grid x 72 azimuths) }.
+ */
 export async function loadTerrain3d(baseUrl = '/') {
   const meta = await (await fetch(`${baseUrl}south-pole-3d.json`)).json()
-  const [heightsBuf, slopeBuf] = await Promise.all([
-    fetch(`${baseUrl}${meta.heightsFile}`).then((r) => r.arrayBuffer()),
-    fetch(`${baseUrl}${meta.slopeFile}`).then((r) => r.arrayBuffer()),
-  ])
+  const bytes = (file) => fetch(`${baseUrl}${file}`).then((r) => r.arrayBuffer())
+  const [heightsBuf, slopeBuf, horizonBuf] = await Promise.all([bytes(meta.heightsFile), bytes(meta.slopeFile), bytes(meta.horizon.file)])
   const heights = new Int16Array(heightsBuf)
   const slope = new Uint8Array(slopeBuf)
-  if (heights.length !== meta.grid ** 2 || slope.length !== meta.grid ** 2) throw new Error('3D data files do not match their description')
-  return { ...meta, heights, slope }
+  const horizon = new Uint8Array(horizonBuf)
+  if (
+    heights.length !== meta.grid ** 2 ||
+    slope.length !== meta.grid ** 2 ||
+    horizon.length !== meta.grid ** 2 * meta.horizon.azimuths
+  ) {
+    throw new Error('3D data files do not match their description')
+  }
+  return { ...meta, heights, slope, horizon }
 }
 
 /** Height (m) at a position given as fractions of the map (0..1), bilinear between cell centers. */

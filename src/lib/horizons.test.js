@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { buildHorizonsUrl, handleRequest, parseHorizonsResult, parseQuery } from './horizons.js'
+import {
+  buildHorizonsUrl,
+  buildSkyUrl,
+  handleRequest,
+  handleSkyRequest,
+  parseHorizonsResult,
+  parseQuery,
+  parseSkyResult,
+} from './horizons.js'
 
 const NO_WAIT = { retryDelayMs: 0, cache: false }
 
@@ -52,6 +60,44 @@ test('handleRequest merges Sun and Earth series', async () => {
   const out = await handleRequest({ lat: '-89.9', lon: '0', start: '2026-11-14', stop: '2026-11-14 00:30', stepMinutes: '10' }, fakeFetch, NO_WAIT)
   assert.equal(out.status, 200)
   assert.deepEqual(out.body.series[0], { t: '2026-11-14T00:00:00.000Z', sunAz: 10, sunEl: 1, earthAz: 10, earthEl: 2 })
+})
+
+const SKY_TEXT = `header
+$$SOE
+ 2026-Nov-14 00:00, , , 358.776460,   4.403300,  126.617658,  -1.557279,  4.0561589143E+05, -0.0031111,
+ 2026-Nov-14 01:00, , , 358.718730,   4.361088,  126.109792,  -1.557290,  4.0560374729E+05, -0.0036356,
+$$EOE`
+
+test('parseSkyResult reads sub-Earth, sub-solar points and the Earth distance', () => {
+  const rows = parseSkyResult(SKY_TEXT)
+  assert.equal(rows.length, 2)
+  assert.deepEqual(rows[0], {
+    t: '2026-11-14T00:00:00.000Z',
+    earthLon: 358.77646,
+    earthLat: 4.4033,
+    sunLon: 126.617658,
+    sunLat: -1.557279,
+    earthKm: 405615.89143,
+  })
+  assert.throws(() => parseSkyResult('nothing here'), /no ephemeris/)
+})
+
+test('buildSkyUrl asks for the Moon seen from the Earth with quantities 14, 15 and 20 in km', () => {
+  const url = new URL(buildSkyUrl({ start: '2026-11-14 00:00', stop: '2026-11-15 00:00', stepMinutes: 60 }))
+  assert.equal(url.searchParams.get('COMMAND'), "'301'")
+  assert.equal(url.searchParams.get('CENTER'), "'500@399'")
+  assert.equal(url.searchParams.get('QUANTITIES'), "'14,15,20'")
+  assert.equal(url.searchParams.get('RANGE_UNITS'), "'KM'")
+})
+
+test('handleSkyRequest validates the period and returns the samples', async () => {
+  assert.equal((await handleSkyRequest({})).status, 400)
+  assert.equal((await handleSkyRequest({ start: '2026-11-14', stop: '2026-11-13' })).status, 400)
+  const fakeFetch = async () => ({ ok: true, json: async () => ({ result: SKY_TEXT }) })
+  const out = await handleSkyRequest({ start: '2026-11-14', stop: '2026-11-14 01:00', stepMinutes: '60' }, fakeFetch, NO_WAIT)
+  assert.equal(out.status, 200)
+  assert.equal(out.body.samples.length, 2)
+  assert.equal(out.body.stepMinutes, 60)
 })
 
 test('handleRequest returns 400 on bad input and 502 on upstream failure', async () => {

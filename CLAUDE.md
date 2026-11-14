@@ -39,8 +39,16 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   global score, computed by `useSitesOverview` (Horizons is queried one site at a time: it rejects simultaneous requests).
 - 3D view (`View3DPanel` -> lazy `Terrain3D` -> `src/lib/terrainScene.js`, three.js): relief mesh from a 256x256 grid
   (`public/south-pole-heights.bin`, `south-pole-slope.bin`, built by `scripts/build-3d-data.mjs`), the hillshade as texture,
-  site pins, and a forbidden-zone layer (slope above the rover limit). three.js is the only 3D dependency and is only
-  downloaded when the user opens the 3D view. The mouse wheel zooms only after a click on the view.
+  site pins, and layers painted on the ground: forbidden zones (slope above the rover limit) and, for a moment chosen with
+  a slider, sunlight / shadows and Earth visibility. three.js is the only 3D dependency and is only downloaded when the
+  user opens the 3D view. The mouse wheel zooms only after a click on the view.
+- Layers on the whole terrain: `/api/sky` (`api/sky.js`) gives, over time, the point of the Moon under the Sun and under
+  the Earth and the Earth distance (Horizons); `src/lib/sky.js` turns that into az/el at any point (validated against
+  Horizons' own per-site az/el to 0.001 deg); `src/lib/horizonGrid.js` + `scripts/build-horizon-grid.mjs` precompute the
+  terrain horizon of every 2.4 km cell (`public/south-pole-horizon.bin`, 72 azimuths); `src/lib/illumination.js` paints
+  one instant. It is an overview (cells of 2.4 km): near the pole, on summits and slopes, a cell can differ from the
+  precise per-site analysis (99-100% agreement on smooth terrain).
+- Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted). Functional first version, not styled
   for design yet: Teo's job.
