@@ -1,0 +1,64 @@
+/* Layout and component styles (Teo owns this file). */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.header { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); }
+.header__title { margin: 0; font-size: 1.25rem; }
+.header__subtitle { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: 0.875rem; }
+
+.app__main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+@media (max-width: 800px) {
+  .app__main { grid-template-columns: 1fr; }
+}
+
+.map__surface {
+  position: relative;
+  aspect-ratio: 2 / 1;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.map__marker {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--color-bg);
+  border-radius: 50%;
+  background: var(--color-marker);
+  cursor: pointer;
+}
+.map__marker--selected { background: var(--color-accent); box-shadow: 0 0 0 4px rgb(122 162 255 / 0.35); }
+
+.sites__title { margin: 0 0 var(--space-2); font-size: 1rem; }
+.sites__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.sites__item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  color: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.sites__item:hover { background: var(--color-surface-hover); }
+.sites__item--selected { border-color: var(--color-accent); }
+.sites__score { color: var(--color-accent); font-weight: 600; }

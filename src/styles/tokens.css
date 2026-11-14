@@ -1,0 +1,19 @@
+/* Design tokens (Teo owns this file). Use these variables everywhere, no hard-coded colors. */
+:root {
+  --color-bg: #0b0d12;
+  --color-surface: #151922;
+  --color-surface-hover: #1d2330;
+  --color-border: #2a3142;
+  --color-text: #e8eaf0;
+  --color-text-muted: #9aa3b5;
+  --color-accent: #7aa2ff;
+  --color-marker: #ffd166;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --radius: 8px;
+}
