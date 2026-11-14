@@ -1,5 +1,8 @@
 # Design brief (for Teo and his Claude)
 
+> **Superseded for now (2026-11-14):** Teo is not working on the repo, and the art direction was refined. The current brief is
+> `BRIEF-V2.md`. This file stays as a reference for the component inventory and the rules below.
+
 Goal: turn the working but plain interface into the dashboard of the Moonwalk mockup, without breaking the data logic.
 Everything works today at https://lunar-landing-site-navigator-beta.vercel.app: the job is **layout, look and feel**.
 

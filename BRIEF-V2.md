@@ -1,0 +1,106 @@
+# Brief V2: the Moonwalk dashboard with a "Polar sky" view
+
+Status: written on 2026-11-14 to start a fresh session. Read `CLAUDE.md` first (how the project works, rules, data pipeline),
+then this file. `DESIGN.md` is the older brief for Teo, who is not working on the repo for now: this file supersedes it.
+Quentin and Claude do everything themselves, directly on `main`.
+
+## 1. Where we are
+
+Everything below works and is deployed (https://lunar-landing-site-navigator-beta.vercel.app, redeploys on each push to `main`):
+sites and mission history with sources, JPL Horizons engine (`/api/horizons`, `/api/sky`), terrain horizon and slopes from the
+LOLA map, verdicts and /100 scores from rover requirements, side-by-side comparison, 2D map and ranking, 3D terrain view with
+sunlight / shadows / Earth visibility / forbidden-zone layers and a time slider. 70 unit tests, lint and build pass.
+
+The page is currently one long vertical stack of panels. The goal of V2 is to make it look and behave like the team's mockup,
+and to add the view that makes people **see why** a site has sunlight or a direct link to Earth.
+
+## 2. Art direction (files in the references folder, see its LISEZ-MOI.txt)
+
+- `1-maquette-v2-direction-artistique.webp`: the target look. Dark dashboard: top bar with 5 scores (Solar Exposure, Telecom,
+  **Global Score** in the middle, Window Duration, Topography) and layer menus; left panels (Landing window, Rover specs, color
+  legend); big center view ("South pole 3D modeling": curved polar region, color layers, red forbidden zones, site pins);
+  right panel Mission History; bottom timeline with Hour / Days / Months. Follow the layout and mood, not its numbers.
+- `2-vue-terrain-actuelle-relief-x1.webp`: our current 3D terrain view. It becomes the "Terrain" tab (relief x1, near top-down).
+- `3-...soleil-et-terre-a-l-horizon.png` and `4-...lever-de-terre.png`: look references for the "Polar sky" tab: Sun glare and halo,
+  Earth as a tiny dot or a lit disc, black sky, curved textured horizon.
+
+## 3. Target navigation
+
+A **side rail of collapsible panels ("volets")** switches between tabs; the shell also holds the top score bar, the shared
+timeline and the side panels from the mockup. Each tab is a component with its own props, so they stay independent.
+
+| Tab | Content |
+|---|---|
+| **Terrain** | The current `Terrain3D` with light relief (x1 to x2 by default), near top-down camera, layers on by default: Sunlight and shadows, Earth visible (direct link), Forbidden zones. Site pins, shared timeline, Play |
+| **Polar sky** (new, section 4) | Curved south polar cap with the Sun and the Earth moving in the sky with the timeline |
+| **Compare A/B** | Existing `ComparisonTable` and the two scenario panels |
+| **Why** (sub-tabs) | Sky chart (az/el tracks over the period against the terrain horizon), cause strip (lit / hidden by terrain / below the flat horizon), ray diagram. HTML sketches exist, see "Open Design - Moonwalk": rebuild them with the **real** data |
+| Side panels | Sites overview (2D map + ranking), Rover requirements, Mission history, Landing window |
+
+## 4. The "Polar sky" tab
+
+Goal: one look explains where sunlight periods and the direct link to Earth come from. One three.js scene, two camera presets.
+
+- **Frame**: Moon-fixed (mean Earth / polar axis), east longitude, x toward lon 0, y toward lon 90 E, z north (same as
+  `src/lib/sky.js`). Moon sphere centered at the origin, radius 1737.4 km, south pole at (0, 0, -R).
+- **Surface**: the south polar cap built from the 256 x 256 grid (`public/south-pole-heights.bin`), vertices on the sphere
+  (lat/lon of each cell center, height times the exaggeration), so the curvature is real. Texture: the same canvas as the Terrain
+  tab (hillshade + layers). Outside the 80 S disc: a neutral gray sphere with a faint graticule, blended at the edge.
+- **Sun and Earth positions**: from `/api/sky` (hook `useSky`): sub-solar and sub-Earth points and the Earth distance. Sun
+  direction = `unitVector(sunLat, sunLon)`; Earth at `unitVector(earthLat, earthLon) * earthKm` in the same frame. Render them at
+  their **true angular size** (Sun 0.53 deg, Earth 1.9 deg) and true direction as seen from the camera (use the camera-to-body
+  vector, so parallax is right); place sprites or meshes at a convenient distance along that vector rather than at 150 million km.
+  Earth lit by the Sun (phase comes for free). Sun: additive glow sprite with a small star-shaped flare (reference image 3).
+  Earth: procedural texture (blue, soft white clouds, some land); a real texture only if Quentin agrees to a download.
+- **Camera "orbit"** (default): oblique, above the polar cap, looking toward the horizon so the curvature and the sky show (the
+  mockup look). Orbit controls, wheel zoom only after a click (so the page can scroll).
+- **Camera "site"**: standing at the selected site (about 2 m above ground), looking along the azimuth of the Sun or the Earth
+  (buttons). The skyline is the **real terrain horizon of that site** from `src/data/horizon-profiles.json` (360 values), drawn as
+  a ring/cylinder silhouette; Sun and Earth sit above or behind it at their true elevation. Only the 6 sites have profiles.
+- **Verdict overlay** in both modes: for each body, visible (green) or hidden (red) with the cause in words and the numbers,
+  from the same margins as the analysis (`analyzeScenario`, `evaluateScenario`): "Sun +0.9 deg is under the 3.2 deg ridge
+  (hidden). Earth -0.1 deg is above the -1.4 deg horizon (visible)". In orbit mode draw a line from the site to each body.
+- **Time**: the shell owns one timeline index shared by all tabs (lift the state out of `Terrain3D`). Play loops.
+- **Quality**: lazy-loaded chunk, dispose everything on unmount, WebGL check with a text fallback, `aria-live` text of the
+  current state, no autoplay when the user prefers reduced motion, honest caption ("Sun and Earth: true size and direction;
+  surface: LOLA map; textures stylized").
+
+## 5. Decisions already taken (Quentin can overrule)
+
+- Procedural Earth texture first; ask before downloading any asset.
+- Default camera: orbit, with a toggle to the site view.
+- The timeline drives the layers and the Polar sky tab. Making the **scores** follow it ("what if we land at this moment")
+  is a later phase (6), because scores are computed over the period after the landing time.
+- No new dependency (three.js is enough). No post-processing library: fake the glow with sprites.
+
+## 6. Phases (each: build, tests for new logic, check in the browser with screenshots, commit, push, verify the deploy)
+
+1. **Shell and navigation**: side rail with tabs, top score bar, the mockup's panels, shared timeline in the shell. Every existing
+   feature stays reachable. Responsive, keyboard-accessible, readable contrast. Keep `src/lib` untouched unless needed.
+2. **Terrain tab** defaults (relief, camera, layers) and the shared timeline.
+3. **Polar sky, orbit camera**: cap, Sun, Earth, verdict overlay, shared timeline.
+4. **Polar sky, site camera**: horizon silhouette, true-size discs, azimuth buttons.
+5. **Why sub-tabs** with real data. Add a pure function in `src/lib` that classifies each sample as lit / hidden by terrain /
+   below the flat horizon (with tests), then the sky chart, the cause strip and the ray diagram.
+6. **Scores that follow the moment**, a ready demo scenario for the pitch (a site and date where a delay changes everything),
+   README for the jury, submission checklist (video, screenshots, links).
+
+## 7. Rules and gotchas (carried over)
+
+- Never invent a coordinate or a mission fact: source it. Keep the verified geometry (sky.js is validated to 0.001 deg against
+  Horizons; the horizon grids against the per-site analysis).
+- Horizons rejects simultaneous requests: keep one request at a time. Never call it per pixel or per cell.
+- Run `npm test`, `npm run lint`, `npm run build` before every push. Push with `git push origin main` (credentials are
+  cached; `gh` is not installed). Vercel redeploys by itself; check the live site after.
+- Write files without a BOM (use the Write tool; PowerShell 5.1 `Set-Content -Encoding utf8` adds one and broke a build once).
+- Do not commit big or third-party files. Generated 3D data is already in `public/` (rebuild with the scripts in `scripts/`, which
+  need `C:\Users\quent\Downloads\LOLA data\ldem_80s_80m.img`).
+- A page scroll over the 3D view must not zoom it (wheel zoom only after a click): keep that.
+- The overview layers are 2.4 km cells: on summits and slopes near the pole they can differ from the precise per-site analysis.
+  Say so in the UI wherever both appear.
+
+## 8. Open points for Quentin
+
+- Real Earth texture (download) or keep the procedural one?
+- Default camera: orbit or site?
+- Should the shell keep the 2D map + ranking as a tab or as a side panel?

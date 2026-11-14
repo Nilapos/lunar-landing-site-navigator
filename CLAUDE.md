@@ -58,6 +58,8 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 Two people work in this repo, each with their own Claude. To avoid merge conflicts, each
 person stays in their own area. If you must touch the other's area or a shared file, tell them first.
 
+- **Update 2026-11-14: Teo is not working on the repo for now. Quentin (with Claude) does everything, directly on `main`.
+  The next work is described in `BRIEF-V2.md` (dashboard shell, "Polar sky" view): read it. `DESIGN.md` is Teo's older brief.**
 - **Quentin**: data and logic. Owns `src/data/` and `src/lib/`.
 - **Teo**: interface and design. Owns `src/components/` and `src/styles/`.
 - **Shared** (coordinate first): `package.json`, `index.html`, this file.
