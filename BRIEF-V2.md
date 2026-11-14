@@ -24,7 +24,7 @@ and to add the view that makes people **see why** a site has sunlight or a direc
 - `3-...soleil-et-terre-a-l-horizon.png` and `4-...lever-de-terre.png`: look references for the "Polar sky" tab: Sun glare and halo,
   Earth as a tiny dot or a lit disc, black sky, curved textured horizon.
 
-## 3. Target navigation
+## 3. Target navigation (built in phase B, after the Polar sky view of phase A)
 
 A **side rail of collapsible panels ("volets")** switches between tabs; the shell also holds the top score bar, the shared
 timeline and the side panels from the mockup. Each tab is a component with its own props, so they stay independent.
@@ -77,7 +77,9 @@ Goal: one look explains where sunlight periods and the direct link to Earth come
 - **Verdict overlay** in both modes: for each body, visible (green) or hidden (red) with the cause in words and the numbers,
   from the same margins as the analysis (`analyzeScenario`, `evaluateScenario`): "Sun +0.9 deg is under the 3.2 deg ridge
   (hidden). Earth -0.1 deg is above the -1.4 deg horizon (visible)". In orbit mode draw a line from the site to each body.
-- **Time**: the shell owns one timeline index shared by all tabs (lift the state out of `Terrain3D`). Play loops.
+- **Time**: one timeline index shared by all views, Play loops. Lift the state that is now inside `Terrain3D` (samples index,
+  playing flag, `useSky`) into a small hook (for example `src/lib/useTimeline.js`) used by the Terrain view and the Polar sky
+  view, so both follow the same slider today and the future shell can host the slider in its bottom bar.
 - **Quality**: lazy-loaded chunk, dispose everything on unmount, WebGL check with a text fallback, `aria-live` text of the
   current state, no autoplay when the user prefers reduced motion, honest caption ("Sun and Earth: true size and direction;
   surface: LOLA map; textures stylized").
@@ -87,19 +89,41 @@ Goal: one look explains where sunlight periods and the direct link to Earth come
 - Procedural Earth texture first; ask before downloading any asset.
 - Default camera: orbit, with a toggle to the site view.
 - The timeline drives the layers and the Polar sky tab. Making the **scores** follow it ("what if we land at this moment")
-  is a later phase (6), because scores are computed over the period after the landing time.
+  is a later phase (E), because scores are computed over the period after the landing time.
 - No new dependency (three.js is enough). No post-processing library: fake the glow with sprites.
 
-## 6. Phases (each: build, tests for new logic, check in the browser with screenshots, commit, push, verify the deploy)
+## 6. Work split by model, and phases
 
-1. **Shell and navigation**: side rail with tabs, top score bar, the mockup's panels, shared timeline in the shell. Every existing
-   feature stays reachable. Responsive, keyboard-accessible, readable contrast. Keep `src/lib` untouched unless needed.
-2. **Terrain tab** defaults (relief, camera, layers) and the shared timeline.
-3. **Polar sky, orbit camera**: cap, Sun, Earth, verdict overlay, shared timeline.
-4. **Polar sky, site camera**: horizon silhouette, true-size discs, azimuth buttons.
-5. **Why sub-tabs** with real data. Add a pure function in `src/lib` that classifies each sample as lit / hidden by terrain /
-   below the flat horizon (with tests), then the sky chart, the cause strip and the ray diagram.
-6. **Scores that follow the moment**, a ready demo scenario for the pitch (a site and date where a delay changes everything),
+Each phase: build, tests for new logic, check in the browser with a few screenshots, commit, push, verify the deploy.
+
+### Phase A: the Polar sky 3D view. Done FIRST, with the most capable model (Fable), as the ONLY task of its session
+
+Why first and alone: it is the hard part (spherical geometry, lighting, true angular sizes, visual tuning), and the other phases
+are lighter and will be done later with lighter models. Keep the session lean:
+
+- Read `CLAUDE.md`, this file, the 4 reference images, then give a plan in at most 10 lines and **go on without waiting**, unless
+  something blocks you. Do not read unrelated files; reuse what exists: `src/lib/sky.js`, `useSky`, `illumination.js`,
+  `terrainScene.js` (texture painting, wheel-zoom rule, dispose pattern), `terrain3d.js`, `horizon-profiles.json`,
+  `analyzeScenario` / `evaluateScenario`.
+- Scope, and nothing more: sections 4 (orbit camera, then site camera) and the shared-timeline hook. Integrate it in the
+  **existing page** in the simplest way: a mode switch "Terrain | Polar sky" inside `View3DPanel`, both fed by the same timeline.
+  Do NOT build the shell, the side rail, the score bar, the Why charts or the scores-follow-time feature: other phases.
+- Pure logic (the cap vertex generation, the camera-to-body direction and angular-size helpers, the cause text) goes in `src/lib`
+  with unit tests. Keep the scene code thin.
+- Work in two commits: (1) orbit camera with the cap, Sun, Earth and verdict overlay; (2) site camera with the horizon
+  silhouette. Use screenshots only to validate (3 to 5 in total), compare them with images 1, 3 and 4.
+- Finish with: tests, lint and build green, pushed, live site checked, and a short report to Quentin (in French) of what works,
+  what is stylized, and what is left. Then STOP.
+
+### Later phases, for lighter models (Sonnet or Opus), each self-contained
+
+B. **Shell and navigation**: side rail of collapsible panels that switches tabs, top score bar, the mockup's left and right
+   panels, the shared timeline moved into a bottom bar (Hour / Days / Months). Every existing feature stays reachable.
+   Responsive, keyboard-accessible, readable contrast. Mostly layout and CSS: `src/lib` stays untouched.
+C. **Terrain tab** defaults: relief x1 to x2, near top-down camera, layers on by default (reference image 2).
+D. **Why sub-tabs** (section 3b) with real data. First a pure function in `src/lib` that classifies each sample as visible /
+   hidden by terrain / below the flat horizon (with tests), then the sky chart, the cause strip and the ray diagram.
+E. **Scores that follow the moment**, a ready demo scenario for the pitch (a site and date where a delay changes everything),
    README for the jury, submission checklist (video, screenshots, links).
 
 ## 7. Rules and gotchas (carried over)
