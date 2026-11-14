@@ -1,13 +1,31 @@
 /* Design tokens (Teo owns this file). Use these variables everywhere, no hard-coded colors. */
 :root {
-  --color-bg: #0b0d12;
-  --color-surface: #151922;
-  --color-surface-hover: #1d2330;
-  --color-border: #2a3142;
-  --color-text: #e8eaf0;
-  --color-text-muted: #9aa3b5;
-  --color-accent: #7aa2ff;
+  /* Surfaces: from deep space to raised cards */
+  --color-black: #000;
+  --color-white: #fff;
+  --color-bg: #07090e;
+  --color-bg-canvas: #05070b;
+  --color-backdrop-glow: #17233d;
+  --color-surface: #10141c;
+  --color-surface-raised: #161b26;
+  --color-surface-hover: #1d2331;
+  --color-surface-glass: rgb(16 20 28 / 0.74);
+  --color-surface-overlay: rgb(7 9 14 / 0.72);
+  --color-border: #232a39;
+  --color-border-strong: #364056;
+  --color-hairline: rgb(255 255 255 / 0.06);
 
+  /* Text: muted stays above 7:1 and faint above 4.5:1 on --color-surface */
+  --color-text: #eef0f5;
+  --color-text-muted: #a6afc0;
+  --color-text-faint: #8590a4;
+
+  --color-accent: #8fb0ff;
+  --color-accent-strong: #b3c9ff;
+  --color-accent-soft: rgb(143 176 255 / 0.12);
+  --color-glow: rgb(143 176 255 / 0.2);
+
+  /* Meaning */
   --color-sun: #ffd166;
   --color-earth: #4cc9f0;
   --color-terrain: #3a4258;
@@ -15,18 +33,46 @@
   --color-warn: #ffb74d;
   --color-off: #ff8a80;
 
-  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Ground layers painted by the 3D views (keep in sync with src/lib/illumination.js and terrain3d.js) */
+  --color-layer-sun: rgb(255 200 70);
+  --color-layer-shadow: rgb(5 10 40);
+  --color-layer-earth: rgb(90 110 255);
+  --color-layer-slope: rgb(255 40 40);
 
+  /* Lines and labels drawn over the black polar map */
+  --color-map-grid: rgb(255 255 255 / 0.28);
+  --color-map-tick: rgb(255 255 255 / 0.75);
+
+  /* Typography */
+  --font-sans: 'Inter', 'SF Pro Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'SF Pro Display', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --tracking-caps: 0.09em;
+  --tracking-brand: 0.3em;
+  --leading: 1.5;
+
+  /* Spacing and shapes */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 16px;
   --space-4: 24px;
+  --space-5: 32px;
+  --radius-sm: 6px;
   --radius: 8px;
-}
+  --radius-lg: 12px;
+  --radius-pill: 999px;
 
-/* Dashboard shell (desktop browsers only) */
-:root {
-  --color-surface-glass: rgb(21 25 34 / 0.78);
-  --color-glow: rgb(122 162 255 / 0.18);
-  --shadow-panel: 0 8px 30px rgb(0 0 0 / 0.35);
+  /* Depth */
+  --shadow-panel: 0 1px 0 var(--color-hairline) inset, 0 10px 30px rgb(0 0 0 / 0.35);
+  --shadow-card: 0 1px 0 var(--color-hairline) inset, 0 16px 40px rgb(0 0 0 / 0.5);
+  --blur-glass: 14px;
+  --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from './Icon.jsx'
 
 // A side column that can be folded to a thin strip. `title` is shown on the strip when folded.
 function Side({ side, title, open, onToggle, children }) {
@@ -12,7 +13,7 @@ function Side({ side, title, open, onToggle, children }) {
         title={`${open ? 'Hide' : 'Show'} ${title}`}
         onClick={onToggle}
       >
-        {open ? (side === 'left' ? '‹' : '›') : side === 'left' ? '›' : '‹'}
+        <Icon className="shell__fold-icon" name={open === (side === 'left') ? 'chevron-left' : 'chevron-right'} />
         {!open && <span className="shell__fold-label">{title}</span>}
       </button>
       {open && <div className="shell__sidebody">{children}</div>}
@@ -51,7 +52,7 @@ export default function Shell({ top, left, leftTitle, right, rightTitle, bottom,
                 onClick={() => onTab(t.key)}
               >
                 <span className="rail__icon" aria-hidden="true">
-                  {t.icon}
+                  <Icon className="rail__svg" name={t.key} />
                 </span>
                 <span className="rail__label">{t.label}</span>
               </button>

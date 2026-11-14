@@ -181,7 +181,8 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
           // Read aloud when the moment changes by hand, not on every step of the animation.
           <div className="skycard skycard--verdict" aria-live={playing ? 'off' : 'polite'}>
             <p className="skycard__title">
-              {site.shortName} · {formatUtc(Date.parse(sample.t))}
+              <span className="skycard__site">{site.shortName}</span>
+              <span className="skycard__time">{formatUtc(Date.parse(sample.t))}</span>
             </p>
             <BodyLine name="Sun" state={states.sun} />
             <BodyLine name="Earth" state={states.earth} />

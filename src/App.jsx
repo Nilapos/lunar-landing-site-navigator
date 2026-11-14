@@ -31,12 +31,13 @@ const SHIFT_MARGIN_MIN = 15 // land a little after a window opens, not exactly o
 // requirements: landing at 14 Nov 00:00 gives a window score of 0 and a global score of 58; landing at 15 Nov 06:00 gives 100 and 83).
 const DEMO = { siteId: 'malapert-massif', start: '2026-11-14T00:00', days: 30 }
 
+// Each tab key also names its icon in components/Icon.jsx.
 const TABS = [
-  { key: 'sky', label: 'Polar sky', icon: '◐', hint: 'The curved south pole with the Sun and the Earth in the sky' },
-  { key: 'terrain', label: 'Terrain', icon: '▦', hint: 'The south polar map in relief, with the layers' },
-  { key: 'why', label: 'Why', icon: '?', hint: 'Why the Sun and the Earth are visible or hidden at this moment' },
-  { key: 'analysis', label: 'Analysis', icon: '⇄', hint: 'Scenario analysis and A/B comparison' },
-  { key: 'sites', label: 'Sites', icon: '◎', hint: 'All sites on the map and ranked by score' },
+  { key: 'sky', label: 'Polar sky', hint: 'The curved south pole with the Sun and the Earth in the sky' },
+  { key: 'terrain', label: 'Terrain', hint: 'The south polar map in relief, with the layers' },
+  { key: 'why', label: 'Why', hint: 'Why the Sun and the Earth are visible or hidden at this moment' },
+  { key: 'analysis', label: 'Analysis', hint: 'Scenario analysis and A/B comparison' },
+  { key: 'sites', label: 'Sites', hint: 'All sites on the map and ranked by score' },
 ]
 
 function evaluate(result, requirements) {

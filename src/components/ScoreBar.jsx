@@ -28,6 +28,7 @@ export default function ScoreBar({ evaluation }) {
               {score === null ? '–' : score}
               <span className="scores__max">/100</span>
             </span>
+            <span className="scores__meter" style={{ '--score': `${score ?? 0}%` }} aria-hidden="true" />
           </div>
         )
       })}

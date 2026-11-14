@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { formatUtc } from '../lib/format.js'
 import { dayTicks, STEP_UNITS, stepIndex } from '../lib/timelineTools.js'
+import Icon from './Icon.jsx'
 
 // The moment shared by every view: Play, step back / forward by an hour, a day or a week, a slider with day marks.
 export default function TimelineBar({ timeline }) {
@@ -15,13 +16,14 @@ export default function TimelineBar({ timeline }) {
     <div className="timeline" aria-label="Moment shown in the views">
       <div className="timeline__row">
         <button type="button" className="button timeline__play" disabled={!samples} onClick={timeline.togglePlay}>
+          <Icon className="button__icon" name={timeline.playing ? 'pause' : 'play'} />
           {timeline.playing ? 'Pause' : 'Play'}
         </button>
         <button type="button" className="button" disabled={!samples || index === 0} onClick={() => move(-1)} aria-label={`Back one ${unit.key}`}>
-          {'‹'}
+          <Icon className="button__icon" name="chevron-left" />
         </button>
         <button type="button" className="button" disabled={!samples || index === last} onClick={() => move(1)} aria-label={`Forward one ${unit.key}`}>
-          {'›'}
+          <Icon className="button__icon" name="chevron-right" />
         </button>
         <label className="timeline__unit">
           <span className="controls__label">Step</span>
