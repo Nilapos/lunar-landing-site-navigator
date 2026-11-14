@@ -61,8 +61,24 @@ Goal: one look explains where sunlight periods and the direct link to Earth come
 - **Frame**: Moon-fixed (mean Earth / polar axis), east longitude, x toward lon 0, y toward lon 90 E, z north (same as
   `src/lib/sky.js`). Moon sphere centered at the origin, radius 1737.4 km, south pole at (0, 0, -R).
 - **Surface**: the south polar cap built from the 256 x 256 grid (`public/south-pole-heights.bin`), vertices on the sphere
-  (lat/lon of each cell center, height times the exaggeration), so the curvature is real. Texture: the same canvas as the Terrain
-  tab (hillshade + layers). Outside the 80 S disc: a neutral gray sphere with a faint graticule, blended at the edge.
+  (lat/lon of each cell center, height times the exaggeration), so the curvature is real. Outside the 80 S disc: a neutral gray
+  sphere with a faint graticule, blended at the edge.
+- **Ground layers = the signature feature of this tab** (Quentin's explicit request, reference image 1 = the look to reach):
+  the ground carries the SAME layers as the Terrain tab, painted with the same texture canvas (`terrainScene.js` texture painting,
+  `illumination.js` `buildCellFrames` / `visibilityOverlay`, `slopeOverlayRgba`) and the same colors: **Sunlight and shadows**,
+  **Earth visible (direct link)** in blue, **Forbidden zones** (slope above the rover limit) in red, plus a **relief exaggeration
+  control (x1 to x4)** and the same layer toggles and legend. They are driven by the shared timeline: when the Sun and the Earth
+  move in the sky, the lit zones, the shadows and the blue "Earth sees you" zones change on the surface in real time. The link
+  between the bodies in the sky and the colored zones below must be obvious (same colors on the verdict overlay, same legend).
+  Do not duplicate the painting code: extract what the two views share into `src/lib` and reuse it.
+- **Hover probe: "is this a good landing zone?"** Moving the cursor over the ground (raycast to the cap, then to the grid cell)
+  shows a crosshair on the cell (like the "Selected Zone" reticle in image 1) and a small card for that cell: slope vs the rover
+  limit, Sun above its local horizon now (elevation, margin), Earth above its local horizon now, the share of the period where
+  Sun / Earth / both are visible, and one verdict (green / orange / red, same thresholds and wording as `verdict.js`, same /100
+  rule as `scores.js`, no new formula) with the reason in words ("too steep: 21 deg", "Earth hidden by the rim for 62% of the
+  period"). A click pins the card. Compute per-cell metrics with the grid horizon data (cheap: one cell, a few hundred samples);
+  if the full-period metrics prove too heavy for the time available, ship the "now" state first and say so. Always add the
+  caveat: cells are 2.4 km, an overview that can differ from the per-site analysis on summits and slopes.
 - **Sun and Earth positions**: from `/api/sky` (hook `useSky`): sub-solar and sub-Earth points and the Earth distance. Sun
   direction = `unitVector(sunLat, sunLon)`; Earth at `unitVector(earthLat, earthLon) * earthKm` in the same frame. Render them at
   their **true angular size** (Sun 0.53 deg, Earth 1.9 deg) and true direction as seen from the camera (use the camera-to-body
@@ -110,8 +126,8 @@ are lighter and will be done later with lighter models. Keep the session lean:
   Do NOT build the shell, the side rail, the score bar, the Why charts or the scores-follow-time feature: other phases.
 - Pure logic (the cap vertex generation, the camera-to-body direction and angular-size helpers, the cause text) goes in `src/lib`
   with unit tests. Keep the scene code thin.
-- Work in two commits: (1) orbit camera with the cap, Sun, Earth and verdict overlay; (2) site camera with the horizon
-  silhouette. Use screenshots only to validate (3 to 5 in total), compare them with images 1, 3 and 4.
+- Work in two commits: (1) orbit camera with the cap, ground layers (sunlight / Earth / forbidden zones, relief x1 to x4), Sun,
+  Earth, verdict overlay and the hover probe; (2) site camera with the horizon silhouette. Use screenshots only to validate (3 to 5 in total), compare them with images 1, 3 and 4.
 - Finish with: tests, lint and build green, pushed, live site checked, and a short report to Quentin (in French) of what works,
   what is stylized, and what is left. Then STOP.
 
