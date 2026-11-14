@@ -14,7 +14,7 @@ sunlight / shadows / Earth visibility / forbidden-zone layers and a time slider.
 The page is currently one long vertical stack of panels. The goal of V2 is to make it look and behave like the team's mockup,
 and to add the view that makes people **see why** a site has sunlight or a direct link to Earth.
 
-## 2. Art direction (the ONLY design references: the 4 images in the references folder, see its LISEZ-MOI.txt)
+## 2. Art direction (the ONLY design references: the 4 images in `Moonwalk references/` at the repo root, see its LISEZ-MOI.txt)
 
 - `1-maquette-v2-direction-artistique.webp`: the target look. Dark dashboard: top bar with 5 scores (Solar Exposure, Telecom,
   **Global Score** in the middle, Window Duration, Topography) and layer menus; left panels (Landing window, Rover specs, color
@@ -111,7 +111,9 @@ Goal: one look explains where sunlight periods and the direct link to Earth come
   cached; `gh` is not installed). Vercel redeploys by itself; check the live site after.
 - Write files without a BOM (use the Write tool; PowerShell 5.1 `Set-Content -Encoding utf8` adds one and broke a build once).
 - Do not commit big or third-party files. Generated 3D data is already in `public/` (rebuild with the scripts in `scripts/`, which
-  need `C:\Users\quent\Downloads\LOLA data\ldem_80s_80m.img`).
+  need the LOLA map at `LOLA data/ldem_80s_80m.img`, at the repo root).
+- `LOLA data/` and `Moonwalk references/` live at the repo root but are **git-ignored on purpose** (115 MB file, third-party
+  pictures). Never force-add them, and check `git status` before each commit.
 - A page scroll over the 3D view must not zoom it (wheel zoom only after a click): keep that.
 - The overview layers are 2.4 km cells: on summits and slopes near the pole they can differ from the precise per-site analysis.
   Say so in the UI wherever both appear.

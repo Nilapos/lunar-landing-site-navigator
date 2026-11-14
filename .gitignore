@@ -160,3 +160,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Local only, never published: the 115 MB LOLA elevation map and the reference pictures (some are third-party)
+/LOLA data/
+/Moonwalk references/

@@ -82,6 +82,10 @@ person stays in their own area. If you must touch the other's area or a shared f
 - The site list in `src/data/south-pole-sites.js` is a demo set. Real values must come from NASA sources (LRO/LOLA, Moon Trek, JPL Horizons);
   always note the source next to the data.
 - Do not commit large raw datasets (images, DEM). Use links or a small sample.
+- Two folders at the repo root are **local only and git-ignored**: `LOLA data/` (the 115 MB LOLA map `ldem_80s_80m.img`, needed
+  only to rebuild the generated data, e.g. `node scripts/build-3d-data.mjs "LOLA data/ldem_80s_80m.img"`) and
+  `Moonwalk references/` (design reference pictures, some from third parties). Never `git add` them, and look at `git status`
+  before committing.
 - Never commit secrets: `.env` is git-ignored. Put variable names in `.env.example`.
 
 ## Git workflow
