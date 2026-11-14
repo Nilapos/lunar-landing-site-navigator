@@ -102,15 +102,54 @@ export function makeSunGlowCanvas(size = 512) {
   return canvas
 }
 
+// Craters on the sphere: a jittered 3D lattice per scale, each cell may hold one crater with a bowl and a raised rim.
+const CRATER_SCALES = [
+  [3, 0.55, 10], // big basins
+  [7, 0.4, 30],
+  [16, 0.28, 50],
+  [34, 0.2, 70], // small craters
+]
+function craterHeight(x, y, z) {
+  let h = 0
+  for (const [scale, amp, seed] of CRATER_SCALES) {
+    const px = x * scale
+    const py = y * scale
+    const pz = z * scale
+    const cx = Math.floor(px)
+    const cy = Math.floor(py)
+    const cz = Math.floor(pz)
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const ix = cx + dx
+          const iy = cy + dy
+          const iz = cz + dz
+          if (hash(ix, iy, iz + seed) < 0.55) continue
+          const ox = ix + hash(ix, iy, iz + seed + 1)
+          const oy = iy + hash(ix, iy, iz + seed + 2)
+          const oz = iz + hash(ix, iy, iz + seed + 3)
+          const radius = 0.16 + 0.3 * hash(ix, iy, iz + seed + 4)
+          const d = Math.hypot(px - ox, py - oy, pz - oz) / radius
+          if (d > 1.6) continue
+          h += amp * ((d < 1 ? -(1 - d * d) : 0) + 0.5 * Math.exp(-(((d - 1) / 0.2) ** 2)))
+        }
+      }
+    }
+  }
+  return h
+}
+
 /**
- * Equirectangular picture for the Moon outside the mapped cap: a pixelated gray Moon (bright highlands, darker
- * patches, a few dark craters), one coarse square per pixel (2 degrees). Draw it with nearest-neighbor filtering.
- * Made up, not LOLA data: it only says "this is the rest of the Moon".
+ * Equirectangular picture for the Moon outside the mapped cap: a pixel-art Moon with fine squares (0.67 degrees),
+ * darker maria, craters with lit rims and shaded floors, in 24 gray levels with a faint cool tint. Draw it with
+ * nearest-neighbor filtering. Made up, not LOLA data: it only says "this is the rest of the Moon".
  */
-export function makeMoonCanvas(width = 180, height = 90) {
+export function makeMoonCanvas(width = 540, height = 270) {
   const canvas = newCanvas(width, height)
   const ctx = canvas.getContext('2d')
   const image = ctx.createImageData(width, height)
+  const light = [0.6, -0.5, 0.62] // light from the upper left, in lattice units
+  const eps = 0.012
   for (let j = 0; j < height; j++) {
     const lat = (0.5 - (j + 0.5) / height) * Math.PI
     for (let i = 0; i < width; i++) {
@@ -118,16 +157,15 @@ export function makeMoonCanvas(width = 180, height = 90) {
       const x = Math.cos(lat) * Math.cos(lon)
       const y = Math.cos(lat) * Math.sin(lon)
       const z = Math.sin(lat)
-      const broad = fbm(x * 1.7 + 11, y * 1.7 + 3, z * 1.7 + 7, 4) // large dark and bright regions
-      const speckle = hash(i, j, 5) - 0.5
-      const crater = hash(Math.floor(i / 3), Math.floor(j / 3), 9) > 0.97 ? -45 : 0
-      // Quantized to 14 gray levels so the squares stay distinct, like the pixel-art reference.
-      const level = Math.round((70 + 215 * broad + 26 * speckle + crater) / 18) * 18
-      const v = Math.min(Math.max(level, 55), 235)
+      const mare = step(0.5, 0.62, fbm(x * 1.6 + 11, y * 1.6 + 3, z * 1.6 + 7, 4)) // large dark seas
+      const dust = fbm(x * 9 + 2, y * 9 + 8, z * 9 + 4, 4) - 0.5
+      const slope = (craterHeight(x + light[0] * eps, y + light[1] * eps, z + light[2] * eps) - craterHeight(x, y, z)) / eps
+      const base = mix(176, 96, mare) + 70 * dust
+      const v = Math.min(Math.max(Math.round((base - 26 * slope) / 9) * 9, 40), 245)
       const o = (j * width + i) * 4
       image.data[o] = v
-      image.data[o + 1] = v
-      image.data[o + 2] = v
+      image.data[o + 1] = v + 1
+      image.data[o + 2] = v + 5
       image.data[o + 3] = 255
     }
   }

@@ -21,7 +21,7 @@ function countdown(state, subject) {
 
 // One scenario (site + landing date and time + period): controls, verdict, key figures, sky view, timelines.
 // `result` comes from useScenario, `evaluation` from evaluateScenario; `state` / `onChange` hold the controls.
-export default function ScenarioPanel({ title, state, onChange, result, evaluation }) {
+export default function ScenarioPanel({ title, state, onChange, result, evaluation, embedded = false }) {
   const [cursor, setCursor] = useState(0)
   const { profile, data, error, loading, analysis } = result
 
@@ -52,11 +52,15 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
 
     body = (
       <>
-        <ScoreBar evaluation={evaluation} />
-        <Verdict
-          evaluation={evaluation}
-          onShiftLanding={(ms) => update({ start: addMinutesIso(state.start, Math.ceil(ms / 60000) + SHIFT_MARGIN_MIN) })}
-        />
+        {!embedded && (
+          <>
+            <ScoreBar evaluation={evaluation} />
+            <Verdict
+              evaluation={evaluation}
+              onShiftLanding={(ms) => update({ start: addMinutesIso(state.start, Math.ceil(ms / 60000) + SHIFT_MARGIN_MIN) })}
+            />
+          </>
+        )}
 
         <section className="metrics" aria-label="Key figures">
           <MetricCard
@@ -120,7 +124,7 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
 
   return (
     <div className="scenario">
-      <SiteControls title={title} sites={southPoleSites} state={state} onChange={update} />
+      {!embedded && <SiteControls title={title} sites={southPoleSites} state={state} onChange={update} />}
       {body}
     </div>
   )

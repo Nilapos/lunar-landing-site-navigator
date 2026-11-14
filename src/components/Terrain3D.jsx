@@ -13,7 +13,7 @@ export default function Terrain3D({ items, selected, onSelect, requirements, tim
   const sceneRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   const { terrain, hillshade, error } = useTerrain3d()
-  const [exaggeration, setExaggeration] = useState(4)
+  const [exaggeration, setExaggeration] = useState(2)
   const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
   const { sample } = timeline
 
@@ -50,7 +50,7 @@ export default function Terrain3D({ items, selected, onSelect, requirements, tim
 
   if (error) return <p className="notice notice--error">{error}</p>
   return (
-    <div className="view3d">
+    <div className="view3d view3d--fill">
       <div className="view3d__controls">
         <label className="view3d__slider">
           <span className="controls__label">Relief x{exaggeration}</span>
@@ -63,13 +63,16 @@ export default function Terrain3D({ items, selected, onSelect, requirements, tim
       <div className="view3d__canvas" ref={containerRef}>
         {!(terrain && hillshade) && <p className="notice view3d__loading">Loading the 3D relief…</p>}
       </div>
-      <p className="panel__detail">
+      <details className="panel__detail view3d__about">
+        <summary>About this view and its limits</summary>
+        <p>
         Drag to rotate, right-drag to move; click the view, then scroll to zoom. Click a pin to analyze that site. The layers use each
         cell&apos;s terrain horizon (LOLA) and the Sun and Earth positions from JPL Horizons, for the period of scenario A. This is an
         overview: cells are 2.4 km wide. Where the terrain is smooth they agree with the site analysis (99-100% of the time at Mons
         Mouton and in Shackleton), but on summits and slopes near the pole, where the Sun skims the horizon, a cell can differ from a
         precise point: use the site analysis for decisions.
-      </p>
+        </p>
+      </details>
     </div>
   )
 }

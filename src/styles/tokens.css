@@ -23,3 +23,10 @@
   --space-4: 24px;
   --radius: 8px;
 }
+
+/* Dashboard shell (desktop browsers only) */
+:root {
+  --color-surface-glass: rgb(21 25 34 / 0.78);
+  --color-glow: rgb(122 162 255 / 0.18);
+  --shadow-panel: 0 8px 30px rgb(0 0 0 / 0.35);
+}

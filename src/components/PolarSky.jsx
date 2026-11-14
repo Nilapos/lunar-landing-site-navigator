@@ -138,7 +138,7 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
 
   if (error) return <p className="notice notice--error">{error}</p>
   return (
-    <div className="view3d">
+    <div className="view3d view3d--fill">
       <div className="view3d__controls">
         <div className="tabs" role="group" aria-label="Camera">
           <button type="button" className={`tabs__tab${standing ? '' : ' tabs__tab--active'}`} aria-pressed={!standing} onClick={() => setStanding(false)}>
@@ -192,7 +192,9 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
         )}
       </div>
 
-      <p className="panel__detail">
+      <details className="panel__detail view3d__about">
+        <summary>About this view and its limits</summary>
+        <p>
         Sun and Earth: true direction and true angular size (the Sun is 0.53° wide, the Earth 1.9°), from JPL Horizons; surface: LOLA
         map on the real sphere, relief multiplied by the factor above; textures and the Sun&apos;s glare are stylized. Drag to rotate,
         right-drag to move; click the view, then scroll to zoom. The lines go from the site of scenario A to the Sun (yellow) and the
@@ -201,7 +203,8 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
         from the precise site analysis, which is the one to use for decisions. &quot;On the site&quot; puts the camera 2 m above the
         site of scenario A: the skyline is that site&apos;s real terrain horizon (LOLA, one value per degree of azimuth), the ground
         below it is a drawing; drag to look around, click then scroll to zoom in on the Sun or the Earth.
-      </p>
+        </p>
+      </details>
     </div>
   )
 }
