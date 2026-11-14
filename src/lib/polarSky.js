@@ -177,3 +177,9 @@ export function mapXY([px, py, pz]) {
   const rho = 2 * MOON_RADIUS_KM * Math.tan((lat + Math.PI / 2) / 2)
   return { x: rho * Math.sin(lon), y: rho * Math.cos(lon) }
 }
+
+/** Latitude and east longitude (deg, 0..360) of a point of the scene (km, z north). */
+export function latLonOf([px, py, pz]) {
+  const length = Math.hypot(px, py, pz)
+  return { lat: (Math.asin(Math.min(1, Math.max(-1, pz / length))) * 180) / Math.PI, lon: ((Math.atan2(py, px) * 180) / Math.PI + 360) % 360 }
+}

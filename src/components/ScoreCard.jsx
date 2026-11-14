@@ -39,6 +39,12 @@ export default function ScoreCard({ site, atMs, startMs, evaluation, states, onL
         {atMs !== null && <span className="scorecard__time">{formatUtc(atMs)}</span>}
       </header>
 
+      {site.custom && (
+        <p className="scorecard__caption" title={site.note}>
+          Selected point (approximate: {site.gridSource} grid cell)
+        </p>
+      )}
+
       <div className="scorecard__score">
         <span className={`scorecard__value scorecard__value--${level}`}>{evaluation ? evaluation.scores.global : '–'}</span>
         <span className="scorecard__max">/100</span>

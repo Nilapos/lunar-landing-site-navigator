@@ -2,14 +2,18 @@ import { SITE_GROUPS } from '../data/south-pole-sites.js'
 
 const DURATIONS = [7, 15, 30, 60]
 
-export default function SiteControls({ title, sites, state, onChange }) {
-  const site = sites.find((s) => s.id === state.siteId)
+// `custom`: a point the user selected on the map (pointSite.js), offered as an extra choice while it is selected.
+export default function SiteControls({ title, sites, state, onChange, custom = null }) {
+  const site = custom && custom.id === state.siteId ? custom : sites.find((s) => s.id === state.siteId)
   return (
     <section className="controls" aria-label={title ? `${title}: site and dates` : 'Site and dates'}>
       {title && <h2 className="controls__title">{title}</h2>}
       <label className="controls__field controls__field--wide">
         <span className="controls__label">Site</span>
         <select className="controls__input" value={state.siteId} onChange={(e) => onChange({ siteId: e.target.value })}>
+          {custom && (
+            <option value={custom.id}>{custom.name}</option>
+          )}
           {SITE_GROUPS.map((g) => (
             <optgroup key={g.key} label={g.label}>
               {sites

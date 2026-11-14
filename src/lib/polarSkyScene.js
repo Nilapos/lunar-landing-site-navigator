@@ -214,6 +214,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     return unitVector(lat, lon).map((v) => v * (MOON_RADIUS_KM + (h / 1000) * exaggeration + liftKm))
   }
   let near = false
+  let lastHit = null // the point of the cap under the pointer, as of the last cellUnderPointer()
   let reported = null
 
   // The rest of the Moon: a sphere open at the south (the cap covers the hole), just under the cap's rim.
@@ -542,6 +543,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   function cellUnderPointer() {
     const hit = raycaster.intersectObject(cap, false)[0]
     if (!hit) return null
+    lastHit = hit.point.toArray()
     let best = null
     let bestDistance = Infinity
     for (const index of [hit.face.a, hit.face.b, hit.face.c]) {
@@ -587,7 +589,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     const pin = raycaster.intersectObjects(hitMeshes, false)[0]
     if (pin) return onPick(pin.object.userData.siteId)
     const cell = cellUnderPointer()
-    if (cell !== null) onPin(cell)
+    if (cell !== null) onPin(cell, lastHit)
   }
   const onLeave = () => {
     controls.enableZoom = false

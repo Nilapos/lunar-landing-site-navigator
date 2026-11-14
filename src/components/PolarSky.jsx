@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import horizonFile from '../data/horizon-profiles.json'
 import { southPoleSites } from '../data/south-pole-sites.js'
 import { findBestAreas } from '../lib/bestAreas.js'
+import { pointSite } from '../lib/pointSite.js'
 import { probeCell } from '../lib/cellProbe.js'
 import { groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent } from '../lib/format.js'
 import { paintGround, paintZone } from '../lib/groundTexture.js'
 import { buildCellFrames } from '../lib/illumination.js'
-import { siteBodyStates } from '../lib/polarSky.js'
+import { latLonOf, siteBodyStates } from '../lib/polarSky.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
 import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
 import { useFineChunks } from '../lib/useFineGrid.js'
@@ -30,7 +31,7 @@ const VIEWS = [
 ]
 
 // The hover card: "is this cell a good landing zone?"
-function ProbeCard({ probe, pinned, onClose, maxSlopeDeg }) {
+function ProbeCard({ probe, maxSlopeDeg }) {
   const now = (label, s) => `${label} ${s.margin > 0 ? 'visible' : 'hidden'} now (${signed(s.el)}, horizon ${signed(s.horizon)})`
   return (
     <div className="skycard skycard--probe">
@@ -38,13 +39,7 @@ function ProbeCard({ probe, pinned, onClose, maxSlopeDeg }) {
         <span className={`skycard__badge skycard__badge--${probe.level}`}>
           {LEVEL_LABEL[probe.level]} {probe.score}/100
         </span>
-        {pinned ? (
-          <button type="button" className="button button--small" onClick={onClose}>
-            Unpin
-          </button>
-        ) : (
-          <span className="skycard__hint">click to pin</span>
-        )}
+        <span className="skycard__hint">click to analyze this place</span>
       </p>
       <p className="skycard__reason">{probe.reason}</p>
       <ul className="skycard__list">
@@ -70,15 +65,16 @@ function ProbeCard({ probe, pinned, onClose, maxSlopeDeg }) {
  *   view: 'orbit' | 'top' | 'site';  onView(view): change of camera (orbit / top only);
  *   evaluation, startMs, onLand, onShiftLanding: the score card (see ScoreCard).
  */
-export default function PolarSky({ items, selected, onSelect, requirements, timeline, layers, onLayers, view, onView, evaluation, startMs, onLand, onShiftLanding }) {
+export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint, requirements, timeline, layers, onLayers, view, onView, evaluation, startMs, onLand, onShiftLanding }) {
   const containerRef = useRef(null)
   const sceneRef = useRef(null)
   const onSelectRef = useRef(onSelect)
+  const onPickPointRef = useRef(onPickPoint)
+  const fineRef = useRef([])
   const flightRef = useRef(false) // false until the first pose is set: no flight when the view opens
   const { terrain, hillshade, error } = useTerrain3d()
   const [exaggeration, setExaggeration] = useState(2)
   const [hoverCell, setHoverCell] = useState(null)
-  const [pinnedCell, setPinnedCell] = useState(null)
   const [areas, setAreas] = useState(null) // best areas found for the period, null before the first search
   const [searching, setSearching] = useState(false)
   const [viewInfo, setViewInfo] = useState(null) // where the camera looks and from how far (for the 500 m chunks)
@@ -89,18 +85,19 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   const { sample, samples, index, playing } = timeline
 
   // The site of scenario A: the lines, the score card and the site camera are about it.
-  const site = items.find((i) => i.site.id === selected.A)?.site ?? null
+  const site = siteA ?? items.find((i) => i.site.id === selected.A)?.site ?? null
+  const profileOf = (s) => (s.custom ? s.profile : horizonFile.profiles[s.id])
   const states = useMemo(
-    () => (site && sample ? siteBodyStates(site, sample, horizonFile.profiles[site.id], requirements) : null),
+    () => (site && sample ? siteBodyStates(site, sample, profileOf(site), requirements) : null),
     [site, sample, requirements],
   )
 
   // Fine zone (100 to 250 m cells) of the selected site, loaded when the camera first comes close.
-  const zoneData = useZone(site?.id ?? null, near)
+  const zoneData = useZone(site && !site.custom ? site.id : null, near)
   const zoneGrid = useMemo(() => (zoneData.zone ? zoneFrames(zoneData.zone) : null), [zoneData.zone])
   const zoneShown = near && !standing && !!zoneData.zone && !!zoneData.image
 
-  const shownCell = standing ? null : (pinnedCell ?? hoverCell)
+  const shownCell = standing ? null : hoverCell
   const probe = useMemo(
     () => (shownCell !== null && terrain && frames && samples ? probeCell(terrain, frames, shownCell, samples, index, requirements) : null),
     [shownCell, terrain, frames, samples, index, requirements],
@@ -108,7 +105,24 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
 
   useEffect(() => {
     onSelectRef.current = onSelect
-  }, [onSelect])
+    onPickPointRef.current = onPickPoint
+  }, [onSelect, onPickPoint])
+
+  useEffect(() => {
+    fineRef.current = fineChunks
+  }, [fineChunks])
+
+  // A click on the ground selects that place: the whole period is then analyzed for it, like for a named site.
+  const pickPoint = (point) => {
+    if (!point || !terrain) return
+    const { lat, lon } = latLonOf(point)
+    const site = pointSite(lat, lon, { terrain, fineChunks: fineRef.current })
+    if (site) onPickPointRef.current?.(site)
+  }
+  const pickPointRef = useRef(pickPoint)
+  useEffect(() => {
+    pickPointRef.current = pickPoint
+  })
 
   // Search the best landing areas of the period (a second or two: it judges thousands of cells), then mark them on the map.
   const searchAreas = () => {
@@ -127,7 +141,7 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
     const scene = createPolarSkyScene(containerRef.current, terrain, {
       onPick: (id) => onSelectRef.current(id),
       onProbe: setHoverCell,
-      onPin: (cell) => setPinnedCell((current) => (current === cell ? null : cell)),
+      onPin: (cell, point) => pickPointRef.current(point),
       onNear: setNear,
       onView: setViewInfo,
     })
@@ -175,8 +189,10 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   }, [terrain, hillshade, exaggeration])
 
   useEffect(() => {
-    sceneRef.current?.setSites(sitePins(items, selected))
-  }, [terrain, hillshade, items, selected])
+    // The selected point (if any) gets a pin like a named site, colored by its score.
+    const pinItems = site?.custom ? [...items, { site, evaluation }] : items
+    sceneRef.current?.setSites(sitePins(pinItems, selected))
+  }, [terrain, hillshade, items, selected, site, evaluation])
 
   useEffect(() => {
     sceneRef.current?.setSample(sample)
@@ -192,7 +208,7 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene) return
-    const profile = site && horizonFile.profiles[site.id]
+    const profile = site && profileOf(site)
     if (standing && profile) {
       scene.setView({ lat: site.lat, lon: site.lon, profile })
     } else {
@@ -284,12 +300,18 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
             searching={searching}
             ready={!!(terrain && frames && samples)}
             onSearch={searchAreas}
-            onFly={(a) => sceneRef.current?.flyTo(a.lat, a.lon)}
+            onFly={(a) => {
+              sceneRef.current?.flyTo(a.lat, a.lon)
+              if (terrain) {
+                const area = pointSite(a.lat, a.lon, { terrain, fineChunks: fineRef.current })
+                if (area) onPickPointRef.current?.(area)
+              }
+            }}
             sites={southPoleSites}
           />
         )}
         {probe && (
-          <ProbeCard probe={probe} pinned={pinnedCell !== null} onClose={() => setPinnedCell(null)} maxSlopeDeg={requirements.maxSlopeDeg} />
+          <ProbeCard probe={probe} maxSlopeDeg={requirements.maxSlopeDeg} />
         )}
       </div>
     </div>

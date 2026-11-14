@@ -57,14 +57,15 @@ export default function App() {
   const [requirements, setRequirements] = useState(DEFAULT_REQUIREMENTS)
   const [a, setA] = useState({ siteId: southPoleSites[0].id, start: `${todayUtc()}T00:00`, days: 30 })
   const [b, setB] = useState(null)
+  const [custom, setCustom] = useState(null) // a point selected on the map, analyzed like a site (pointSite.js)
   const [mapTarget, setMapTarget] = useState('A') // which scenario a click on the map or the ranking sets
 
   const overview = useSitesOverview(a.start, a.days, requirements)
   const timeline = useTimeline(a.start, a.days)
 
   // Minimum elevations change what counts as "visible", so they feed the analysis itself.
-  const resultA = useScenario(a, true, requirements)
-  const resultB = useScenario(b ?? a, compare && b !== null, requirements)
+  const resultA = useScenario(a, true, requirements, custom)
+  const resultB = useScenario(b ?? a, compare && b !== null, requirements, custom)
   const evalA = evaluate(resultA, requirements)
   const evalB = compare ? evaluate(resultB, requirements) : null
 
@@ -87,6 +88,11 @@ export default function App() {
     setDrawer(null)
   }
 
+  // A click on the ground of the 3D view: that place becomes the site of scenario A, analyzed over the whole period.
+  const selectPoint = (point) => {
+    setCustom(point)
+    setA((s) => ({ ...s, siteId: point.id }))
+  }
   const toggleCompare = (on) => {
     setCompare(on)
     // First time: B starts as the same site, DELAY_DAYS later.
@@ -96,6 +102,7 @@ export default function App() {
     if (compare && b && mapTarget === 'B') setB((s) => ({ ...s, siteId }))
     else setA((s) => ({ ...s, siteId }))
   }
+  const siteA = custom && custom.id === a.siteId ? custom : southPoleSites.find((s) => s.id === a.siteId)
   const selected = compare && b ? { A: a.siteId, B: b.siteId } : { A: a.siteId }
   const label = (state, result) => `${result.site.name}, from ${showDateTime(state.start)} UT, ${state.days} days`
   const showTable = compare && evalA && evalB
@@ -109,6 +116,8 @@ export default function App() {
           items={overview.items}
           selected={selected}
           onSelect={selectSite}
+          siteA={siteA}
+          onPickPoint={selectPoint}
           requirements={requirements}
           timeline={timeline}
           layers={layers}
@@ -158,7 +167,7 @@ export default function App() {
           />
         )}
         <div className={compare ? 'compare-grid' : undefined}>
-          <ScenarioPanel title={compare ? 'Scenario A' : undefined} state={a} onChange={setA} result={resultA} evaluation={evalA} embedded={!compare} />
+          <ScenarioPanel title={compare ? 'Scenario A' : undefined} state={a} onChange={setA} result={resultA} evaluation={evalA} embedded={!compare} custom={custom} />
           {compare && b && <ScenarioPanel title="Scenario B" state={b} onChange={setB} result={resultB} evaluation={evalB} />}
         </div>
       </div>
@@ -176,7 +185,7 @@ export default function App() {
           Land on 14 Nov 00:00: the window score is 0. Drag the timeline to 15 Nov 06:00: the Sun is up, the window is 100 and the global
           score rises from 58 to 83 (default rover requirements).
         </p>
-        <SiteControls title="Landing window" sites={southPoleSites} state={a} onChange={(patch) => setA((s) => ({ ...s, ...patch }))} />
+        <SiteControls title="Landing window" sites={southPoleSites} state={a} onChange={(patch) => setA((s) => ({ ...s, ...patch }))} custom={custom} />
         <details className="fold">
           <summary>
             Rover requirements
@@ -214,7 +223,7 @@ export default function App() {
     )
   }
 
-  const site = southPoleSites.find((s) => s.id === a.siteId)
+  const site = siteA
   return (
     <Shell
       tabs={TABS}

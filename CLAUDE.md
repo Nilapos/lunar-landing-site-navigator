@@ -77,6 +77,11 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   loaded chunk at its own resolution on the 2048 px ground texture. Without the data files the app simply stays on the 2.4 km overview.
   Rule agreed 2026-11-14: build it ONCE from the 20 m map and commit that single version (each committed regeneration adds a full copy to
   the history). Until then `public/grid500/` is excluded locally in `.git/info/exclude` and must not be committed.
+- Selected points (`src/lib/pointSite.js`, tested): a click on the ground of the sky view selects that place as the site of scenario A
+  (`pointSite` builds a site with `custom: true`, a 360-value horizon and slope statistics taken from the 500 m cell when its chunk is loaded,
+  else from the 2.4 km cell). `useScenario(..., customSite)`, `SiteControls`, `PolarSky` and `ScoreCard` accept it; the real ephemeris is
+  fetched for the clicked point, so the whole period is analyzed (score card, Why, Analysis, On site). It is approximate and flagged so.
+  Hovering still shows the quick probe card; clicking replaces the old "pin the card" behavior.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

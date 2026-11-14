@@ -21,7 +21,7 @@ function countdown(state, subject) {
 
 // One scenario (site + landing date and time + period): controls, verdict, key figures, sky view, timelines.
 // `result` comes from useScenario, `evaluation` from evaluateScenario; `state` / `onChange` hold the controls.
-export default function ScenarioPanel({ title, state, onChange, result, evaluation, embedded = false }) {
+export default function ScenarioPanel({ title, state, onChange, result, evaluation, embedded = false, custom = null }) {
   const [cursor, setCursor] = useState(0)
   const { profile, data, error, loading, analysis } = result
 
@@ -122,7 +122,7 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
 
   return (
     <div className="scenario">
-      {!embedded && <SiteControls title={title} sites={southPoleSites} state={state} onChange={update} />}
+      {!embedded && <SiteControls title={title} sites={southPoleSites} state={state} onChange={update} custom={custom} />}
       {body}
     </div>
   )
