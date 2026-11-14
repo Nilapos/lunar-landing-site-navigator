@@ -11,6 +11,7 @@ import { buildCellFrames } from '../lib/illumination.js'
 import { latLonOf, siteBodyStates } from '../lib/polarSky.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
 import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
+import { useFeasibility } from '../lib/useFeasibility.js'
 import { useFineChunks } from '../lib/useFineGrid.js'
 import { useZone } from '../lib/useZone.js'
 import { zoneFrames, zonePatchRect } from '../lib/zones.js'
@@ -97,6 +98,9 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const zoneGrid = useMemo(() => (zoneData.zone ? zoneFrames(zoneData.zone) : null), [zoneData.zone])
   const zoneShown = near && !standing && !!zoneData.zone && !!zoneData.image
 
+  // The Feasible layer: the verdict of every 2.4 km cell over the period, computed in slices.
+  const feasible = useFeasibility(terrain, frames, samples, requirements, !!layers.feasible)
+
   const shownCell = standing ? null : hoverCell
   const probe = useMemo(
     () => (shownCell !== null && terrain && frames && samples ? probeCell(terrain, frames, shownCell, samples, index, requirements) : null),
@@ -168,9 +172,10 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
       overlay: { regions: REGIONS, colors: groundOverlayColors() },
       holes: zoneShown ? [zonePatchRect(zoneData.zone)] : [],
       fine: fineChunks,
+      feasibleLevels: layers.feasible ? feasible.levels : undefined,
     })
     scene.refreshTexture()
-  }, [terrain, hillshade, frames, sample, samples, layers, requirements, zoneShown, zoneData.zone, fineChunks])
+  }, [terrain, hillshade, frames, sample, samples, layers, requirements, zoneShown, zoneData.zone, fineChunks, feasible.levels])
 
   // The fine zone: its mesh when shown, and its own texture (same layers, computed on its cells).
   useEffect(() => {
@@ -227,6 +232,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     <div className="view3d view3d--fill">
       <div className="view3d__canvas view3d__canvas--sky" ref={containerRef}>
         {!(terrain && hillshade) && <p className="notice view3d__loading">Loading the 3D relief…</p>}
+        {feasible.computing && <p className="notice view3d__computing">Computing which places are feasible over the period…</p>}
 
         <ScoreCard
           site={site}

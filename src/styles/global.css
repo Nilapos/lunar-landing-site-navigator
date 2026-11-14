@@ -565,3 +565,12 @@ a:hover { color: var(--color-accent-strong); }
 .mission__changed { color: var(--color-warn); font-size: var(--text-xs); }
 .mission__vehicles { display: grid; gap: var(--space-3); }
 .button--active { border-color: var(--color-accent); }
+
+/* What holds a site back (score card) and the Feasible layer */
+.scorecard__blockers { display: grid; gap: 4px; padding: var(--space-2); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); }
+.scorecard__blockers-title { margin: 0; font-size: var(--text-xs); color: var(--color-text-muted); }
+.scorecard__blockers ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.scorecard__blockers li { display: grid; grid-template-columns: 10px 1fr auto; align-items: baseline; gap: var(--space-2); font-size: var(--text-xs); }
+.scorecard__blockers li span:last-child { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.scorecard__met { margin: 0; font-size: var(--text-xs); color: var(--color-ok); }
+.view3d__computing { position: absolute; z-index: 6; left: 50%; bottom: var(--space-3); transform: translateX(-50%); margin: 0; font-size: var(--text-xs); }

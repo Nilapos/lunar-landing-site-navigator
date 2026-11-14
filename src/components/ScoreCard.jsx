@@ -20,6 +20,27 @@ function BodyLine({ name, state }) {
   )
 }
 
+// What holds the site back, in words: every requirement under its threshold, with how much of the need the site offers.
+// (The global score is an average; the verdict is the worst requirement, so a good-looking score can still be "not feasible".)
+function Blockers({ evaluation }) {
+  const held = evaluation.items.filter((i) => i.level !== 'ok').sort((a, b) => a.ratio - b.ratio)
+  if (held.length === 0) return <p className="scorecard__met">Every requirement is met with margin.</p>
+  return (
+    <div className="scorecard__blockers">
+      <p className="scorecard__blockers-title">{evaluation.overall === 'fail' ? 'Not feasible because' : 'Marginal because'}</p>
+      <ul>
+        {held.map((i) => (
+          <li key={i.key} title={i.detail}>
+            <span className={`dot dot--${i.level}`} aria-hidden="true" />
+            <strong>{i.label}</strong>
+            <span>{Number.isFinite(i.ratio) ? `${Math.round(i.ratio * 100)}% of the need` : 'ok'}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /**
  * The one card of the sky views: where the site stands if we land at the moment shown. Global score and four small
  * gauges, the Sun and Earth in words, and on demand the full feasibility list.
@@ -51,6 +72,8 @@ export default function ScoreCard({ site, atMs, startMs, evaluation, states, onL
         {evaluation && <span className={`pill pill--${evaluation.overall}`}>{LEVEL_LABEL[evaluation.overall]}</span>}
       </div>
       <p className="scorecard__caption">{moved ? 'If we land at this moment' : 'Landing at the start of the period'}</p>
+
+      {evaluation && <Blockers evaluation={evaluation} />}
 
       {evaluation && (
         <ul className="gauges">

@@ -114,14 +114,14 @@ export function visibilityOverlay(terrain, frames, sample, { sun = true, earth =
 /** Neon green of the "Optimal" layer (keep in sync with --color-layer-go in tokens.css). */
 const GO_RGB = [57, 255, 20]
 
-const sunMargin = (terrain, frames, c, sunDir, minDeg) => {
+export const sunMargin = (terrain, frames, c, sunDir, minDeg) => {
   const i = c * 3
   const el = clampAsin(dot3(frames.up, i, sunDir))
   const az = (Math.atan2(dot3(frames.east, i, sunDir), dot3(frames.north, i, sunDir)) * DEG + 360) % 360
   return el - horizonAtCell(terrain.horizon, c, az) - minDeg
 }
 
-const earthMargin = (terrain, frames, c, sample, earthUnit, cellUp, minDeg) => {
+export const earthMargin = (terrain, frames, c, sample, earthUnit, cellUp, minDeg) => {
   const i = c * 3
   cellUp[0] = frames.up[i]
   cellUp[1] = frames.up[i + 1]

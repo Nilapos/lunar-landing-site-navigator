@@ -89,6 +89,11 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   sources) or `hypothesis` (flagged in the Mission tab); the two generic entries reproduce `DEFAULT_REQUIREMENTS` exactly. `App.jsx` keeps
   `mission` and `overrides` (values typed in Settings) and derives `requirements`. The terrain verdict adds a rover term: 90% of the ground
   within 500 m must be under the drive slope. Teo fills the catalog and styles the Mission tab (`MissionTab.jsx`).
+- Feasible layer (`src/lib/feasibility.js`, `useFeasibility.js`, tested): a fourth mode next to Optimal. A cell is feasible when it meets the power
+  (battery / longest darkness), link (time and antenna rate) and terrain (landing slope, plus the rover drive slope) requirements over the whole
+  period, with the verdict rules of verdict.js (worst ratio: ok from 1.2, marginal from 1, fail below). The period is sampled (90 samples), the
+  2.4 km map is computed in slices by `useFeasibility`, the 500 m chunks and the zones synchronously (cached). The landing window is not part of it.
+  The score card now says what holds a site back (`Blockers` in ScoreCard.jsx): the verdict is the worst requirement, not the average score.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).
