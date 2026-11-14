@@ -44,7 +44,18 @@ body {
   border-radius: var(--radius);
   font: inherit;
 }
-.controls__site { grid-column: 1 / -1; margin: 0; color: var(--color-text-muted); font-size: 0.8125rem; }
+.controls__site { grid-column: 1 / -1; color: var(--color-text-muted); font-size: 0.8125rem; }
+.controls__site p { margin: 0 0 var(--space-1); }
+.controls__coords { color: var(--color-text); font-weight: 600; }
+a { color: var(--color-accent); }
+
+.pill--neutral { color: var(--color-text-muted); }
+.missions { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+.missions__item { padding: var(--space-3); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 0.875rem; }
+.missions__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-1); }
+.missions__meta { margin: 0; color: var(--color-text-muted); font-size: 0.8125rem; }
+.missions__note { margin: var(--space-2) 0; }
+.missions__links { margin: 0; font-size: 0.8125rem; }
 
 /* Metric cards */
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
@@ -169,6 +180,7 @@ body {
   .compare-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 1000px) {
+  .missions { grid-template-columns: 1fr; }
   .requirements { grid-template-columns: repeat(2, 1fr); }
   .scores { grid-template-columns: repeat(3, 1fr); }
 }

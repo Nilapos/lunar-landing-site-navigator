@@ -1,3 +1,5 @@
+import { SITE_GROUPS } from '../data/south-pole-sites.js'
+
 const DURATIONS = [7, 15, 30, 60]
 
 export default function SiteControls({ title, sites, state, onChange }) {
@@ -8,10 +10,16 @@ export default function SiteControls({ title, sites, state, onChange }) {
       <label className="controls__field controls__field--wide">
         <span className="controls__label">Site</span>
         <select className="controls__input" value={state.siteId} onChange={(e) => onChange({ siteId: e.target.value })}>
-          {sites.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
+          {SITE_GROUPS.map((g) => (
+            <optgroup key={g.key} label={g.label}>
+              {sites
+                .filter((s) => s.group === g.key)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </optgroup>
           ))}
         </select>
       </label>
@@ -34,9 +42,23 @@ export default function SiteControls({ title, sites, state, onChange }) {
           ))}
         </select>
       </label>
-      <p className="controls__site">
-        {site.lat.toFixed(3)}° , {site.lon.toFixed(3)}° E. {site.source}
-      </p>
+      <div className="controls__site">
+        <p className="controls__coords">
+          {Math.abs(site.lat).toFixed(3)}° S, {site.lon.toFixed(3)}° E
+        </p>
+        <p className="controls__note">{site.note}</p>
+        <p className="controls__sources">
+          Sources:{' '}
+          {site.sources.map((src, i) => (
+            <span key={src.url}>
+              {i > 0 && ' · '}
+              <a href={src.url} target="_blank" rel="noreferrer">
+                {src.label}
+              </a>
+            </span>
+          ))}
+        </p>
+      </div>
     </section>
   )
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ComparisonTable from './components/ComparisonTable.jsx'
 import Header from './components/Header.jsx'
+import MissionHistory from './components/MissionHistory.jsx'
 import RequirementsPanel from './components/RequirementsPanel.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
 import { southPoleSites } from './data/south-pole-sites.js'
@@ -75,10 +76,13 @@ export default function App() {
           )}
         </div>
 
+        <MissionHistory onSelectSite={(siteId) => setA((s) => ({ ...s, siteId }))} />
+
         <p className="app__note">
-          Sun and Earth positions: NASA JPL Horizons. Terrain horizon: LOLA elevation map (80 m per pixel). Sun and
-          Earth are treated as points, so partial sunrises and sunsets are not modeled yet. Demo sites: coordinates
-          to be replaced with official ones. Requirements are placeholders to adapt to the rover.
+          Sun and Earth positions: NASA JPL Horizons. Terrain horizon and slopes: LOLA elevation map (80 m per pixel).
+          Sun and Earth are treated as points, so partial sunrises and sunsets are not modeled yet. Artemis III site
+          coordinates are approximate points: NASA's official region centers are not in the sources we could open.
+          Rover requirements are placeholders to adapt.
         </p>
       </main>
     </div>

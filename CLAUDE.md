@@ -20,7 +20,11 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   `src/data/horizon-profiles.json`. The 115 MB source map is NOT in the repo (download link in the script).
 - `src/lib/visibility.js`: combines both: a body is visible when its elevation is above the horizon
   profile at its azimuth. Gives visibility windows, fractions and time to sunset/Earthset.
-- Sites live in `src/data/south-pole-sites.js`.
+- Sites live in `src/data/south-pole-sites.js` (grouped: Artemis III regions, mission sites, reference points), missions in
+  `src/data/missions.js`. **Every coordinate must have a source; never invent one.** NASA's official Artemis III region
+  centers are not in the sources we could open, so those entries are representative points (flagged as approximate).
+  After changing the site list, rerun `scripts/compute-horizons.mjs` (a test fails if horizons or slopes are missing).
+  `scripts/find-rim-points.mjs` checks sourced points against the LOLA map.
 - A **scenario** = a site + a landing date + a period. `src/lib/scenario.js` turns a scenario's series into
   Sun / Earth / "both at once" windows and metrics, and compares two scenarios (`compareScenarios`).
   `src/lib/useScenario.js` (hook, with `useEphemeris.js`) loads and analyzes one scenario.
