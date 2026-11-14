@@ -4,8 +4,9 @@
 import { goFractionOverlay, goFractions, goOverlay, visibilityOverlay } from './illumination.js'
 import { GRID_LATS, GRID_LONS, circleRadius, projectToMap, regionSquare } from './polarMap.js'
 import { slopeOverlayRgba } from './terrain3d.js'
+import { zoneRect } from './zones.js'
 
-export const TEXTURE_SIZE = 1024
+export const TEXTURE_SIZE = 2048
 export const ZONE_TEXTURE_SIZE = 512
 
 // The share-of-period map does not depend on the moment shown: keep it per terrain instead of recomputing at every step.
@@ -70,14 +71,29 @@ function drawLayer(ctx, rgba, grid) {
  *   layers: { sun, earth, slope, go, goPeriod }; requirements: { maxSlopeDeg, minSunDeg, minEarthDeg };
  *   overlay (optional): { regions: [{ lat, lon }], colors: { grid, regionFill, regionEdge } }, the graticule and the
  *   candidate region squares in the style of NASA's Artemis III videos, drawn over the layers;
+ *   fine (optional): the loaded 500 m chunks (fineGrid.js); each is repainted at its own resolution over the overview;
  *   holes (optional): [{ x, y, side }] squares of the map (fractions of its width) left transparent, where a fine zone
  *   takes over.
  */
-export function paintGround(canvas, { hillshade, terrain, frames, sample, samples, layers, requirements, overlay, holes = [] }) {
+export function paintGround(canvas, { hillshade, terrain, frames, sample, samples, layers, requirements, overlay, holes = [], fine = [] }) {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   for (const rgba of layerPixels({ terrain, frames, sample, samples, layers, requirements })) drawLayer(ctx, rgba, terrain.grid)
+  for (const chunk of fine) {
+    const r = zoneRect(chunk)
+    const x = r.x * TEXTURE_SIZE
+    const y = r.y * TEXTURE_SIZE
+    const side = r.side * TEXTURE_SIZE
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(x, y, side, side)
+    ctx.clip()
+    ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE) // the relief picture again, under this chunk's own cells
+    ctx.imageSmoothingEnabled = false
+    for (const rgba of layerPixels({ terrain: chunk, frames: chunk.frames, sample, samples, layers, requirements })) ctx.drawImage(gridCanvas(rgba, chunk.grid), x, y, side, side)
+    ctx.restore()
+  }
   if (overlay) drawOverlay(ctx, overlay)
   for (const h of holes) ctx.clearRect(h.x * TEXTURE_SIZE, h.y * TEXTURE_SIZE, h.side * TEXTURE_SIZE, h.side * TEXTURE_SIZE)
 }
@@ -101,7 +117,7 @@ function drawOverlay(ctx, { regions, colors }) {
   const S = TEXTURE_SIZE
   ctx.save()
   ctx.strokeStyle = colors.grid
-  ctx.lineWidth = 3 // the texture is seen reduced: thinner lines vanish
+  ctx.lineWidth = (3 * S) / 1024 // the texture is seen reduced: thinner lines vanish
   ctx.beginPath()
   for (const lat of GRID_LATS) {
     ctx.moveTo(S / 2 + circleRadius(lat) * S, S / 2)
@@ -115,7 +131,7 @@ function drawOverlay(ctx, { regions, colors }) {
   ctx.stroke()
   ctx.fillStyle = colors.regionFill
   ctx.strokeStyle = colors.regionEdge
-  ctx.lineWidth = 3
+  ctx.lineWidth = (3 * S) / 1024
   for (const r of regions) {
     const sq = regionSquare(r.lat, r.lon)
     ctx.fillRect(sq.x * S, sq.y * S, sq.side * S, sq.side * S)

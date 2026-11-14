@@ -70,6 +70,13 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   cell is optimal (`goFractions`), judges the best ~400 cells like sites (`probeCell`, same rules and scores as verdict.js), keeps distinct areas
   15 km apart, only south of 83 S (near the map edge the horizon walk is cut short). Clicking an area flies the camera there; the scene marks the
   areas with numbered neon rings (`setRankMarkers`, `flyTo` in polarSkyScene.js).
+- 500 m grid (level between the 2.4 km overview and the site zones): `scripts/build-fine-grid.mjs <ldem_80s_*.img> [--cell 500]` writes
+  `public/grid500/index.json` and one gzip file per 16 km chunk (heights, slope, delta-coded 72-azimuth horizon) for everything south of 83 S
+  (about 600 chunks, 43 MB raw, 15-18 MB compressed). `src/lib/fineGrid.js` (tested) decodes a chunk as a "zone" (zones.js), `useFineChunks`
+  loads the ~80 chunks around the point the camera looks at (reported by `polarSkyScene.js` through `onView`), and `paintGround` repaints each
+  loaded chunk at its own resolution on the 2048 px ground texture. Without the data files the app simply stays on the 2.4 km overview.
+  Rule agreed 2026-11-14: build it ONCE from the 20 m map and commit that single version (each committed regeneration adds a full copy to
+  the history). Until then `public/grid500/` is excluded locally in `.git/info/exclude` and must not be committed.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

@@ -17,6 +17,7 @@ import {
   placeBody,
   SUN_ANGULAR_RADIUS_DEG,
   sunDirection,
+  mapXY,
   surfacePoint,
 } from './polarSky.js'
 import { azEl, localFrame, unitVector } from './sky.js'
@@ -58,7 +59,7 @@ function disposeTree(root) {
  * Creates the scene inside `container`. Callbacks: onPick(siteId) for a click on a pin, onProbe(cell | null)
  * when the pointer moves over the ground, onPin(cell) for a click on the ground.
  */
-export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin, onNear }) {
+export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin, onNear, onView }) {
   const N = terrain.grid
   let exaggeration = 2
   let sites = []
@@ -213,6 +214,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     return unitVector(lat, lon).map((v) => v * (MOON_RADIUS_KM + (h / 1000) * exaggeration + liftKm))
   }
   let near = false
+  let reported = null
 
   // The rest of the Moon: a sphere open at the south (the cap covers the hole), just under the cap's rim.
   const moonGeometry = new THREE.SphereGeometry(MOON_RADIUS_KM - 0.3, 144, 72, 0, Math.PI * 2, 0, Math.PI - 9.9 * RAD)
@@ -634,6 +636,16 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     for (const pin of [...markers.children, ...rankMarkers.children]) pin.scale.setScalar(pinScale)
     rankMarkers.visible = view === null
     if (zoneMesh) zoneMesh.visible = zoneShown && view === null
+    // Tell React where the camera looks (map plane) and from how far, when it changes enough: the 500 m chunks follow it.
+    if (view === null && onView) {
+      const distanceKm = camera.position.distanceTo(controls.target)
+      const here = mapXY(controls.target.toArray())
+      const last = reported
+      if (!last || Math.hypot(here.x - last.xKm, here.y - last.yKm) > 3 || Math.abs(distanceKm - last.distanceKm) > 0.1 * last.distanceKm) {
+        reported = { xKm: here.x, yKm: here.y, distanceKm }
+        onView(reported)
+      }
+    }
     // Tell React when the camera is close enough to the selected site for its fine zone (with some hysteresis).
     if (focus && view === null) {
       const distance = camera.position.distanceTo(focusPoint)

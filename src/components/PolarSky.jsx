@@ -10,6 +10,7 @@ import { buildCellFrames } from '../lib/illumination.js'
 import { siteBodyStates } from '../lib/polarSky.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
 import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
+import { useFineChunks } from '../lib/useFineGrid.js'
 import { useZone } from '../lib/useZone.js'
 import { zoneFrames, zonePatchRect } from '../lib/zones.js'
 import { LEVEL_LABEL } from '../lib/verdict.js'
@@ -80,6 +81,8 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
   const [pinnedCell, setPinnedCell] = useState(null)
   const [areas, setAreas] = useState(null) // best areas found for the period, null before the first search
   const [searching, setSearching] = useState(false)
+  const [viewInfo, setViewInfo] = useState(null) // where the camera looks and from how far (for the 500 m chunks)
+  const fineChunks = useFineChunks(viewInfo)
   const [near, setNear] = useState(false) // the camera is close to the selected site: its fine zone replaces the overview
   const standing = view === 'site'
   const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
@@ -126,6 +129,7 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
       onProbe: setHoverCell,
       onPin: (cell) => setPinnedCell((current) => (current === cell ? null : cell)),
       onNear: setNear,
+      onView: setViewInfo,
     })
     sceneRef.current = scene
     flightRef.current = false
@@ -149,9 +153,10 @@ export default function PolarSky({ items, selected, onSelect, requirements, time
       requirements,
       overlay: { regions: REGIONS, colors: groundOverlayColors() },
       holes: zoneShown ? [zonePatchRect(zoneData.zone)] : [],
+      fine: fineChunks,
     })
     scene.refreshTexture()
-  }, [terrain, hillshade, frames, sample, samples, layers, requirements, zoneShown, zoneData.zone])
+  }, [terrain, hillshade, frames, sample, samples, layers, requirements, zoneShown, zoneData.zone, fineChunks])
 
   // The fine zone: its mesh when shown, and its own texture (same layers, computed on its cells).
   useEffect(() => {

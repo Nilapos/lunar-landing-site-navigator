@@ -168,3 +168,12 @@ export function polarUv(x, y, z) {
   const phi = Math.atan2(y, x)
   return [0.5 + 0.5 * rho * Math.cos(phi), 0.5 - 0.5 * rho * Math.sin(phi)] // v is measured from the bottom of the picture
 }
+
+/** A point of the scene (km, z north) as a point of the map plane: { x: km east of the pole, y: km toward lon 0 }. */
+export function mapXY([px, py, pz]) {
+  const length = Math.hypot(px, py, pz)
+  const lat = Math.asin(Math.min(1, Math.max(-1, pz / length)))
+  const lon = Math.atan2(py, px)
+  const rho = 2 * MOON_RADIUS_KM * Math.tan((lat + Math.PI / 2) / 2)
+  return { x: rho * Math.sin(lon), y: rho * Math.cos(lon) }
+}
