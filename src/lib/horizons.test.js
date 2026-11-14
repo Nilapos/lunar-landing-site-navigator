@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { buildHorizonsUrl, handleRequest, parseHorizonsResult, parseQuery } from './horizons.js'
 
+const NO_WAIT = { retryDelayMs: 0, cache: false }
+
 const SAMPLE = `header
 $$SOE
  2026-Nov-14 00:00,*, , 228.998501,    -4.713855,
@@ -47,7 +49,7 @@ test('handleRequest merges Sun and Earth series', async () => {
     const el = isSun ? '1.0' : '2.0'
     return { ok: true, json: async () => ({ result: `$$SOE\n 2026-Nov-14 00:00,*, , 10.0, ${el},\n$$EOE` }) }
   }
-  const out = await handleRequest({ lat: '-89.9', lon: '0', start: '2026-11-14', stop: '2026-11-14 00:30', stepMinutes: '10' }, fakeFetch)
+  const out = await handleRequest({ lat: '-89.9', lon: '0', start: '2026-11-14', stop: '2026-11-14 00:30', stepMinutes: '10' }, fakeFetch, NO_WAIT)
   assert.equal(out.status, 200)
   assert.deepEqual(out.body.series[0], { t: '2026-11-14T00:00:00.000Z', sunAz: 10, sunEl: 1, earthAz: 10, earthEl: 2 })
 })
@@ -55,6 +57,49 @@ test('handleRequest merges Sun and Earth series', async () => {
 test('handleRequest returns 400 on bad input and 502 on upstream failure', async () => {
   assert.equal((await handleRequest({})).status, 400)
   const failing = async () => ({ ok: false, status: 500 })
-  const out = await handleRequest({ lat: '-89', lon: '0', start: '2026-11-14', stop: '2026-11-15' }, failing)
+  const out = await handleRequest({ lat: '-89', lon: '0', start: '2026-11-14', stop: '2026-11-15' }, failing, NO_WAIT)
   assert.equal(out.status, 502)
+})
+
+test('handleRequest retries when Horizons answers 503', async () => {
+  const calls = new Map()
+  const flaky = async (url) => {
+    const n = (calls.get(url) ?? 0) + 1
+    calls.set(url, n)
+    if (n === 1) return { ok: false, status: 503 }
+    return { ok: true, json: async () => ({ result: '$$SOE\n 2026-Nov-14 00:00,*, , 10.0, 1.0,\n$$EOE' }) }
+  }
+  const out = await handleRequest({ lat: '-89', lon: '0', start: '2026-11-14', stop: '2026-11-14 00:30', stepMinutes: '10' }, flaky, NO_WAIT)
+  assert.equal(out.status, 200)
+  assert.ok([...calls.values()].every((n) => n === 2))
+})
+
+test('only one upstream request runs at a time', async () => {
+  let running = 0
+  let maxRunning = 0
+  const slow = async () => {
+    running++
+    maxRunning = Math.max(maxRunning, running)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    running--
+    return { ok: true, json: async () => ({ result: '$$SOE\n 2026-Nov-14 00:00,*, , 10.0, 1.0,\n$$EOE' }) }
+  }
+  const q = { start: '2026-11-14', stop: '2026-11-14 00:30', stepMinutes: '10' }
+  await Promise.all([
+    handleRequest({ lat: '-80', lon: '0', ...q }, slow, NO_WAIT),
+    handleRequest({ lat: '-81', lon: '0', ...q }, slow, NO_WAIT),
+  ])
+  assert.equal(maxRunning, 1)
+})
+
+test('identical requests are served from the cache', async () => {
+  let calls = 0
+  const counting = async () => {
+    calls++
+    return { ok: true, json: async () => ({ result: '$$SOE\n 2026-Nov-14 00:00,*, , 10.0, 1.0,\n$$EOE' }) }
+  }
+  const q = { lat: '-83.5', lon: '12', start: '2026-11-14', stop: '2026-11-14 00:30', stepMinutes: '10' }
+  await handleRequest(q, counting, { retryDelayMs: 0 })
+  await handleRequest(q, counting, { retryDelayMs: 0 })
+  assert.equal(calls, 2) // Sun + Earth once each, the second request is cached
 })

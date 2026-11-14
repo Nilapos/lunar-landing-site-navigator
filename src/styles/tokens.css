@@ -7,7 +7,12 @@
   --color-text: #e8eaf0;
   --color-text-muted: #9aa3b5;
   --color-accent: #7aa2ff;
-  --color-marker: #ffd166;
+
+  --color-sun: #ffd166;
+  --color-earth: #4cc9f0;
+  --color-terrain: #3a4258;
+  --color-ok: #6ee7a8;
+  --color-off: #ff8a80;
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
 

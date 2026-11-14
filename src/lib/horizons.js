@@ -65,19 +65,61 @@ export function parseHorizonsResult(text) {
     })
 }
 
-async function fetchBody(body, params, fetchImpl) {
-  const res = await fetchImpl(buildHorizonsUrl({ body, ...params }), { signal: AbortSignal.timeout(25000) })
-  if (!res.ok) throw new Error(`Horizons HTTP ${res.status}`)
-  const json = await res.json()
-  if (json.error) throw new Error(`Horizons error: ${json.error}`)
-  return parseHorizonsResult(json.result)
+// Horizons answers 503 when it gets several requests at once. So: one upstream request at a time
+// (queue), a few retries on 503/429, and a small in-memory cache that also merges duplicate requests.
+const MAX_RETRIES = 3
+const CACHE_MS = 10 * 60 * 1000
+const CACHE_MAX_ENTRIES = 200
+const DEFAULT_OPTIONS = { retryDelayMs: 1000, cache: true }
+const cache = new Map() // url -> { at, promise }
+let queue = Promise.resolve()
+
+function enqueue(task) {
+  const run = queue.then(task, task)
+  queue = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function fetchRows(url, fetchImpl, retryDelayMs) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(25000) })
+    if ((res.status === 503 || res.status === 429) && attempt < MAX_RETRIES) {
+      await wait(retryDelayMs * (attempt + 1))
+      continue
+    }
+    if (!res.ok) throw new Error(`Horizons HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.error) throw new Error(`Horizons error: ${json.error}`)
+    return parseHorizonsResult(json.result)
+  }
+}
+
+function fetchBody(body, params, fetchImpl, options) {
+  const url = buildHorizonsUrl({ body, ...params })
+  if (options.cache) {
+    const hit = cache.get(url)
+    if (hit && Date.now() - hit.at < CACHE_MS) return hit.promise
+  }
+  const promise = enqueue(() => fetchRows(url, fetchImpl, options.retryDelayMs))
+  if (options.cache) {
+    if (cache.size >= CACHE_MAX_ENTRIES) cache.delete(cache.keys().next().value)
+    cache.set(url, { at: Date.now(), promise })
+    promise.catch(() => cache.delete(url))
+  }
+  return promise
 }
 
 /** Sun and Earth az/el over time for one site. Returns { site, start, stop, stepMinutes, series }. */
-export async function fetchSiteEphemeris(params, fetchImpl = fetch) {
+export async function fetchSiteEphemeris(params, fetchImpl = fetch, options = {}) {
+  const opts = { ...DEFAULT_OPTIONS, ...options }
   const [sun, earth] = await Promise.all([
-    fetchBody('sun', params, fetchImpl),
-    fetchBody('earth', params, fetchImpl),
+    fetchBody('sun', params, fetchImpl, opts),
+    fetchBody('earth', params, fetchImpl, opts),
   ])
   if (sun.length !== earth.length) throw new Error('Sun and Earth series have different lengths')
   const { lat, lon, altKm, start, stop, stepMinutes } = params
@@ -127,7 +169,7 @@ export function parseQuery(query) {
 }
 
 /** Shared request handler for the Vercel function and the Vite dev middleware. */
-export async function handleRequest(query, fetchImpl = fetch) {
+export async function handleRequest(query, fetchImpl = fetch, options = {}) {
   let params
   try {
     params = parseQuery(query)
@@ -135,7 +177,7 @@ export async function handleRequest(query, fetchImpl = fetch) {
     return { status: 400, body: { error: e.message } }
   }
   try {
-    const body = await fetchSiteEphemeris(params, fetchImpl)
+    const body = await fetchSiteEphemeris(params, fetchImpl, options)
     // Ephemerides never change for given inputs: let the CDN cache them for a day.
     return { status: 200, body, cache: 'public, s-maxage=86400, stale-while-revalidate=604800' }
   } catch (e) {

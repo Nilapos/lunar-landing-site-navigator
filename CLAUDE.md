@@ -20,8 +20,10 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   `src/data/horizon-profiles.json`. The 115 MB source map is NOT in the repo (download link in the script).
 - `src/lib/visibility.js`: combines both: a body is visible when its elevation is above the horizon
   profile at its azimuth. Gives visibility windows, fractions and time to sunset/Earthset.
-- Sites live in `src/data/south-pole-sites.js` (the old `src/data/sites.js` and `scoring.js` are
-  obsolete placeholders and will be removed when the UI is moved to the new data).
+- Sites live in `src/data/south-pole-sites.js`.
+- `src/lib/useEphemeris.js` loads the data in the browser; `src/App.jsx` combines everything:
+  site/date controls, Sun and Earth cards, sky view (`SkyView`) and timelines (`ElevationChart`).
+  First version, functional but not styled for design yet: Teo's job.
 
 ## Team and ownership
 
@@ -46,8 +48,7 @@ person stays in their own area. If you must touch the other's area or a shared f
 
 ## Data rules
 
-- Data in `src/data/sites.js` is OBSOLETE placeholder. The site list in `src/data/south-pole-sites.js`
-  is a demo set. Real values must come from NASA sources (LRO/LOLA, Moon Trek, JPL Horizons);
+- The site list in `src/data/south-pole-sites.js` is a demo set. Real values must come from NASA sources (LRO/LOLA, Moon Trek, JPL Horizons);
   always note the source next to the data.
 - Do not commit large raw datasets (images, DEM). Use links or a small sample.
 - Never commit secrets: `.env` is git-ignored. Put variable names in `.env.example`.

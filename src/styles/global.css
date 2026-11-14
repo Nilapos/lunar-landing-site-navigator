@@ -6,59 +6,106 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
+  line-height: 1.45;
 }
 
-.app { min-height: 100vh; display: flex; flex-direction: column; }
+.app { min-height: 100vh; }
 
-.header { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); }
-.header__title { margin: 0; font-size: 1.25rem; }
-.header__subtitle { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: 0.875rem; }
+.header { padding: var(--space-4) var(--space-3) var(--space-3); max-width: 1100px; margin: 0 auto; }
+.header__title { margin: 0; font-size: 1.5rem; }
+.header__subtitle { margin: var(--space-2) 0 0; color: var(--color-text-muted); max-width: 70ch; }
 
 .app__main {
-  flex: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 var(--space-3) var(--space-4);
   display: grid;
-  grid-template-columns: 1fr 320px;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
 }
-@media (max-width: 800px) {
-  .app__main { grid-template-columns: 1fr; }
-}
+.app__note { margin: 0; color: var(--color-text-muted); font-size: 0.8125rem; }
 
-.map__surface {
-  position: relative;
-  aspect-ratio: 2 / 1;
+/* Controls */
+.controls {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: var(--space-3);
+  padding: var(--space-3);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
 }
-.map__marker {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  transform: translate(-50%, -50%);
-  border: 2px solid var(--color-bg);
-  border-radius: 50%;
-  background: var(--color-marker);
-  cursor: pointer;
-}
-.map__marker--selected { background: var(--color-accent); box-shadow: 0 0 0 4px rgb(122 162 255 / 0.35); }
-
-.sites__title { margin: 0 0 var(--space-2); font-size: 1rem; }
-.sites__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
-.sites__item {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-surface);
-  color: inherit;
+.controls__field { display: grid; gap: var(--space-1); }
+.controls__label { font-size: 0.8125rem; color: var(--color-text-muted); }
+.controls__input {
+  padding: var(--space-2);
+  background: var(--color-bg);
+  color: var(--color-text);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  cursor: pointer;
   font: inherit;
-  text-align: left;
 }
-.sites__item:hover { background: var(--color-surface-hover); }
-.sites__item--selected { border-color: var(--color-accent); }
-.sites__score { color: var(--color-accent); font-weight: 600; }
+.controls__site { grid-column: 1 / -1; margin: 0; color: var(--color-text-muted); font-size: 0.8125rem; }
+
+/* Metric cards */
+.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.metric {
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-top-width: 3px;
+  border-radius: var(--radius);
+}
+.metric--sun { border-top-color: var(--color-sun); }
+.metric--earth { border-top-color: var(--color-earth); }
+.metric__title { margin: 0; font-size: 1.125rem; }
+.metric__subtitle { margin: var(--space-1) 0 var(--space-3); color: var(--color-text-muted); font-size: 0.875rem; }
+.metric__status { margin: 0 0 var(--space-3); font-weight: 600; }
+.metric__status--on { color: var(--color-ok); }
+.metric__status--off { color: var(--color-off); }
+.metric__stats { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.metric__stat-label { font-size: 0.75rem; color: var(--color-text-muted); }
+.metric__stat-value { margin: 0; font-size: 1.25rem; font-weight: 600; }
+
+/* Panels, sky view, charts */
+.panel {
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.panel__title { margin: 0 0 var(--space-2); font-size: 1rem; }
+.panel__slider { width: 100%; margin: 0 0 var(--space-2); accent-color: var(--color-accent); }
+.panel__detail { margin: var(--space-2) 0 0; color: var(--color-text-muted); font-size: 0.875rem; }
+
+.sky, .chart { margin: 0; }
+.sky__svg, .chart__svg { width: 100%; height: auto; display: block; }
+.sky__terrain { fill: var(--color-terrain); stroke: var(--color-text-muted); stroke-width: 1; }
+.sky__body { stroke: var(--color-bg); stroke-width: 2; }
+.sky__body--sun { fill: var(--color-sun); }
+.sky__body--earth { fill: var(--color-earth); }
+.sky__legend { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); font-size: 0.8125rem; color: var(--color-text-muted); }
+.legend::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; background: currentColor; }
+.legend--sun::before { background: var(--color-sun); }
+.legend--earth::before { background: var(--color-earth); }
+.legend--terrain::before { background: var(--color-terrain); border-radius: 2px; }
+
+.chart + .chart { margin-top: var(--space-3); }
+.chart__title { font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: var(--space-1); }
+.chart__grid { stroke: var(--color-border); stroke-width: 1; }
+.chart__zero { stroke: var(--color-text-muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.chart__tick { fill: var(--color-text-muted); font-size: 11px; }
+.chart__line { fill: none; stroke-width: 2; }
+.chart__line--sun { stroke: var(--color-sun); }
+.chart__line--earth { stroke: var(--color-earth); }
+.chart__window { fill-opacity: 0.14; }
+.chart__window--sun { fill: var(--color-sun); }
+.chart__window--earth { fill: var(--color-earth); }
+.chart__cursor { stroke: var(--color-text); stroke-width: 1; }
+
+.notice { margin: 0; padding: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); color: var(--color-text-muted); }
+.notice--error { color: var(--color-off); }
+
+@media (max-width: 800px) {
+  .controls { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr; }
+}
