@@ -37,6 +37,10 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 - Map: `public/south-pole-hillshade.png` is a hillshade of the LOLA map made by `scripts/render-map.mjs`; `src/lib/polarMap.js`
   projects lat/lon on it (lon 0 up, 90 E right). `SitesOverview` (+ `PolarMap`) shows every site on the map and in a ranking by
   global score, computed by `useSitesOverview` (Horizons is queried one site at a time: it rejects simultaneous requests).
+- 3D view (`View3DPanel` -> lazy `Terrain3D` -> `src/lib/terrainScene.js`, three.js): relief mesh from a 256x256 grid
+  (`public/south-pole-heights.bin`, `south-pole-slope.bin`, built by `scripts/build-3d-data.mjs`), the hillshade as texture,
+  site pins, and a forbidden-zone layer (slope above the rover limit). three.js is the only 3D dependency and is only
+  downloaded when the user opens the 3D view. The mouse wheel zooms only after a click on the view.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted). Functional first version, not styled
   for design yet: Teo's job.

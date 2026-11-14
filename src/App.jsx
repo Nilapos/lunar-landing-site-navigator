@@ -5,6 +5,7 @@ import MissionHistory from './components/MissionHistory.jsx'
 import RequirementsPanel from './components/RequirementsPanel.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
 import SitesOverview from './components/SitesOverview.jsx'
+import View3DPanel from './components/View3DPanel.jsx'
 import { southPoleSites } from './data/south-pole-sites.js'
 import { addDaysIso, showDateTime, todayUtc } from './lib/format.js'
 import { compareScenarios } from './lib/scenario.js'
@@ -73,6 +74,13 @@ export default function App() {
           compare={compare && b !== null}
           target={mapTarget}
           onTargetChange={setMapTarget}
+        />
+
+        <View3DPanel
+          items={overview.items}
+          selected={compare && b ? { A: a.siteId, B: b.siteId } : { A: a.siteId }}
+          onSelect={selectSite}
+          maxSlopeDeg={requirements.maxSlopeDeg}
         />
 
         {showTable && (
