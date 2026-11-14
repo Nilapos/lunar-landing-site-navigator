@@ -34,12 +34,20 @@ export function formatUtc(ms) {
   return `${formatDay(ms)}, ${hh}:${mm} UT`
 }
 
-/** "2026-11-14" + 30 -> "2026-12-14". */
-export function addDaysIso(isoDate, days) {
-  return new Date(Date.parse(`${isoDate}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10)
+/** "2026-11-14" + 30 -> "2026-12-14"; "2026-11-14T08:30" + 2 -> "2026-11-16T08:30". Same shape as the input. */
+export function addDaysIso(value, days) {
+  const hasTime = value.includes('T')
+  const ms = Date.parse(hasTime ? `${value}:00Z` : `${value}T00:00:00Z`) + days * DAY_MS
+  const iso = new Date(ms).toISOString()
+  return hasTime ? iso.slice(0, 16) : iso.slice(0, 10)
 }
 
 /** Today's date in UTC as "YYYY-MM-DD". */
 export function todayUtc() {
   return new Date().toISOString().slice(0, 10)
+}
+
+/** "2026-11-14T08:30" -> "2026-11-14 08:30" (for display). */
+export function showDateTime(value) {
+  return value.replace('T', ' ')
 }

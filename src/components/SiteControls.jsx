@@ -16,8 +16,13 @@ export default function SiteControls({ title, sites, state, onChange }) {
         </select>
       </label>
       <label className="controls__field">
-        <span className="controls__label">Landing date (UT)</span>
-        <input className="controls__input" type="date" value={state.start} onChange={(e) => onChange({ start: e.target.value })} />
+        <span className="controls__label">Landing date and time (UT)</span>
+        <input
+          className="controls__input"
+          type="datetime-local"
+          value={state.start}
+          onChange={(e) => onChange({ start: e.target.value })}
+        />
       </label>
       <label className="controls__field">
         <span className="controls__label">Period after landing</span>

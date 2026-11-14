@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { addDaysIso } from './format.js'
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/ // a date, or a date and time (UT)
 
 /**
  * Loads Sun/Earth az/el for a site from our /api/horizons endpoint. Returns { data, error, loading }.

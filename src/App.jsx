@@ -1,21 +1,32 @@
 import { useState } from 'react'
 import ComparisonTable from './components/ComparisonTable.jsx'
 import Header from './components/Header.jsx'
+import RequirementsPanel from './components/RequirementsPanel.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
 import { southPoleSites } from './data/south-pole-sites.js'
-import { addDaysIso, todayUtc } from './lib/format.js'
+import { addDaysIso, showDateTime, todayUtc } from './lib/format.js'
 import { compareScenarios } from './lib/scenario.js'
 import { useScenario } from './lib/useScenario.js'
+import { DEFAULT_REQUIREMENTS, evaluateScenario } from './lib/verdict.js'
 
 const DELAY_DAYS = 2 // default "what if the landing slips" scenario B
 
+function evaluate(result, requirements) {
+  if (!result.analysis) return null
+  return evaluateScenario(result.analysis, requirements, Date.parse(result.data.series[0].t))
+}
+
 export default function App() {
   const [compare, setCompare] = useState(false)
-  const [a, setA] = useState({ siteId: southPoleSites[0].id, start: todayUtc(), days: 30 })
+  const [requirements, setRequirements] = useState(DEFAULT_REQUIREMENTS)
+  const [a, setA] = useState({ siteId: southPoleSites[0].id, start: `${todayUtc()}T00:00`, days: 30 })
   const [b, setB] = useState(null)
 
-  const resultA = useScenario(a)
-  const resultB = useScenario(b ?? a, compare && b !== null)
+  // Minimum elevations change what counts as "visible", so they feed the analysis itself.
+  const resultA = useScenario(a, true, requirements)
+  const resultB = useScenario(b ?? a, compare && b !== null, requirements)
+  const evalA = evaluate(resultA, requirements)
+  const evalB = compare ? evaluate(resultB, requirements) : null
 
   const toggleCompare = (on) => {
     setCompare(on)
@@ -23,13 +34,19 @@ export default function App() {
     if (on && !b) setB({ ...a, start: addDaysIso(a.start, DELAY_DAYS) })
   }
 
-  const label = (state, result) => `${result.site.name}, from ${state.start}, ${state.days} days`
-  const showTable = compare && resultA.analysis && resultB.analysis
+  const label = (state, result) => `${result.site.name}, from ${showDateTime(state.start)} UT, ${state.days} days`
+  const showTable = compare && evalA && evalB
 
   return (
     <div className="app">
       <Header />
       <main className={`app__main${compare ? ' app__main--wide' : ''}`}>
+        <RequirementsPanel
+          requirements={requirements}
+          onChange={(patch) => setRequirements((r) => ({ ...r, ...patch }))}
+          onReset={() => setRequirements(DEFAULT_REQUIREMENTS)}
+        />
+
         <label className="toggle">
           <input type="checkbox" checked={compare} onChange={(e) => toggleCompare(e.target.checked)} />
           <span>Compare two scenarios (two sites, or one site at two dates)</span>
@@ -40,18 +57,28 @@ export default function App() {
             rows={compareScenarios(resultA.analysis, resultB.analysis)}
             labelA={`A: ${label(a, resultA)}`}
             labelB={`B: ${label(b, resultB)}`}
+            evalA={evalA}
+            evalB={evalB}
           />
         )}
 
         <div className={compare ? 'compare-grid' : undefined}>
-          <ScenarioPanel title={compare ? 'Scenario A' : undefined} state={a} onChange={setA} result={resultA} />
-          {compare && b && <ScenarioPanel title="Scenario B" state={b} onChange={setB} result={resultB} />}
+          <ScenarioPanel
+            title={compare ? 'Scenario A' : undefined}
+            state={a}
+            onChange={setA}
+            result={resultA}
+            evaluation={evalA}
+          />
+          {compare && b && (
+            <ScenarioPanel title="Scenario B" state={b} onChange={setB} result={resultB} evaluation={evalB} />
+          )}
         </div>
 
         <p className="app__note">
           Sun and Earth positions: NASA JPL Horizons. Terrain horizon: LOLA elevation map (80 m per pixel). Sun and
           Earth are treated as points, so partial sunrises and sunsets are not modeled yet. Demo sites: coordinates
-          to be replaced with official ones.
+          to be replaced with official ones. Requirements are placeholders to adapt to the rover.
         </p>
       </main>
     </div>

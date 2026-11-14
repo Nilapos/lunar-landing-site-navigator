@@ -6,19 +6,19 @@ import ElevationChart from './ElevationChart.jsx'
 import MetricCard from './MetricCard.jsx'
 import SiteControls from './SiteControls.jsx'
 import SkyView from './SkyView.jsx'
+import Verdict from './Verdict.jsx'
 
-function statusLine(state, subject) {
-  const head = `${subject} ${state.visible ? 'above' : 'below'} the horizon`
-  const tail =
-    state.remainingMs === null
-      ? 'no change before the end of the period'
-      : `${state.visible ? 'sets' : 'rises'} in ${formatDuration(state.remainingMs)}`
-  return `${head} · ${tail}`
+// "Sunset in 3 h 10 min" / "Earthrise in 2.6 days" / "Sun above the horizon until the end of the period".
+function countdown(state, subject) {
+  if (state.remainingMs === null) {
+    return `${subject} ${state.visible ? 'above' : 'below'} the horizon until the end of the period`
+  }
+  return `${subject}${state.visible ? 'set' : 'rise'} in ${formatDuration(state.remainingMs)}`
 }
 
-// One scenario (site + landing date + period): controls, key figures, sky view and timelines.
-// `result` comes from useScenario; `state` / `onChange` hold the controls.
-export default function ScenarioPanel({ title, state, onChange, result }) {
+// One scenario (site + landing date and time + period): controls, verdict, key figures, sky view, timelines.
+// `result` comes from useScenario, `evaluation` from evaluateScenario; `state` / `onChange` hold the controls.
+export default function ScenarioPanel({ title, state, onChange, result, evaluation }) {
   const [cursor, setCursor] = useState(0)
   const { profile, data, error, loading, analysis } = result
 
@@ -30,7 +30,7 @@ export default function ScenarioPanel({ title, state, onChange, result }) {
   let body
   if (error) {
     body = <p className="notice notice--error">Could not load the data: {error}</p>
-  } else if (loading || !analysis) {
+  } else if (loading || !analysis || !evaluation) {
     body = <p className="notice">Loading Sun and Earth positions from NASA JPL Horizons…</p>
   } else {
     const series = data.series
@@ -49,12 +49,14 @@ export default function ScenarioPanel({ title, state, onChange, result }) {
 
     body = (
       <>
+        <Verdict evaluation={evaluation} />
+
         <section className="metrics" aria-label="Key figures">
           <MetricCard
             tone="sun"
             title="Power (Sun)"
             subtitle="Solar panels need the Sun above the local horizon."
-            status={statusLine(sunState, 'Sun')}
+            status={countdown(sunState, 'Sun')}
             visible={sunState.visible}
             stats={[
               { label: 'Sunlit', value: formatPercent(sun.summary.visibleFraction) },
@@ -66,7 +68,7 @@ export default function ScenarioPanel({ title, state, onChange, result }) {
             tone="earth"
             title="Communication (Earth)"
             subtitle="Direct-to-Earth link needs Earth above the local horizon."
-            status={statusLine(earthState, 'Earth')}
+            status={countdown(earthState, 'Earth')}
             visible={earthState.visible}
             stats={[
               { label: 'Earth visible', value: formatPercent(earth.summary.visibleFraction) },
@@ -101,7 +103,7 @@ export default function ScenarioPanel({ title, state, onChange, result }) {
         </section>
 
         <section className="panel" aria-label="Visibility over time">
-          <h3 className="panel__title">Elevation above the local horizon</h3>
+          <h3 className="panel__title">Elevation above the required minimum</h3>
           <ElevationChart tone="sun" title="Sun" samples={sun.samples} windows={sun.windows} cursorMs={atMs} />
           <ElevationChart tone="earth" title="Earth" samples={earth.samples} windows={earth.windows} cursorMs={atMs} />
         </section>

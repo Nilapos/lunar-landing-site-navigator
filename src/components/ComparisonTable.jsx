@@ -1,4 +1,6 @@
 import { formatDuration } from '../lib/format.js'
+import { LEVEL_LABEL } from '../lib/verdict.js'
+import { VerdictPill } from './Verdict.jsx'
 
 function formatValue(kind, value) {
   return kind === 'percent' ? `${Math.round(value * 100)} %` : formatDuration(value)
@@ -12,8 +14,18 @@ function formatDelta(kind, delta) {
   return Math.abs(delta) < 60000 ? '=' : `${delta > 0 ? '+' : '-'}${formatDuration(Math.abs(delta))}`
 }
 
-// A versus B on the same metrics. The better value of each row is highlighted.
-export default function ComparisonTable({ rows, labelA, labelB }) {
+const levelOf = (evaluation, key) =>
+  key === 'overall' ? evaluation.overall : evaluation.items.find((i) => i.key === key).level
+
+const VERDICT_ROWS = [
+  ['overall', 'Overall'],
+  ['power', 'Power'],
+  ['comms', 'Communication'],
+  ['window', 'Landing window'],
+]
+
+// A versus B: verdicts (green / orange / red) first, then the measured values. The better value is highlighted.
+export default function ComparisonTable({ rows, labelA, labelB, evalA, evalB }) {
   return (
     <section className="panel" aria-label="Comparison of scenarios A and B">
       <h2 className="panel__title">A versus B</h2>
@@ -28,6 +40,22 @@ export default function ComparisonTable({ rows, labelA, labelB }) {
             </tr>
           </thead>
           <tbody>
+            {VERDICT_ROWS.map(([key, label]) => {
+              const a = levelOf(evalA, key)
+              const b = levelOf(evalB, key)
+              return (
+                <tr key={key}>
+                  <th scope="row">{label}</th>
+                  <td>
+                    <VerdictPill level={a} />
+                  </td>
+                  <td>
+                    <VerdictPill level={b} />
+                  </td>
+                  <td className="compare__delta">{a === b ? '=' : `${LEVEL_LABEL[a]} → ${LEVEL_LABEL[b]}`}</td>
+                </tr>
+              )
+            })}
             {rows.map((r) => (
               <tr key={r.key}>
                 <th scope="row">{r.label}</th>
