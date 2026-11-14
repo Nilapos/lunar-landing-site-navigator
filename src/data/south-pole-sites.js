@@ -37,6 +37,7 @@ export const southPoleSites = [
   {
     id: 'malapert-massif',
     name: 'Malapert massif summit',
+    shortName: 'Malapert',
     group: 'artemis',
     lat: -85.988,
     lon: 2.053,
@@ -48,6 +49,7 @@ export const southPoleSites = [
   {
     id: 'nobile-rim-2',
     name: 'Nobile Rim 2 (point from a published study)',
+    shortName: 'Nobile Rim 2',
     group: 'artemis',
     lat: -84.20156,
     lon: 60.69989,
@@ -60,6 +62,7 @@ export const southPoleSites = [
   {
     id: 'mons-mouton-im2',
     name: 'Mons Mouton: IM-2 intended landing site',
+    shortName: 'Mons Mouton (IM-2)',
     group: 'mission',
     lat: -84.78,
     lon: 29.13,
@@ -72,6 +75,7 @@ export const southPoleSites = [
   {
     id: 'change7-target',
     name: "Chang'e-7 planned site (Shackleton southeast ridge)",
+    shortName: "Chang'e-7",
     group: 'mission',
     lat: -88.8,
     lon: 123.4,
@@ -83,6 +87,7 @@ export const southPoleSites = [
   {
     id: 'shackleton-ridge',
     name: 'Ridge near Shackleton (highest point near the pole)',
+    shortName: 'Ridge',
     group: 'reference',
     lat: -89.507,
     lon: 221.748,
@@ -94,6 +99,7 @@ export const southPoleSites = [
   {
     id: 'shackleton-floor',
     name: 'Shackleton crater floor (permanently shadowed)',
+    shortName: 'Shackleton floor',
     group: 'reference',
     lat: -89.6667,
     lon: 129.7833,

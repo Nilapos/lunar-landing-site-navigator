@@ -34,6 +34,9 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   100 x min(ratio / 2, 1) (50 = just met), green from ratio 1.2. No home-made formulas.
 - Slopes: `slopeStats` in `terrain.js` (LOLA 80 m, within 100 m of the site), precomputed with the horizons
   into `src/data/site-terrain.json` by `scripts/compute-horizons.mjs` (rerun it when sites change).
+- Map: `public/south-pole-hillshade.png` is a hillshade of the LOLA map made by `scripts/render-map.mjs`; `src/lib/polarMap.js`
+  projects lat/lon on it (lon 0 up, 90 E right). `SitesOverview` (+ `PolarMap`) shows every site on the map and in a ranking by
+  global score, computed by `useSitesOverview` (Horizons is queried one site at a time: it rejects simultaneous requests).
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted). Functional first version, not styled
   for design yet: Teo's job.

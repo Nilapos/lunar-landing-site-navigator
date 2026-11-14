@@ -19,6 +19,7 @@ test('sites: unique ids, inside the LOLA map (80 S to the pole), documented with
     assert.ok(s.lon >= 0 && s.lon <= 360, `${s.id} longitude`)
     assert.ok(groups.has(s.group), `${s.id} group`)
     assert.ok(s.name.length > 0 && s.note.length > 20, `${s.id} needs a name and a note`)
+    assert.ok(s.shortName && s.shortName.length <= 20, `${s.id} needs a short name for the map`)
     assert.ok(s.sources.length > 0 && s.sources.every(isHttps), `${s.id} needs https sources`)
   }
 })

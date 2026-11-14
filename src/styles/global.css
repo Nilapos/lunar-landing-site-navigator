@@ -157,6 +157,40 @@ a { color: var(--color-accent); }
 
 .metric__status { display: flex; align-items: center; width: fit-content; padding: 4px 12px; border: 1px solid currentColor; border-radius: 999px; font-size: 0.875rem; }
 
+/* Map of the south pole and ranking of all sites */
+.overview__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
+.overview__head .panel__title { margin: 0; }
+.overview__caption { margin: 0; }
+.overview__target { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+.overview__radio { display: flex; align-items: center; gap: var(--space-1); cursor: pointer; }
+.overview__body { display: grid; grid-template-columns: minmax(0, 480px) minmax(0, 1fr); gap: var(--space-3); margin-top: var(--space-3); align-items: start; }
+.overview__table th, .overview__table td { padding: 6px 8px; }
+.overview__row { cursor: pointer; }
+.overview__row:hover { background: var(--color-surface-hover); }
+.overview__site { padding: 0; background: none; border: 0; color: var(--color-accent); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.overview__table td { text-align: center; }
+.score { font-weight: 700; }
+.score--ok { color: var(--color-ok); }
+.score--warn { color: var(--color-warn); }
+.score--fail { color: var(--color-off); }
+
+.polar { margin: 0; }
+.polar__svg { width: 100%; height: auto; display: block; background: #000; border-radius: var(--radius); }
+.polar__grid { fill: none; stroke: rgb(255 255 255 / 0.28); stroke-width: 1; stroke-dasharray: 3 4; }
+.polar__tick { fill: rgb(255 255 255 / 0.75); font-size: 10px; }
+.polar__tick--edge { font-size: 11px; fill: var(--color-text-muted); }
+.polar__site { cursor: pointer; outline: none; }
+.polar__site > :not(title):not(.polar__label):not(.polar__ring) { stroke: #fff; stroke-width: 2; }
+.polar__site--ok > :not(title):not(.polar__label):not(.polar__ring) { fill: var(--color-ok); }
+.polar__site--warn > :not(title):not(.polar__label):not(.polar__ring) { fill: var(--color-warn); }
+.polar__site--fail > :not(title):not(.polar__label):not(.polar__ring) { fill: var(--color-off); }
+.polar__site--unknown > :not(title):not(.polar__label):not(.polar__ring) { fill: var(--color-text-muted); }
+.polar__site:hover > :not(title):not(.polar__label):not(.polar__ring), .polar__site:focus-visible > :not(title):not(.polar__label):not(.polar__ring) { stroke: var(--color-accent); stroke-width: 3; }
+.polar__ring { fill: none; stroke: var(--color-sun); stroke-width: 3; }
+.polar__label { fill: #fff; font-size: 12px; font-weight: 600; paint-order: stroke; stroke: #000; stroke-width: 3px; stroke-linejoin: round; }
+.polar__legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-top: var(--space-2); font-size: 0.8125rem; color: var(--color-text-muted); }
+.dot--unknown { background: var(--color-text-muted); }
+
 /* Scenarios and comparison */
 .controls__title { grid-column: 1 / -1; margin: 0; font-size: 1rem; }
 .toggle { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
@@ -180,6 +214,7 @@ a { color: var(--color-accent); }
   .compare-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 1000px) {
+  .overview__body { grid-template-columns: 1fr; }
   .missions { grid-template-columns: 1fr; }
   .requirements { grid-template-columns: repeat(2, 1fr); }
   .scores { grid-template-columns: repeat(3, 1fr); }
