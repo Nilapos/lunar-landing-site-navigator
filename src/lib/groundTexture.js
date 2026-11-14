@@ -1,6 +1,8 @@
-// The ground textures shared by the 3D view: the hillshade picture, then the layers (sunlight and shadows, Earth
-// visibility, forbidden zones, "Optimal"), painted on a canvas. One covers the whole map (2.4 km cells), another covers
-// a fine zone around a site (100 to 250 m cells, see zones.js) and is shown in place of the overview when zoomed in.
+// The ground of the 3D view, in pieces (see capMaterial.js, which combines them on the GPU): the base (LRO photograph + light
+// relief shading, painted once), the layers (sunlight and shadows, Earth visibility, forbidden zones, "Optimal", "Feasible"; one
+// small picture per step of the timeline), the same layers at the resolution of the loaded 500 m chunks, and the graticule with the
+// candidate region squares (painted once). A fine zone around a site (100 to 250 m cells, see zones.js) has its own canvas, painted
+// by paintZone, and is shown in place of the overview when zoomed in.
 import { feasibilityLevels, feasibilityKey, feasibilityOverlay } from './feasibility.js'
 import { goFractionOverlay, goFractions, goOverlay, visibilityOverlay } from './illumination.js'
 import { GRID_LATS, GRID_LONS, circleRadius, projectToMap, regionSquare } from './polarMap.js'
@@ -10,8 +12,11 @@ import { zoneRect } from './zones.js'
 export const TEXTURE_SIZE = 2048
 export const ZONE_TEXTURE_SIZE = 512
 const RELIEF_SHADING = 0.3 // strength of the hillshade laid over the photograph
-const LAYER_ALPHA_ON_PHOTO = 0.55 // the layers stay see-through over the photograph
-const EDGE_FADE = 0.05 // share of the radius, at the rim of the cap, that fades to transparent
+
+/** How the layers sit on the ground: see-through over the photograph, and the rim of the cap fades into the Moon around it. */
+export function groundLook(photo) {
+  return photo ? { layerAlpha: 0.55, edgeFade: 0.05 } : { layerAlpha: 1, edgeFade: 0.0001 }
+}
 
 // The share-of-period map does not depend on the moment shown: keep it per terrain instead of recomputing at every step.
 const periodCache = new WeakMap()
@@ -74,8 +79,13 @@ function gridCanvas(rgba, grid) {
   return small
 }
 
-// The ground under the layers: the photograph (with the hillshade as a light relief shading) or, without it, the hillshade alone.
-function drawBase(ctx, hillshade, photo) {
+/**
+ * Paints the base of the whole map (TEXTURE_SIZE square canvas): the photograph with the hillshade as a light relief shading, or,
+ * without the photograph, the hillshade alone. Done once (and again if the pictures arrive later), not at every step.
+ */
+export function paintBase(canvas, { hillshade, photo }) {
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   if (!photo) {
     ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     return
@@ -88,70 +98,119 @@ function drawBase(ctx, hillshade, photo) {
   ctx.restore()
 }
 
-// Fades the last few percent of the radius to transparent, so the cap melts into the Moon around it (no ring, no wall).
-function fadeEdge(ctx) {
-  const c = TEXTURE_SIZE / 2
-  const edge = ctx.createRadialGradient(c, c, c * (1 - EDGE_FADE), c, c, c - 1)
-  edge.addColorStop(0, 'rgba(0,0,0,1)')
-  edge.addColorStop(1, 'rgba(0,0,0,0)')
-  ctx.save()
-  ctx.globalCompositeOperation = 'destination-in'
-  ctx.fillStyle = edge
-  ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  ctx.restore()
+/**
+ * Paints the graticule and the candidate region squares (TEXTURE_SIZE square canvas, transparent elsewhere).
+ *   overlay: { regions: [{ lat, lon }], colors: { grid, regionFill, regionEdge } }
+ */
+export function paintOverlay(canvas, overlay) {
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
+  if (overlay) drawOverlay(ctx, overlay)
 }
 
-// Draws a grid-sized RGBA layer onto the whole-map texture, only inside the 80 S disc (the corners hold no data).
-function drawLayer(ctx, rgba, grid, alpha = 1) {
-  ctx.save()
-  ctx.globalAlpha = alpha
-  ctx.beginPath()
-  ctx.arc(TEXTURE_SIZE / 2, TEXTURE_SIZE / 2, TEXTURE_SIZE / 2 - 2, 0, Math.PI * 2)
-  ctx.clip()
-  ctx.imageSmoothingEnabled = true
-  ctx.drawImage(gridCanvas(rgba, grid), 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  ctx.restore()
+// Straight (not premultiplied) RGBA of several layers laid one over the other, bottom first.
+function stackLayers(list, grid) {
+  if (list.length === 1) return list[0]
+  const out = new Uint8ClampedArray(grid * grid * 4)
+  for (let i = 0; i < out.length; i += 4) {
+    let r = 0
+    let g = 0
+    let b = 0
+    let a = 0 // 0..1
+    for (const layer of list) {
+      const la = layer[i + 3] / 255
+      if (la === 0) continue
+      const outA = la + a * (1 - la)
+      r = (layer[i] * la + r * a * (1 - la)) / outA
+      g = (layer[i + 1] * la + g * a * (1 - la)) / outA
+      b = (layer[i + 2] * la + b * a * (1 - la)) / outA
+      a = outA
+    }
+    out[i] = r
+    out[i + 1] = g
+    out[i + 2] = b
+    out[i + 3] = a * 255
+  }
+  return out
 }
 
 /**
- * Repaints `canvas` (TEXTURE_SIZE square), the texture of the whole map.
- *   hillshade: the relief picture; terrain, frames: see loadTerrain3d and buildCellFrames;
- *   photo (optional): the LRO photograph of the cap (public/south-pole-photo.jpg); when given, it is the ground and the hillshade
- *   only adds a light relief shading on it, the layers being painted over it; its edge fades out into the photo of the Moon around;
- *   sample: one entry of /api/sky (or null: no sunlight / Earth layer);
- *   samples: all the sky samples of the period (for the Optimal layer over the period);
- *   layers: { sun, earth, slope, go, goPeriod }; requirements: { maxSlopeDeg, minSunDeg, minEarthDeg };
- *   overlay (optional): { regions: [{ lat, lon }], colors: { grid, regionFill, regionEdge } }, the graticule and the
- *   candidate region squares in the style of NASA's Artemis III videos, drawn over the layers;
- *   feasibleLevels: for the Feasible layer, the verdict codes of the 2.4 km cells (useFeasibility; null while computing);
- *   fine (optional): the loaded 500 m chunks (fineGrid.js); each is repainted at its own resolution over the overview;
- *   holes (optional): [{ x, y, side }] squares of the map (fractions of its width) left transparent, where a fine zone
- *   takes over.
+ * Which layers of the 2.4 km map are computed by the GPU for the moment shown (`live`: 'go', 'vis' or null) and which come from
+ * pictures that do not depend on the moment (`main`: 'period' (Optimal over the period) or 'feasible' or null; `slope`: the
+ * forbidden zones). The same precedence as layerPixels: Optimal, else Feasible, else Sun / Earth, with the slope on top of the
+ * last two.
  */
-export function paintGround(canvas, { hillshade, photo, terrain, frames, sample, samples, layers, requirements, overlay, holes = [], fine = [], feasibleLevels }) {
+export function layerPlan({ frames, sample, samples, layers }) {
+  const slope = !!layers.slope && !layers.go && !layers.feasible
+  if (layers.go && sample && frames) return { live: layers.goPeriod && samples ? null : 'go', main: layers.goPeriod && samples ? 'period' : null, slope }
+  if (layers.feasible && samples && frames) return { live: null, main: 'feasible', slope }
+  if ((layers.sun || layers.earth) && sample && frames) return { live: 'vis', main: null, slope }
+  return { live: null, main: null, slope }
+}
+
+function premultiplied(rgba) {
+  const out = new Uint8Array(rgba.length)
+  for (let i = 0; i < rgba.length; i += 4) {
+    const a = rgba[i + 3]
+    out[i] = Math.round((rgba[i] * a) / 255)
+    out[i + 1] = Math.round((rgba[i + 1] * a) / 255)
+    out[i + 2] = Math.round((rgba[i + 2] * a) / 255)
+    out[i + 3] = a
+  }
+  return out
+}
+
+/**
+ * The layers of the 2.4 km cells that do not depend on the moment, as premultiplied RGBA pictures for the GPU (grid x grid, rows
+ * from the top of the map): { main, slope }, each null when not shown (see layerPlan). Only worth recomputing when the period,
+ * the layers or the requirements change.
+ *   terrain, frames: see loadTerrain3d and buildCellFrames;  samples: all the sky samples of the period;
+ *   feasibleLevels: the verdict codes of the 2.4 km cells (useFeasibility; null while computing).
+ */
+export function staticLayers({ terrain, frames, sample, samples, layers, requirements, feasibleLevels }) {
+  const plan = layerPlan({ frames, sample, samples, layers })
+  let main = null
+  if (plan.main === 'period') {
+    const options = { minSunDeg: requirements.minSunDeg, minEarthDeg: requirements.minEarthDeg, maxSlopeDeg: requirements.maxSlopeDeg }
+    main = premultiplied(goFractionOverlay(terrain, frames, periodFractions(terrain, frames, samples, options)))
+  } else if (plan.main === 'feasible' && feasibleLevels) {
+    main = premultiplied(feasibilityOverlay(terrain, frames, feasibleLevels))
+  }
+  return { main, slope: plan.slope ? premultiplied(slopeOverlayRgba(terrain, requirements.maxSlopeDeg)) : null }
+}
+
+let scratch = null
+/**
+ * Paints the layers of the loaded 500 m chunks (fineGrid.js) on `canvas` (TEXTURE_SIZE square), each at its own resolution. Inside
+ * a chunk the alpha is 0.5 + layer alpha / 2 (see capMaterial.js); elsewhere it is 0. Returns false (and leaves the canvas
+ * empty) when there is nothing to draw: no chunk, or no layer shown.
+ */
+export function paintFine(canvas, { fine, sample, samples, layers, requirements }) {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  drawBase(ctx, hillshade, photo)
-  const layerAlpha = photo ? LAYER_ALPHA_ON_PHOTO : 1
-  for (const rgba of layerPixels({ terrain, frames, sample, samples, layers, requirements, feasibleLevels })) drawLayer(ctx, rgba, terrain.grid, layerAlpha)
+  let drawn = false
+  ctx.imageSmoothingEnabled = false
   for (const chunk of fine) {
+    const list = layerPixels({ terrain: chunk, frames: chunk.frames, sample, samples, layers, requirements })
+    if (list.length === 0) break // no layer shown: none for the other chunks either
+    const rgba = stackLayers(list, chunk.grid)
+    const coded = new Uint8ClampedArray(rgba.length)
+    for (let i = 0; i < rgba.length; i += 4) {
+      coded[i] = rgba[i]
+      coded[i + 1] = rgba[i + 1]
+      coded[i + 2] = rgba[i + 2]
+      coded[i + 3] = 128 + (rgba[i + 3] >> 1)
+    }
+    if (!scratch || scratch.width !== chunk.grid) {
+      scratch = document.createElement('canvas')
+      scratch.width = scratch.height = chunk.grid
+    }
+    scratch.getContext('2d').putImageData(new ImageData(coded, chunk.grid, chunk.grid), 0, 0)
     const r = zoneRect(chunk)
-    const x = r.x * TEXTURE_SIZE
-    const y = r.y * TEXTURE_SIZE
-    const side = r.side * TEXTURE_SIZE
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(x, y, side, side)
-    ctx.clip()
-    drawBase(ctx, hillshade, photo) // the ground again, under this chunk's own cells
-    ctx.imageSmoothingEnabled = false
-    ctx.globalAlpha = layerAlpha
-    for (const rgba of layerPixels({ terrain: chunk, frames: chunk.frames, sample, samples, layers, requirements })) ctx.drawImage(gridCanvas(rgba, chunk.grid), x, y, side, side)
-    ctx.restore()
+    ctx.drawImage(scratch, r.x * TEXTURE_SIZE, r.y * TEXTURE_SIZE, r.side * TEXTURE_SIZE, r.side * TEXTURE_SIZE)
+    drawn = true
   }
-  if (overlay) drawOverlay(ctx, overlay)
-  if (photo) fadeEdge(ctx)
-  for (const h of holes) ctx.clearRect(h.x * TEXTURE_SIZE, h.y * TEXTURE_SIZE, h.side * TEXTURE_SIZE, h.side * TEXTURE_SIZE)
+  return drawn
 }
 
 /**

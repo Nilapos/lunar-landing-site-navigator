@@ -6,11 +6,12 @@ import { pointSite } from '../lib/pointSite.js'
 import { probeCell } from '../lib/cellProbe.js'
 import { groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent } from '../lib/format.js'
-import { paintGround, paintZone } from '../lib/groundTexture.js'
+import { groundLook, layerPlan, paintBase, paintFine, paintOverlay, paintZone, staticLayers } from '../lib/groundTexture.js'
 import { buildCellFrames } from '../lib/illumination.js'
 import { latLonOf, siteBodyStates } from '../lib/polarSky.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
 import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
+import { unitVector } from '../lib/sky.js'
 import { useFeasibility } from '../lib/useFeasibility.js'
 import { useFineChunks } from '../lib/useFineGrid.js'
 import { useZone } from '../lib/useZone.js'
@@ -25,6 +26,8 @@ import ScoreCard from './ScoreCard.jsx'
 const REGIONS = candidateRegions(southPoleSites)
 
 const signed = (deg) => `${deg >= 0 ? '+' : '−'}${Math.abs(deg).toFixed(1)}°`
+
+const MIN_PAINT_MS = 66 // the layers on the ground are redrawn at most about 15 times a second
 
 const VIEWS = [
   { key: 'globe', label: 'Globe' },
@@ -74,6 +77,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const onSelectRef = useRef(onSelect)
   const onPickPointRef = useRef(onPickPoint)
   const fineRef = useRef([])
+  const lastPaintRef = useRef(0)
   const flightRef = useRef(false) // false until the first pose is set: no flight when the view opens
   const { terrain, hillshade, photo, error } = useTerrain3d()
   const [exaggeration, setExaggeration] = useState(1)
@@ -159,26 +163,68 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     }
   }, [terrain, hillshade])
 
-  // The ground follows the Sun and the Earth in the sky.
+  // The ground in pieces (capMaterial.js): the base and the overlay are painted once, here, when their pictures are there.
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene || !terrain || !hillshade) return
-    paintGround(scene.textureCanvas, {
-      hillshade,
-      photo,
-      terrain,
-      frames,
-      sample,
-      samples,
-      layers,
+    paintBase(scene.ground.baseCanvas, { hillshade, photo })
+    scene.ground.refreshBase()
+    paintOverlay(scene.ground.overlayCanvas, { regions: REGIONS, colors: groundOverlayColors() })
+    scene.ground.refreshOverlay()
+    scene.ground.setLook(groundLook(photo))
+  }, [terrain, hillshade, photo])
+
+  // The fine zone replaces the overview under it: a hole in the cap.
+  useEffect(() => {
+    sceneRef.current?.ground.setHole(zoneShown ? zonePatchRect(zoneData.zone) : null)
+  }, [terrain, hillshade, zoneShown, zoneData.zone])
+
+  // The layers of the 2.4 km map: the GPU computes sunlight, shadows, Earth visibility and the instant Optimal layer from the Sun
+  // and Earth directions, so a step of the timeline only sets a few uniforms (capMaterial.js).
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene || !terrain || !hillshade) return
+    const plan = layerPlan({ frames, sample, samples, layers })
+    scene.ground.setLive(
+      { sun: plan.live === 'vis' && !!layers.sun, earth: plan.live === 'vis' && !!layers.earth, go: plan.live === 'go' },
+      sample
+        ? { sunDir: unitVector(sample.sunLat, sample.sunLon), earthUnit: unitVector(sample.earthLat, sample.earthLon), earthKm: sample.earthKm }
+        : { sunDir: [1, 0, 0], earthUnit: [1, 0, 0], earthKm: 384400 },
       requirements,
-      overlay: { regions: REGIONS, colors: groundOverlayColors() },
-      holes: zoneShown ? [zonePatchRect(zoneData.zone)] : [],
-      fine: fineChunks,
-      feasibleLevels: layers.feasible ? feasible.levels : undefined,
-    })
-    scene.refreshTexture()
-  }, [terrain, hillshade, photo, frames, sample, samples, layers, requirements, zoneShown, zoneData.zone, fineChunks, feasible.levels])
+    )
+  }, [terrain, hillshade, frames, sample, samples, layers, requirements])
+
+  const hasSample = !!sample
+  const { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, slope: slopeOn } = layers
+  // The layers that do not depend on the moment (Optimal over the period, Feasible, forbidden zones): recomputed only when their
+  // inputs change, not at every step of the timeline.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene || !terrain || !hillshade) return
+    scene.ground.setStatic(staticLayers({ terrain, frames, sample: hasSample ? {} : null, samples, layers: { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, slope: slopeOn }, requirements, feasibleLevels: feasible.levels }))
+  }, [terrain, hillshade, frames, samples, goOn, goPeriodOn, feasibleOn, slopeOn, hasSample, requirements, feasible.levels])
+
+  // The same layers at the resolution of the loaded 500 m chunks, drawn on the CPU: at most MIN_PAINT_MS apart (the last state
+  // is always painted), since a play or a drag of the timeline changes the moment far more often than the eye can tell.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene || !terrain || !hillshade) return undefined
+    if (fineChunks.length === 0) {
+      scene.ground.refreshFine(false)
+      return undefined
+    }
+    const run = () => {
+      scene.ground.refreshFine(paintFine(scene.ground.fineCanvas, { fine: fineChunks, sample, samples, layers, requirements }))
+      lastPaintRef.current = performance.now()
+    }
+    const wait = MIN_PAINT_MS - (performance.now() - lastPaintRef.current)
+    if (wait <= 0) {
+      run()
+      return undefined
+    }
+    const timer = setTimeout(run, wait)
+    return () => clearTimeout(timer)
+  }, [terrain, hillshade, sample, samples, layers, requirements, fineChunks])
 
   // The fine zone: its mesh when shown, and its own texture (same layers, computed on its cells).
   useEffect(() => {

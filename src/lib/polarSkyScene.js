@@ -4,7 +4,8 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { cssToken } from './cssTokens.js'
-import { TEXTURE_SIZE, ZONE_TEXTURE_SIZE } from './groundTexture.js'
+import { createCapMaterial } from './capMaterial.js'
+import { ZONE_TEXTURE_SIZE } from './groundTexture.js'
 import {
   capIndices,
   capPositions,
@@ -27,6 +28,7 @@ import { zoneHeightAt, zoneIndices, zonePositions } from './zones.js'
 import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeReticleCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
 import { levelColor, makeLabel, selectionColor } from './terrainScene.js'
 
+const FAR_KM = 3000 // beyond this distance from its target the camera sees the Moon as a globe: no fine data to load
 const SEAM_DEG = 33 // the two Moon photos meet 33 degrees from the south pole (latitude -57)
 const RAD = Math.PI / 180
 const DISPLAY_KM = 40000 // the bodies are drawn this far from the camera (true direction, true angular size)
@@ -94,7 +96,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   let focus = null // { lat, lon, sunVisible, earthVisible }: the site the lines start from
 
   const renderer = new THREE.WebGLRenderer({ antialias: true })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)) // beyond that the fill rate costs more than the sharpness shows
   container.appendChild(renderer.domElement)
   const el = renderer.domElement
   const scene = new THREE.Scene()
@@ -179,12 +181,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   scene.add(sunLight)
   scene.add(new THREE.AmbientLight(0xffffff, 0.1)) // a little earthshine: the night side is dark, not invisible
 
-  // --- Ground: the cap (same texture canvas as the Terrain view) and the smooth sphere around it.
-  const canvas = document.createElement('canvas')
-  canvas.width = TEXTURE_SIZE
-  canvas.height = TEXTURE_SIZE
-  const texture = canvasTexture(canvas)
-  texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+  // --- Ground: the cap (its pictures are combined by the GPU, see capMaterial.js) and the smooth sphere around it.
+  const ground = createCapMaterial(terrain, renderer.capabilities.getMaxAnisotropy())
 
   const positions = capPositions(terrain, exaggeration)
   const uvs = new Float32Array(N * N * 2)
@@ -199,11 +197,11 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   capGeometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
   capGeometry.setIndex(new THREE.BufferAttribute(capIndices(N), 1))
   capGeometry.computeBoundingSphere()
-  const cap = new THREE.Mesh(capGeometry, new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.02, side: THREE.DoubleSide }))
+  const cap = new THREE.Mesh(capGeometry, ground.material)
   scene.add(cap)
 
   // A fine zone (100 to 250 m cells) around a site, shown in place of the overview when the camera comes close: its own
-  // mesh and texture, and a hole in the overview texture (cut by paintGround).
+  // mesh and texture, and a hole in the overview (ground.setHole).
   let zone = null
   let zoneShown = false
   let zoneMesh = null
@@ -213,6 +211,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   const zoneTexture = canvasTexture(zoneCanvas)
   zoneTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
   zoneTexture.magFilter = THREE.NearestFilter // each cell stays a crisp square
+  zoneTexture.generateMipmaps = false // repainted at every step: no mipmaps to rebuild
+  zoneTexture.minFilter = THREE.LinearFilter
   const zoneMaterial = new THREE.MeshBasicMaterial({ map: zoneTexture, side: THREE.DoubleSide })
   function buildZoneMesh() {
     if (zoneMesh) {
@@ -241,6 +241,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     if (h === null) return surfacePoint(terrain, lat, lon, exaggeration, liftKm)
     return unitVector(lat, lon).map((v) => v * (MOON_RADIUS_KM + (h / 1000) * exaggeration + liftKm))
   }
+  let lastPinScale = -1
+  let markersChanged = true // new pins have not been scaled yet
   let near = false
   let lastHit = null // the point of the cap under the pointer, as of the last cellUnderPointer()
   let reported = null
@@ -428,6 +430,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   scene.add(rankMarkers)
   let ranked = []
   function buildRankMarkers() {
+    markersChanged = true
     for (const obj of [...rankMarkers.children]) {
       rankMarkers.remove(obj)
       disposeTree(obj)
@@ -448,6 +451,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   }
   const hitMeshes = []
   function clearMarkers() {
+    markersChanged = true
     for (const obj of [...markers.children]) {
       markers.remove(obj)
       disposeTree(obj)
@@ -710,16 +714,24 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     skyDome.position.copy(camera.position)
     // Pins shrink as the camera comes close, so they stay small marks on a fine zone.
     const pinScale = Math.min(1, Math.max(0.02, camera.position.distanceTo(controls.target) / 900))
-    for (const pin of [...markers.children, ...rankMarkers.children]) pin.scale.setScalar(pinScale)
+    if (Math.abs(pinScale - lastPinScale) > 0.002 || markersChanged) {
+      for (const pin of markers.children) pin.scale.setScalar(pinScale)
+      for (const pin of rankMarkers.children) pin.scale.setScalar(pinScale)
+      lastPinScale = pinScale
+      markersChanged = false
+    }
     rankMarkers.visible = view === null
     if (zoneMesh) zoneMesh.visible = zoneShown && view === null
     // Tell React where the camera looks (map plane) and from how far, when it changes enough: the 500 m chunks follow it.
-    if (view === null && onView) {
+    // Not during a flight (each report re-renders the interface), and from far away only one report: the chunks need no more.
+    if (view === null && onView && !tween) {
       const distanceKm = camera.position.distanceTo(controls.target)
+      const far = distanceKm > FAR_KM
       const here = mapXY(controls.target.toArray())
       const last = reported
-      if (!last || Math.hypot(here.x - last.xKm, here.y - last.yKm) > 3 || Math.abs(distanceKm - last.distanceKm) > 0.1 * last.distanceKm) {
-        reported = { xKm: here.x, yKm: here.y, distanceKm }
+      const moved = !last || Math.hypot(here.x - last.xKm, here.y - last.yKm) > 3 || Math.abs(distanceKm - last.distanceKm) > 0.1 * last.distanceKm
+      if (far ? !last || !last.far : moved) {
+        reported = { xKm: here.x, yKm: here.y, distanceKm, far }
         onView(reported)
       }
     }
@@ -737,11 +749,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   })
 
   return {
-    /** The canvas behind the ground texture: paint on it (groundTexture.js), then call refreshTexture(). */
-    textureCanvas: canvas,
-    refreshTexture() {
-      texture.needsUpdate = true
-    },
+    /** The ground of the cap (capMaterial.js): its canvases are painted by groundTexture.js, its layer and hole are set here. */
+    ground,
     setExaggeration(value) {
       exaggeration = value
       capPositions(terrain, exaggeration, positions)
@@ -863,7 +872,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       grainTexture.dispose()
       clearMarkers()
       disposeTree(scene)
-      texture.dispose()
+      ground.dispose()
       zoneTexture.dispose()
       zoneMaterial.dispose()
       moonTexture.dispose()

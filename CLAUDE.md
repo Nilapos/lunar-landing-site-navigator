@@ -62,8 +62,8 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 - Fine zones (2.4 km overview, then 100-250 m cells): `scripts/build-zones.mjs <ldem_80s_*.img> [--cell 125] [--size 16]` writes, for each
   analyzable site, `public/zones/<id>.json|bin|png` (heights, slope, 72-azimuth horizon per cell, and a hillshade). `src/lib/zones.js` (tested)
   parses them and builds the patch geometry; `useZone` loads one when the camera comes within about 90 km of the selected site (`near`,
-  reported by `polarSkyScene.js`); `paintZone` paints the same layers on its cells and `paintGround` cuts a hole in the overview texture
-  under it. The "Zoom to site" button flies the camera down to it. `createDemAuto` (terrain.js) reads any LDEM_80S product (80, 40 or 20 m).
+  reported by `polarSkyScene.js`); `paintZone` paints the same layers on its cells and the cap material cuts a hole in the overview
+  under it (`ground.setHole`). The "Zoom to site" button flies the camera down to it. `createDemAuto` (terrain.js) reads any LDEM_80S product (80, 40 or 20 m).
   The committed zones come from the 80 m map (250 m cells); rebuild them with the 20 m map (`LOLA data/ldem_80s_20m/`, 1.85 GB) for 125 m
   cells. The other scripts (compute-horizons, build-3d-data, build-horizon-grid, render-map) still assume the 80 m map.
 - Best landing areas (`src/lib/bestAreas.js`, tested; `BestAreas` card in the sky view): `findBestAreas` takes the share of the period each 2.4 km
@@ -73,8 +73,8 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 - 500 m grid (level between the 2.4 km overview and the site zones): `scripts/build-fine-grid.mjs <ldem_80s_*.img> [--cell 500]` writes
   `public/grid500/index.json` and one gzip file per 16 km chunk (heights, slope, delta-coded 72-azimuth horizon) for everything south of 83 S
   (about 600 chunks, 43 MB raw, 15-18 MB compressed). `src/lib/fineGrid.js` (tested) decodes a chunk as a "zone" (zones.js), `useFineChunks`
-  loads the ~80 chunks around the point the camera looks at (reported by `polarSkyScene.js` through `onView`), and `paintGround` repaints each
-  loaded chunk at its own resolution on the 2048 px ground texture. Without the data files the app simply stays on the 2.4 km overview.
+  loads the ~80 chunks around the point the camera looks at (reported by `polarSkyScene.js` through `onView`), and `paintFine` draws each
+  loaded chunk at its own resolution on a 2048 px canvas that the cap shader lays over the overview layers. Without the data files the app simply stays on the 2.4 km overview.
   Rule agreed 2026-11-14: build it ONCE from the 20 m map and commit that single version (each committed regeneration adds a full copy to
   the history). Until then `public/grid500/` is excluded locally in `.git/info/exclude` and must not be committed.
 - Selected points (`src/lib/pointSite.js`, tested): a click on the ground of the sky view selects that place as the site of scenario A
@@ -100,12 +100,19 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   (`southPolarUv` in polarSky.js gives the coordinates of the ring); the picture drawn by code (skyTextures.js) stays as the fallback if a file is
   missing. Credit: NASA/GSFC/Arizona State University (LRO WAC), via NASA Moon Trek.
   Rework of 2026-11-14 to get close to NASA's Artemis video: (1) the cap itself is a photograph, `public/south-pole-photo.jpg` (same polar WAC mosaic, tile level 4,
-  535 m/px, cropped to the 3D map square; rebuild with `node scripts/moon-textures/serve.cjs pole.html <out.jpg>`, see the header of that file); `paintGround` draws it as the
-  ground, the hillshade only as a light overlay shading, the layers at 55% opacity over it, and fades the last 5% of the radius to transparent so the cap melts into the
-  Moon (cap material `transparent`); (2) around the cap the global mosaic covers the whole sphere and the polar mosaic is laid over the ring with an alpha fade toward
+  535 m/px, cropped to the 3D map square; rebuild with `node scripts/moon-textures/serve.cjs pole.html <out.jpg>`, see the header of that file); `paintBase` draws it as the
+  ground, the hillshade only as a light overlay shading, the layers are at 55% opacity over it (`groundLook`), and the last 5% of the radius fades to transparent so the cap melts
+  into the Moon; (2) around the cap the global mosaic covers the whole sphere and the polar mosaic is laid over the ring with an alpha fade toward
   the 33 degree seam (`fadedPolarCanvas`), so no hard seam; (3) the Moon photos are lit by the real Sun direction (`setSample`) with little emissive light: phase and
   terminator follow the timeline, the far side is dark; (4) a `globe` camera pose (whole Moon at true size) next to orbit / top; the view opens on the globe and dives
   to the pole (effect in `PolarSky.jsx`); (5) relief default x1 (true scale).
+  Performance rework (same day): the cap is a `ShaderMaterial` (`src/lib/capMaterial.js`) that combines pieces on the GPU instead of one 2048 px canvas repainted at every step of the
+  timeline. Base photo and graticule: painted once. Sunlight / shadows, Earth visibility and the instant Optimal layer: computed per 2.4 km cell **in the fragment shader** from the Sun and
+  Earth directions (uniforms), the analytic local frame of the cell and the terrain horizon bytes (`horizonGrid.js`) laid out as an atlas texture, same rules and colors as
+  `illumination.js` (checked cell by cell against it: 50 960 cells, a handful of borderline differences from float32). The layers that do not depend on the moment (Optimal over the period,
+  Feasible, forbidden zones) are small premultiplied pictures (`staticLayers`) uploaded only when their inputs change. `layerPlan` decides which is which. Chunks (`paintFine`) are still
+  drawn on the CPU, at most every 66 ms. The renderer's pixel ratio is capped at 1.5, `onView` is not reported during a flight nor from far away (`FAR_KM`), pins are only rescaled when the
+  distance changes, repainted textures have no mipmaps. If you change the sun / Earth / Optimal rules in `illumination.js`, change `capMaterial.js` too.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).
