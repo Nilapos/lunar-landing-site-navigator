@@ -1,19 +1,16 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import ArtemisRegions from './components/ArtemisRegions.jsx'
 import ComparisonTable from './components/ComparisonTable.jsx'
-import LayerToggles from './components/LayerToggles.jsx'
 import MissionHistory from './components/MissionHistory.jsx'
 import RequirementsPanel from './components/RequirementsPanel.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
-import ScoreBar from './components/ScoreBar.jsx'
 import Shell from './components/Shell.jsx'
 import SiteControls from './components/SiteControls.jsx'
 import SitesOverview from './components/SitesOverview.jsx'
 import TimelineBar from './components/TimelineBar.jsx'
-import Verdict from './components/Verdict.jsx'
 import Why from './components/Why.jsx'
 import { southPoleSites } from './data/south-pole-sites.js'
-import { addDaysIso, addMinutesIso, formatUtc, showDateTime, todayUtc } from './lib/format.js'
+import { addDaysIso, showDateTime, todayUtc } from './lib/format.js'
 import { evaluateFromMoment } from './lib/momentScores.js'
 import { compareScenarios } from './lib/scenario.js'
 import { useScenario } from './lib/useScenario.js'
@@ -21,8 +18,7 @@ import { useSitesOverview } from './lib/useSitesOverview.js'
 import { useTimeline } from './lib/useTimeline.js'
 import { DEFAULT_REQUIREMENTS, evaluateScenario } from './lib/verdict.js'
 
-// The 3D library and data are only downloaded when a 3D tab is shown.
-const Terrain3D = lazy(() => import('./components/Terrain3D.jsx'))
+// The 3D library and data are only downloaded when the sky view is shown.
 const PolarSky = lazy(() => import('./components/PolarSky.jsx'))
 
 const DELAY_DAYS = 2 // default "what if the landing slips" scenario B
@@ -32,13 +28,17 @@ const SHIFT_MARGIN_MIN = 15 // land a little after a window opens, not exactly o
 // requirements: landing at 14 Nov 00:00 gives a window score of 0 and a global score of 58; landing at 15 Nov 06:00 gives 100 and 83).
 const DEMO = { siteId: 'malapert-massif', start: '2026-11-14T00:00', days: 30 }
 
-// Each tab key also names its icon in components/Icon.jsx.
+// Each key also names its icon in components/Icon.jsx.
 const TABS = [
-  { key: 'sky', label: 'Polar sky', hint: 'The curved south pole with the Sun and the Earth in the sky' },
-  { key: 'terrain', label: 'Terrain', hint: 'The south polar map in relief, with the layers' },
+  { key: 'sky', label: 'Sky', hint: 'The south pole from orbit or from above, with the Sun and the Earth in the sky' },
+  { key: 'site', label: 'On site', hint: 'Stand on the selected site and look at the Sun and the Earth' },
   { key: 'why', label: 'Why', hint: 'Why the Sun and the Earth are visible or hidden at this moment' },
   { key: 'analysis', label: 'Analysis', hint: 'Scenario analysis and A/B comparison' },
   { key: 'sites', label: 'Sites', hint: 'All sites on the map and ranked by score' },
+]
+const DRAWERS = [
+  { key: 'settings', label: 'Settings', hint: 'Site, landing date and rover requirements' },
+  { key: 'missions', label: 'Missions', hint: 'Missions to the south polar region' },
 ]
 
 function evaluate(result, requirements) {
@@ -46,14 +46,17 @@ function evaluate(result, requirements) {
   return evaluateScenario(result.analysis, requirements, Date.parse(result.data.series[0].t), result.terrain)
 }
 
+const isoMinutes = (ms) => new Date(ms).toISOString().slice(0, 16)
+
 export default function App() {
   const [tab, setTab] = useState('sky')
+  const [skyView, setSkyView] = useState('orbit') // 'orbit' or 'top': the two cameras of the sky tab
+  const [drawer, setDrawer] = useState(null)
   const [layers, setLayers] = useState({ sun: true, earth: true, slope: true })
   const [compare, setCompare] = useState(false)
   const [requirements, setRequirements] = useState(DEFAULT_REQUIREMENTS)
   const [a, setA] = useState({ siteId: southPoleSites[0].id, start: `${todayUtc()}T00:00`, days: 30 })
   const [b, setB] = useState(null)
-  const [follow, setFollow] = useState(false) // scores follow the moment of the timeline
   const [mapTarget, setMapTarget] = useState('A') // which scenario a click on the map or the ranking sets
 
   const overview = useSitesOverview(a.start, a.days, requirements)
@@ -65,17 +68,23 @@ export default function App() {
   const evalA = evaluate(resultA, requirements)
   const evalB = compare ? evaluate(resultB, requirements) : null
 
-  // "What if we land at this moment?": scores measured from the moment of the timeline onward.
+  // "What if we land at this moment?": the scores of the sky view are measured from the moment of the timeline onward.
   const atMs = timeline.sample ? Date.parse(timeline.sample.t) : null
   const momentEval = useMemo(
-    () => (follow && atMs !== null ? evaluateFromMoment(resultA, requirements, atMs) : null),
-    [follow, atMs, resultA, requirements],
+    () => (atMs !== null ? evaluateFromMoment(resultA, requirements, atMs) : null),
+    [atMs, resultA, requirements],
   )
   const shownEval = momentEval ?? evalA
+  const startMs = Date.parse(`${a.start}:00Z`)
+  const landAt = (ms) => {
+    setA((s) => ({ ...s, start: isoMinutes(ms) }))
+    timeline.setIndex(0)
+  }
   const loadDemo = () => {
     setA(DEMO)
-    setFollow(true)
     timeline.setIndex(0)
+    setTab('sky')
+    setDrawer(null)
   }
 
   const toggleCompare = (on) => {
@@ -91,17 +100,27 @@ export default function App() {
   const label = (state, result) => `${result.site.name}, from ${showDateTime(state.start)} UT, ${state.days} days`
   const showTable = compare && evalA && evalB
 
-  const view3d = { items: overview.items, selected, onSelect: selectSite, requirements, timeline, layers }
   let content
-  if (tab === 'sky' || tab === 'terrain') {
-    const View = tab === 'sky' ? PolarSky : Terrain3D
+  if (tab === 'sky' || tab === 'site') {
+    // The same element for both tabs, so the scene stays alive and the camera can fly between views.
     content = (
-      <>
-        <LayerToggles layers={layers} onChange={setLayers} maxSlopeDeg={requirements.maxSlopeDeg} />
-        <Suspense fallback={<p className="notice">Loading the 3D view…</p>}>
-          <View {...view3d} />
-        </Suspense>
-      </>
+      <Suspense fallback={<p className="notice">Loading the 3D view…</p>}>
+        <PolarSky
+          items={overview.items}
+          selected={selected}
+          onSelect={selectSite}
+          requirements={requirements}
+          timeline={timeline}
+          layers={layers}
+          onLayers={setLayers}
+          view={tab === 'site' ? 'site' : skyView}
+          onView={setSkyView}
+          evaluation={shownEval}
+          startMs={startMs}
+          onLand={() => atMs !== null && landAt(atMs)}
+          onShiftLanding={(ms) => atMs !== null && landAt(atMs + ms + SHIFT_MARGIN_MIN * 60000)}
+        />
+      </Suspense>
     )
   } else if (tab === 'why') {
     content = <Why result={resultA} requirements={requirements} timeline={timeline} />
@@ -146,11 +165,65 @@ export default function App() {
     )
   }
 
+  let drawerContent = null
+  if (drawer === 'settings') {
+    drawerContent = (
+      <>
+        <button type="button" className="button demo" onClick={loadDemo}>
+          Pitch demo: Malapert, 14 Nov 2026
+        </button>
+        <p className="panel__detail demo__note">
+          Land on 14 Nov 00:00: the window score is 0. Drag the timeline to 15 Nov 06:00: the Sun is up, the window is 100 and the global
+          score rises from 58 to 83 (default rover requirements).
+        </p>
+        <SiteControls title="Landing window" sites={southPoleSites} state={a} onChange={(patch) => setA((s) => ({ ...s, ...patch }))} />
+        <details className="fold">
+          <summary>
+            Rover requirements
+            <span className="fold__hint">
+              slope {requirements.maxSlopeDeg}° · battery {requirements.batteryHours} h · link {requirements.linkMinPerHour} min/h
+            </span>
+          </summary>
+          <RequirementsPanel
+            requirements={requirements}
+            onChange={(patch) => setRequirements((r) => ({ ...r, ...patch }))}
+            onReset={() => setRequirements(DEFAULT_REQUIREMENTS)}
+          />
+        </details>
+      </>
+    )
+  } else if (drawer === 'missions') {
+    drawerContent = (
+      <>
+        <MissionHistory
+          onSelectSite={(id) => {
+            selectSite(id)
+            setDrawer(null)
+          }}
+        />
+        <details className="fold">
+          <summary>Sources and limits</summary>
+          <p className="panel__detail">
+            Sun and Earth positions: NASA JPL Horizons. Terrain horizon and slopes: LOLA elevation map (80 m per pixel). Sun and Earth
+            are treated as points, so partial sunrises and sunsets are not modeled yet. Artemis III site coordinates are approximate
+            points: NASA&apos;s official region centers are not in the sources we could open. Rover requirements are placeholders to
+            adapt.
+          </p>
+        </details>
+      </>
+    )
+  }
+
+  const site = southPoleSites.find((s) => s.id === a.siteId)
   return (
     <Shell
       tabs={TABS}
       tab={tab}
       onTab={setTab}
+      drawers={DRAWERS}
+      drawer={drawer}
+      onDrawer={setDrawer}
+      drawerContent={drawerContent}
       top={
         <>
           <div className="brand">
@@ -158,58 +231,13 @@ export default function App() {
               <span className="brand__mark" aria-hidden="true" />
               MOONWALK
             </span>
-            <span className="brand__sub">Lunar Landing Site Navigator</span>
           </div>
-          <div className="topscores">
-            <ScoreBar evaluation={shownEval} />
-            <label className="toggle topscores__follow">
-              <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
-              <span>
-                {momentEval && atMs !== null
-                  ? `Scores if we land at ${formatUtc(atMs)} (move the timeline)`
-                  : 'Scores follow the timeline: what if we land at the moment shown?'}
-              </span>
-            </label>
-          </div>
-        </>
-      }
-      leftTitle="Landing window and rover"
-      left={
-        <>
-          <button type="button" className="button demo" onClick={loadDemo}>
-            Pitch demo: Malapert, 14 Nov 2026
+          <button type="button" className="chip" onClick={() => setDrawer('settings')} title="Change the site, the date or the rover requirements">
+            <strong>{site.shortName}</strong>
+            <span>
+              {showDateTime(a.start)} UT · {a.days} days
+            </span>
           </button>
-          <p className="panel__detail demo__note">
-            Loads the scenario and turns on &quot;scores follow the timeline&quot;. Land on 14 Nov 00:00: the window score is 0. Drag the timeline
-            to 15 Nov 06:00: the Sun is up, the window is 100 and the global score rises from 58 to 83 (default rover requirements).
-          </p>
-          <SiteControls title="Landing window" sites={southPoleSites} state={a} onChange={(patch) => setA((s) => ({ ...s, ...patch }))} />
-          <RequirementsPanel
-            requirements={requirements}
-            onChange={(patch) => setRequirements((r) => ({ ...r, ...patch }))}
-            onReset={() => setRequirements(DEFAULT_REQUIREMENTS)}
-          />
-        </>
-      }
-      rightTitle="Feasibility and mission history"
-      right={
-        <>
-          {shownEval && (
-            <Verdict
-              evaluation={shownEval}
-              onShiftLanding={momentEval ? undefined : (ms) => setA((s) => ({ ...s, start: addMinutesIso(s.start, Math.ceil(ms / 60000) + SHIFT_MARGIN_MIN) }))}
-            />
-          )}
-          <MissionHistory onSelectSite={selectSite} />
-          <details className="panel panel__detail">
-            <summary>Sources and limits</summary>
-            <p>
-              Sun and Earth positions: NASA JPL Horizons. Terrain horizon and slopes: LOLA elevation map (80 m per pixel). Sun and
-              Earth are treated as points, so partial sunrises and sunsets are not modeled yet. Artemis III site coordinates are
-              approximate points: NASA&apos;s official region centers are not in the sources we could open. Rover requirements are
-              placeholders to adapt.
-            </p>
-          </details>
         </>
       }
       bottom={<TimelineBar timeline={timeline} />}

@@ -5,7 +5,7 @@ Tick each line when done. Nothing here is automatic: it is the list of what the 
 ## Product
 - [ ] Live site loads on a clean browser (Chrome and Edge, desktop): https://lunar-landing-site-navigator-beta.vercel.app
 - [ ] Pitch demo button works (Malapert, 14 Nov 2026): window 0 at 00:00, 100 around 15 Nov 06:00, global 58 to 83. Re-check the numbers if the rover requirements or the data change.
-- [ ] Polar sky: orbit camera, "On the site" camera, hover card, layers and timeline all respond.
+- [ ] Sky: orbit camera, top view (animated flight between them), "On site" tab, hover card, layer pills, score card and timeline all respond.
 - [ ] Why tab, Analysis tab (with compare) and Sites tab open without errors.
 - [ ] `npm test`, `npm run lint`, `npm run build` are green on `main`.
 
@@ -16,7 +16,7 @@ Tick each line when done. Nothing here is automatic: it is the list of what the 
 
 ## Material to deliver
 - [ ] Demo video (length and format per the challenge rules): show the pitch demo, the Polar sky camera change, the Why tab.
-- [ ] 3 to 5 screenshots: Polar sky (orbit), Polar sky (on the site), Why tab, scores bar, Sites ranking.
+- [ ] 3 to 5 screenshots: Sky (orbit), Sky (top view), On site, Why tab, Sites ranking.
 - [ ] Project page text (short summary, problem, solution, data used, what is next).
 - [ ] Links: live site, GitHub repository, video.
 - [ ] Data and tools credited: NASA JPL Horizons, LRO / LOLA (NASA PDS), three.js, React, Vite.

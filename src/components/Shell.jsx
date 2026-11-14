@@ -1,71 +1,76 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import Icon from './Icon.jsx'
 
-// A side column that can be folded to a thin strip. `title` is shown on the strip when folded.
-function Side({ side, title, open, onToggle, children }) {
+function RailButton({ item, active, onClick, role }) {
   return (
-    <aside className={`shell__side shell__side--${side}${open ? '' : ' shell__side--closed'}`} aria-label={title}>
-      <button
-        type="button"
-        className="shell__fold"
-        aria-expanded={open}
-        aria-label={`${open ? 'Hide' : 'Show'} ${title}`}
-        title={`${open ? 'Hide' : 'Show'} ${title}`}
-        onClick={onToggle}
-      >
-        <Icon className="shell__fold-icon" name={open === (side === 'left') ? 'chevron-left' : 'chevron-right'} />
-        {!open && <span className="shell__fold-label">{title}</span>}
-      </button>
-      {open && <div className="shell__sidebody">{children}</div>}
-    </aside>
+    <button
+      type="button"
+      role={role}
+      id={role === 'tab' ? `tab-${item.key}` : undefined}
+      aria-selected={role === 'tab' ? active : undefined}
+      aria-controls={role === 'tab' ? 'stage' : undefined}
+      aria-expanded={role === 'tab' ? undefined : active}
+      className={`rail__tab${active ? ' rail__tab--active' : ''}`}
+      title={item.hint}
+      onClick={onClick}
+    >
+      <span className="rail__icon" aria-hidden="true">
+        <Icon className="rail__svg" name={item.key} />
+      </span>
+      <span className="rail__label">{item.label}</span>
+    </button>
   )
 }
 
 /**
- * The dashboard frame of the mockup: top bar (brand and scores), left and right side columns that fold,
- * a rail of tabs next to the main stage, and the shared timeline at the bottom. Desktop browsers only.
- * tabs: [{ key, label, hint }], tab: the active key.
+ * The frame of the dashboard (desktop browsers only): a slim top bar, a rail of icons, the stage, the shared timeline at
+ * the bottom. The rail holds the views (tabs) and, at its foot, drawers (settings, missions) that open over the stage
+ * instead of taking a column.
+ *   tabs / drawers: [{ key, label, hint }] (the key also names the icon);  tab: active view;  drawer: open drawer or null.
  */
-export default function Shell({ top, left, leftTitle, right, rightTitle, bottom, tabs, tab, onTab, children }) {
-  const [leftOpen, setLeftOpen] = useState(true)
-  const [rightOpen, setRightOpen] = useState(true)
-  const columns = `${leftOpen ? 'minmax(280px, 330px)' : '44px'} minmax(0, 1fr) ${rightOpen ? 'minmax(280px, 340px)' : '44px'}`
+export default function Shell({ top, tabs, tab, onTab, drawers, drawer, onDrawer, drawerContent, bottom, children }) {
+  useEffect(() => {
+    if (!drawer) return undefined
+    const onKey = (e) => e.key === 'Escape' && onDrawer(null)
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [drawer, onDrawer])
+  const open = drawers.find((d) => d.key === drawer)
+
   return (
     <div className="shell">
       <header className="shell__top">{top}</header>
-      <div className="shell__body" style={{ gridTemplateColumns: columns }}>
-        <Side side="left" title={leftTitle} open={leftOpen} onToggle={() => setLeftOpen((o) => !o)}>
-          {left}
-        </Side>
-        <main className="shell__center">
-          <nav className="rail" role="tablist" aria-orientation="vertical" aria-label="Views">
+      <main className="shell__center">
+        <nav className="rail" aria-label="Views and panels">
+          <div className="rail__group" role="tablist" aria-orientation="vertical" aria-label="Views">
             {tabs.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                id={`tab-${t.key}`}
-                aria-selected={tab === t.key}
-                aria-controls="stage"
-                className={`rail__tab${tab === t.key ? ' rail__tab--active' : ''}`}
-                title={t.hint}
-                onClick={() => onTab(t.key)}
-              >
-                <span className="rail__icon" aria-hidden="true">
-                  <Icon className="rail__svg" name={t.key} />
-                </span>
-                <span className="rail__label">{t.label}</span>
-              </button>
+              <RailButton key={t.key} role="tab" item={t} active={tab === t.key} onClick={() => onTab(t.key)} />
             ))}
-          </nav>
-          <section className="stage" id="stage" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-            {children}
-          </section>
-        </main>
-        <Side side="right" title={rightTitle} open={rightOpen} onToggle={() => setRightOpen((o) => !o)}>
-          {right}
-        </Side>
-      </div>
+          </div>
+          <div className="rail__group rail__group--foot">
+            {drawers.map((d) => (
+              <RailButton key={d.key} item={d} active={drawer === d.key} onClick={() => onDrawer(drawer === d.key ? null : d.key)} />
+            ))}
+          </div>
+        </nav>
+        <section className="stage" id="stage" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+          {children}
+          {open && (
+            <>
+              <div className="drawer__backdrop" onClick={() => onDrawer(null)} aria-hidden="true" />
+              <aside className="drawer" aria-label={open.label}>
+                <header className="drawer__head">
+                  <h2 className="drawer__title">{open.label}</h2>
+                  <button type="button" className="icon-button" aria-label={`Close ${open.label}`} onClick={() => onDrawer(null)}>
+                    <Icon name="close" />
+                  </button>
+                </header>
+                <div className="drawer__body">{drawerContent}</div>
+              </aside>
+            </>
+          )}
+        </section>
+      </main>
       <footer className="shell__bottom">{bottom}</footer>
     </div>
   )

@@ -156,9 +156,9 @@ export function makeMoonCanvas(size = 1024) {
       dirs[k * 3 + 1] = y
       dirs[k * 3 + 2] = z
       inside[k] = 1
-      const mare = step(0.5, 0.64, fbm(x * 1.5 + 11, y * 1.5 + 3, z * 1.5 + 7, 3))
+      const mare = step(0.4, 0.8, fbm(x * 1.5 + 11, y * 1.5 + 3, z * 1.5 + 7, 3))
       const patch = fbm(x * 5 + 2, y * 5 + 8, z * 5 + 4, 3) - 0.5
-      albedo[k] = mix(0.6, 0.32, mare) + 0.16 * patch + 0.07 * (hash(i, j, 3) - 0.5)
+      albedo[k] = mix(0.62, 0.4, mare) + 0.12 * patch + 0.07 * (hash(i, j, 3) - 0.5)
     }
   }
 
@@ -184,7 +184,7 @@ export function makeMoonCanvas(size = 1024) {
     const i1 = Math.min(size - 1, Math.ceil(cxImg + half))
     const j0 = Math.max(0, Math.floor(cyImg - half))
     const j1 = Math.min(size - 1, Math.ceil(cyImg + half))
-    const depth = 0.35 * rPx
+    const depth = 0.09 * rPx
     for (let j = j0; j <= j1; j++) {
       for (let i = i0; i <= i1; i++) {
         const k = j * size + i
@@ -212,7 +212,7 @@ export function makeMoonCanvas(size = 1024) {
       }
       // Light from the upper left: surfaces rising toward the right or toward the south face it.
       const slope = at(i + 1, j) - at(i - 1, j) + (at(i, j + 1) - at(i, j - 1))
-      const shade = Math.min(Math.max(slope * 0.45, -0.7), 0.7)
+      const shade = Math.min(Math.max(slope * 0.45, -0.5), 0.5)
       const v = Math.min(Math.max(albedo[k] * (1 + shade), 0.04), 1) * 255
       image.data[o] = v
       image.data[o + 1] = v * 0.985

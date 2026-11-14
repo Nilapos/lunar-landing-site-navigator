@@ -80,14 +80,70 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   controls.maxDistance = 9000
   controls.maxPolarAngle = Math.PI * 0.47
 
-  // Default view: above the far side of the cap, looking over the pole toward lon 0, where the Earth hangs.
-  function resetView() {
-    if (view) return lookAtBody('sun')
-    camera.position.set(-700, 0, -(MOON_RADIUS_KM + 300))
-    controls.target.set(350, 0, -MOON_RADIUS_KM)
+  // Camera poses around the pole, as spherical coordinates around a target: radius, polar angle from the vertical of the
+  // pole (0 = straight above), azimuth. "orbit" looks over the pole toward lon 0 where the Earth hangs; "top" looks straight
+  // down on the cap with lon 0 at the top of the screen, like a map. A move between two poses is animated.
+  const poseOf = (position, target) => {
+    const ox = position.x - target.x
+    const oy = position.y - target.y
+    const up = -(position.z - target.z) // the vertical of the pole points toward -z
+    return {
+      target: target.toArray(),
+      radius: Math.hypot(ox, oy, up),
+      polar: Math.atan2(Math.hypot(ox, oy), up),
+      azimuth: Math.atan2(oy, ox),
+    }
+  }
+  const POSES = {
+    orbit: poseOf(new THREE.Vector3(-700, 0, -(MOON_RADIUS_KM + 300)), new THREE.Vector3(350, 0, -MOON_RADIUS_KM)),
+    top: { target: [0, 0, -MOON_RADIUS_KM], radius: 820, polar: 0.035, azimuth: Math.PI },
+  }
+  let poseName = 'orbit'
+  let tween = null
+  const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  function applyPose({ target, radius, polar, azimuth }) {
+    const horizontal = radius * Math.sin(polar)
+    const up = radius * Math.cos(polar)
+    controls.target.set(target[0], target[1], target[2])
+    camera.position.set(target[0] + horizontal * Math.cos(azimuth), target[1] + horizontal * Math.sin(azimuth), target[2] - up)
     controls.update()
   }
-  resetView()
+  function goToPose(name, animate = true) {
+    poseName = name
+    const to = POSES[name]
+    if (!animate || reducedMotion()) {
+      tween = null
+      applyPose(to)
+      return
+    }
+    const from = poseOf(camera.position, controls.target)
+    const turn = ((((to.azimuth - from.azimuth + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI // shortest way round
+    tween = { from, to, turn, start: performance.now(), duration: 1800 }
+    controls.enabled = false
+  }
+  // One step of the animation: ease in and out, and pull back a little in the middle so the move feels like a flight.
+  function stepTween(now) {
+    if (!tween) return
+    const k = Math.min((now - tween.start) / tween.duration, 1)
+    const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2
+    const mix = (a, b) => a + (b - a) * e
+    const { from, to } = tween
+    applyPose({
+      target: [mix(from.target[0], to.target[0]), mix(from.target[1], to.target[1]), mix(from.target[2], to.target[2])],
+      radius: mix(from.radius, to.radius) + Math.sin(Math.PI * e) * 0.18 * Math.max(from.radius, to.radius),
+      polar: mix(from.polar, to.polar),
+      azimuth: from.azimuth + tween.turn * e,
+    })
+    if (k >= 1) {
+      tween = null
+      controls.enabled = view === null
+    }
+  }
+  function resetView() {
+    if (view) return lookAtBody('sun')
+    goToPose(poseName)
+  }
+  applyPose(POSES.orbit)
 
   // The Sun lights the Earth and the Moon around the cap; the cap itself shows the painted layers.
   const sunLight = new THREE.DirectionalLight(0xffffff, 3)
@@ -133,7 +189,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   moonTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
   const moon = new THREE.Mesh(
     moonGeometry,
-    new THREE.MeshLambertMaterial({ map: moonTexture, emissive: 0xffffff, emissiveMap: moonTexture, emissiveIntensity: 0.32 }),
+    new THREE.MeshLambertMaterial({ map: moonTexture, emissive: 0xffffff, emissiveMap: moonTexture, emissiveIntensity: 0.6 }),
   )
   scene.add(moon)
 
@@ -490,6 +546,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   resize()
 
   renderer.setAnimationLoop(() => {
+    stepTween(performance.now())
     if (!view) controls.update()
     if (hoverEvent) {
       pointerRay(hoverEvent)
@@ -550,7 +607,13 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
      * Camera: null = orbit above the cap; { lat, lon, profile } = standing on that site, with its terrain horizon
      * (360 values, one per degree of azimuth) as the skyline.
      */
+    /** Orbit camera pose: 'orbit' (oblique, over the pole) or 'top' (straight down). Animated unless animate is false. */
+    setOrbitPose(name, animate = true) {
+      poseName = name
+      if (!view) goToPose(name, animate)
+    },
     setView(site) {
+      tween = null
       if (site) {
         const first = !view
         if (first) savedOrbit = { position: camera.position.clone(), target: controls.target.clone() }

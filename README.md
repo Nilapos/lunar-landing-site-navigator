@@ -16,13 +16,13 @@ Every site gets a green / orange / red verdict and four scores out of 100 (Solar
 
 ## A 2-minute tour
 
-1. **Polar sky** (opens first): the curved south polar cap with the Sun and the Earth in the sky at their true direction and angular size. The ground is painted with the same layers as the Terrain view and follows the timeline. Move over the ground to judge a 2.4 km cell; click a pin to analyze a site. Switch the camera to **On the site** to stand on a site and see its real terrain skyline.
-2. **Terrain**: the same layers on the map in relief.
+1. **Sky** (opens first): the curved south polar cap with the Sun and the Earth in the sky at their true direction and angular size. The ground is painted with layers (sunlight and shadows, Earth visibility, forbidden zones) that follow the timeline. One card shows the score if you land at the moment shown. Switch between **Orbit** and **Top view**: the camera flies from one to the other. Move over the ground to judge a 2.4 km cell; click a pin to analyze a site.
+2. **On site**: stand on the selected site and see its real terrain skyline, with the Sun and the Earth above or behind it.
 3. **Why**: for the site and the moment shown, why the Sun and the Earth are visible or hidden: sky chart, cause strip (visible / hidden by terrain / below the flat horizon) and a ray diagram.
 4. **Analysis**: key figures and charts for the scenario, and an A/B comparison (two sites, or one site at two dates).
 5. **Sites**: every site on the map and ranked by score.
-6. **Timeline** (bottom): Play, step by hour / day / week. Tick **"Scores follow the timeline"** (top bar) to see the scores if you land at the moment shown.
-7. **Pitch demo** button (left panel): Malapert massif summit, 14 Nov 2026. Landing at 00:00 gives a window score of 0 (global 58); waiting until about 15 Nov 06:00 UT gives 100 (global 83), with the default rover requirements.
+6. **Timeline** (bottom): Play, step by hour / day / week. The score card always shows what the scores would be if you land at the moment shown; **Land here** makes that moment the landing time.
+7. **Settings** (foot of the left rail): site, landing date, rover requirements and the **Pitch demo** button (Malapert massif summit, 14 Nov 2026). Landing at 00:00 gives a window score of 0 (global 58); waiting until about 15 Nov 06:00 UT gives 100 (global 83), with the default rover requirements. **Missions** (below it) lists the missions to the south pole.
 
 ## How the scores work
 

@@ -52,14 +52,12 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
 
     body = (
       <>
+        <ScoreBar evaluation={evaluation} />
         {!embedded && (
-          <>
-            <ScoreBar evaluation={evaluation} />
-            <Verdict
-              evaluation={evaluation}
-              onShiftLanding={(ms) => update({ start: addMinutesIso(state.start, Math.ceil(ms / 60000) + SHIFT_MARGIN_MIN) })}
-            />
-          </>
+          <Verdict
+            evaluation={evaluation}
+            onShiftLanding={(ms) => update({ start: addMinutesIso(state.start, Math.ceil(ms / 60000) + SHIFT_MARGIN_MIN) })}
+          />
         )}
 
         <section className="metrics" aria-label="Key figures">

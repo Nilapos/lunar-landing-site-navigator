@@ -35,6 +35,40 @@ const PATHS = {
       <circle cx="12" cy="10" r="2.4" />
     </>
   ),
+  site: (
+    <>
+      <circle cx="12" cy="5.5" r="2.4" />
+      <path d="M12 8.5v6.5m0 0-3 6m3-6 3 6M7.5 11.5h9" />
+    </>
+  ),
+  settings: (
+    <>
+      <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="8" cy="17" r="2" />
+    </>
+  ),
+  missions: (
+    <>
+      <path d="M5 21V4" />
+      <path d="M5 4h11l-2 4 2 4H5" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5M12 7.6h.01" />
+    </>
+  ),
+  tune: (
+    <>
+      <path d="M5 4v16M12 4v16M19 4v16" />
+      <circle cx="5" cy="14" r="2" />
+      <circle cx="12" cy="8" r="2" />
+      <circle cx="19" cy="15" r="2" />
+    </>
+  ),
+  close: <path d="M6 6l12 12M18 6 6 18" />,
   // Controls
   'chevron-left': <path d="m15 6-6 6 6 6" />,
   'chevron-right': <path d="m9 6 6 6-6 6" />,
