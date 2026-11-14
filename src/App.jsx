@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import ArtemisRegions from './components/ArtemisRegions.jsx'
 import ComparisonTable from './components/ComparisonTable.jsx'
+import MissionTab from './components/MissionTab.jsx'
 import MissionHistory from './components/MissionHistory.jsx'
 import RequirementsPanel from './components/RequirementsPanel.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
@@ -10,13 +11,15 @@ import SitesOverview from './components/SitesOverview.jsx'
 import TimelineBar from './components/TimelineBar.jsx'
 import Why from './components/Why.jsx'
 import { southPoleSites } from './data/south-pole-sites.js'
+import { DEFAULT_MISSION_ID, landerById, missions, roverById, roversFor } from './data/vehicles.js'
 import { addDaysIso, showDateTime, todayUtc } from './lib/format.js'
+import { requirementsFor } from './lib/missionRequirements.js'
 import { evaluateFromMoment } from './lib/momentScores.js'
 import { compareScenarios } from './lib/scenario.js'
 import { useScenario } from './lib/useScenario.js'
 import { useSitesOverview } from './lib/useSitesOverview.js'
 import { useTimeline } from './lib/useTimeline.js'
-import { DEFAULT_REQUIREMENTS, evaluateScenario } from './lib/verdict.js'
+import { evaluateScenario } from './lib/verdict.js'
 
 // The 3D library and data are only downloaded when the sky view is shown.
 const PolarSky = lazy(() => import('./components/PolarSky.jsx'))
@@ -35,6 +38,7 @@ const TABS = [
   { key: 'why', label: 'Why', hint: 'Why the Sun and the Earth are visible or hidden at this moment' },
   { key: 'analysis', label: 'Analysis', hint: 'Scenario analysis and A/B comparison' },
   { key: 'sites', label: 'Sites', hint: 'All sites on the map and ranked by score' },
+  { key: 'mission', label: 'Mission', hint: 'The lander and rover that set the requirements' },
 ]
 const DRAWERS = [
   { key: 'settings', label: 'Settings', hint: 'Site, landing date and rover requirements' },
@@ -54,7 +58,25 @@ export default function App() {
   const [drawer, setDrawer] = useState(null)
   const [layers, setLayers] = useState({ sun: true, earth: true, slope: true, go: false, goPeriod: false })
   const [compare, setCompare] = useState(false)
-  const [requirements, setRequirements] = useState(DEFAULT_REQUIREMENTS)
+  // The mission (a lander, with a rover or not) sets the requirements; values typed in Settings override single ones.
+  const [mission, setMission] = useState(() => {
+    const m = missions.find((x) => x.id === DEFAULT_MISSION_ID)
+    return { landerId: m.landerId, roverId: m.roverId }
+  })
+  const [overrides, setOverrides] = useState({})
+  const requirements = useMemo(
+    () => ({ ...requirementsFor(landerById(mission.landerId), roverById(mission.roverId)).requirements, ...overrides }),
+    [mission, overrides],
+  )
+  const changeMission = (patch) => {
+    setMission((current) => {
+      const next = { ...current, ...patch }
+      // A rover goes only with a lander that can carry it.
+      if (next.roverId && !roversFor(next.landerId).some((r) => r.id === next.roverId)) next.roverId = null
+      return next
+    })
+    setOverrides({}) // a new mission brings its own numbers
+  }
   const [a, setA] = useState({ siteId: southPoleSites[0].id, start: `${todayUtc()}T00:00`, days: 30 })
   const [b, setB] = useState(null)
   const [custom, setCustom] = useState(null) // a point selected on the map, analyzed like a site (pointSite.js)
@@ -133,6 +155,8 @@ export default function App() {
     )
   } else if (tab === 'why') {
     content = <Why result={resultA} requirements={requirements} timeline={timeline} />
+  } else if (tab === 'mission') {
+    content = <MissionTab mission={mission} onMission={changeMission} requirements={requirements} overrides={overrides} onResetOverrides={() => setOverrides({})} />
   } else if (tab === 'sites') {
     content = (
       <div className="stage__scroll">
@@ -195,8 +219,8 @@ export default function App() {
           </summary>
           <RequirementsPanel
             requirements={requirements}
-            onChange={(patch) => setRequirements((r) => ({ ...r, ...patch }))}
-            onReset={() => setRequirements(DEFAULT_REQUIREMENTS)}
+            onChange={(patch) => setOverrides((o) => ({ ...o, ...patch }))}
+            onReset={() => setOverrides({})}
           />
         </details>
       </>

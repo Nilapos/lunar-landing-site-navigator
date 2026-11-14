@@ -54,6 +54,12 @@ const PATHS = {
       <path d="M5 4h11l-2 4 2 4H5" />
     </>
   ),
+  mission: (
+    <>
+      <path d="M12 3 8 9v5l-3 4h14l-3-4V9Z" />
+      <path d="M12 14v7M9 21h6" />
+    </>
+  ),
   info: (
     <>
       <circle cx="12" cy="12" r="9" />

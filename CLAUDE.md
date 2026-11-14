@@ -82,6 +82,13 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   else from the 2.4 km cell). `useScenario(..., customSite)`, `SiteControls`, `PolarSky` and `ScoreCard` accept it; the real ephemeris is
   fetched for the clicked point, so the whole period is analyzed (score card, Why, Analysis, On site). It is approximate and flagged so.
   Hovering still shows the quick probe card; clicking replaces the old "pin the card" behavior.
+- Mission = lander (+ optional rover) (`src/data/vehicles.js`, schema documented at the top of the file; `src/lib/missionRequirements.js`,
+  tested): `requirementsFor(lander, rover)` gives the requirements the analysis uses. Landing slope, landing sequence, antenna, data rate and
+  link time come from the lander; the drive slope from the rover (`driveSlopeDeg`, null without a rover); survival through the darkness and
+  Sun elevation take the weakest vehicle. A rover lists the landers that can carry it (`carriedBy`). Entries are `status: sourced` (with https
+  sources) or `hypothesis` (flagged in the Mission tab); the two generic entries reproduce `DEFAULT_REQUIREMENTS` exactly. `App.jsx` keeps
+  `mission` and `overrides` (values typed in Settings) and derives `requirements`. The terrain verdict adds a rover term: 90% of the ground
+  within 500 m must be under the drive slope. Teo fills the catalog and styles the Mission tab (`MissionTab.jsx`).
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

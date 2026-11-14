@@ -41,6 +41,18 @@ export function scoreLevel(score) {
   return score < 100 * ((1 + MARGIN) / 2) ? 'warn' : 'ok'
 }
 
+/** Slope (deg) under which a share `p` (0..1) of a slope histogram (1-degree bins, see terrain.js) lies: the upper edge of the bin where the running total reaches p. */
+export function slopePercentile(histogram, p) {
+  const total = histogram.reduce((a, b) => a + b, 0)
+  if (total === 0) return 0
+  let running = 0
+  for (let bin = 0; bin < histogram.length; bin++) {
+    running += histogram[bin]
+    if (running / total >= p) return bin + 1
+  }
+  return histogram.length
+}
+
 /** Share (0..1) of a slope histogram (1-degree bins, see terrain.js) that is at least `limitDeg` steep. */
 export function fractionSteeperThan(histogram, limitDeg) {
   const total = histogram.reduce((a, b) => a + b, 0)

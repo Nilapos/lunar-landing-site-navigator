@@ -2,7 +2,7 @@
 // Each item compares a measured value with a limit the user typed in (see scores.js for the rule):
 //   ok = met with margin    warn = met but within 20% of the limit    fail = not met
 import { formatDuration } from './format.js'
-import { ANTENNAS, fractionSteeperThan, levelFromRatio, marginScore, ratio } from './scores.js'
+import { ANTENNAS, fractionSteeperThan, levelFromRatio, marginScore, ratio, slopePercentile } from './scores.js'
 import { stateAt } from './visibility.js'
 
 export const DEFAULT_REQUIREMENTS = {
@@ -13,7 +13,8 @@ export const DEFAULT_REQUIREMENTS = {
   bandwidthKbps: 256, // data rate needed to Earth
   antenna: 'mga', // antenna class, see ANTENNAS
   landingMinutes: 10, // Sun and Earth both needed for the landing sequence
-  maxSlopeDeg: 15, // steepest slope the rover can drive
+  maxSlopeDeg: 15, // steepest slope the lander can land on (within about 100 m of the landing point)
+  driveSlopeDeg: null, // steepest slope the rover can drive (null: no rover)
 }
 
 export const LEVEL_LABEL = { ok: 'Feasible', warn: 'Marginal', fail: 'Not feasible' }
@@ -64,11 +65,16 @@ function windowItem(both, req, landingMs) {
 
 function terrainItem(terrain, req) {
   const steeper = Math.round(100 * fractionSteeperThan(terrain.histogram500, req.maxSlopeDeg))
+  const landing = ratio(req.maxSlopeDeg, terrain.slopeMaxDeg)
+  const detail =
+    `Steepest slope within 100 m ${terrain.slopeMaxDeg.toFixed(1)}° vs landing limit ${req.maxSlopeDeg}°; ` +
+    `${steeper}% of the ground within 500 m is steeper than the limit.`
+  if (req.driveSlopeDeg == null) return { ratio: landing, detail }
+  // With a rover, the ground around must also be drivable: 90% of the surroundings (500 m) must be under its drive limit.
+  const typical = slopePercentile(terrain.histogram500, 0.9)
   return {
-    ratio: ratio(req.maxSlopeDeg, terrain.slopeMaxDeg),
-    detail:
-      `Steepest slope within 100 m ${terrain.slopeMaxDeg.toFixed(1)}° vs rover limit ${req.maxSlopeDeg}°; ` +
-      `${steeper}% of the ground within 500 m is steeper than the limit.`,
+    ratio: Math.min(landing, ratio(req.driveSlopeDeg, typical)),
+    detail: `${detail} Rover: 90% of the ground within 500 m is under ${typical}° vs drive limit ${req.driveSlopeDeg}°.`,
   }
 }
 

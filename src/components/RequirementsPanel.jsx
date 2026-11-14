@@ -7,7 +7,8 @@ const FIELDS = [
   { key: 'linkMinPerHour', label: 'Earth link needed', unit: 'min/h', min: 0, max: 60, step: 1, help: 'Direct-to-Earth time needed per hour' },
   { key: 'bandwidthKbps', label: 'Data rate needed', unit: 'kbps', min: 0, max: 1000000, step: 1, help: 'Data rate the rover must send to Earth' },
   { key: 'landingMinutes', label: 'Landing sequence', unit: 'min', min: 1, max: 600, step: 1, help: 'Sun and Earth both needed for this long after landing' },
-  { key: 'maxSlopeDeg', label: 'Max slope', unit: '°', min: 0, max: 45, step: 0.5, help: 'Steepest slope the rover can drive' },
+  { key: 'maxSlopeDeg', label: 'Landing slope', unit: '°', min: 0, max: 45, step: 0.5, help: 'Steepest slope the lander can land on' },
+  { key: 'driveSlopeDeg', label: 'Rover drive slope', unit: '°', min: 0, max: 45, step: 0.5, help: 'Steepest slope the rover can drive (shown when the mission has a rover)' },
 ]
 
 // The rover's needs. They apply to both scenarios, so A and B are judged by the same rules.
@@ -15,13 +16,13 @@ export default function RequirementsPanel({ requirements, onChange, onReset }) {
   return (
     <section className="panel" aria-label="Mission requirements">
       <div className="requirements__head">
-        <h2 className="panel__title">Mission requirements (rover)</h2>
+        <h2 className="panel__title">Mission requirements</h2>
         <button type="button" className="button" onClick={onReset}>
           Reset
         </button>
       </div>
       <div className="requirements">
-        {FIELDS.map((f) => (
+        {FIELDS.filter((f) => f.key !== 'driveSlopeDeg' || requirements.driveSlopeDeg != null).map((f) => (
           <label key={f.key} className="requirements__field" title={f.help}>
             <span className="controls__label">
               {f.label} ({f.unit})
@@ -62,7 +63,7 @@ export default function RequirementsPanel({ requirements, onChange, onReset }) {
           <li>Solar exposure: battery autonomy / longest darkness.</li>
           <li>Telecom: the lower of (Earth link time per hour / needed) and (antenna data rate / needed).</li>
           <li>Window duration: time Sun and Earth stay visible together after landing / landing sequence length.</li>
-          <li>Topography: rover max slope / steepest slope within 100 m (LOLA map, 80 m resolution, so local steeper features are smoothed).</li>
+          <li>Topography: landing slope limit / steepest slope within 100 m (LOLA map, 80 m resolution, so local steeper features are smoothed). With a rover, also its drive slope limit / the slope under which 90% of the ground within 500 m lies; the lower of the two counts.</li>
         </ul>
       </details>
     </section>
