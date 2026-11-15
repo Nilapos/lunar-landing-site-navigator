@@ -129,6 +129,7 @@ uniform sampler2D uDetail;    // the detail of the window (imagery sharpened for
 uniform sampler2D uHillshade; // the relief picture, laid over the photograph (uShade) and over the detail (uShadeDetail)
 uniform float uShade;
 uniform float uShadeDetail;
+uniform float uLift;          // shadow lift of the ground (0 to 1)
 uniform sampler2D uFine;
 uniform sampler2D uLive;      // the baked live layers (premultiplied), see BAKE_FRAGMENT
 uniform sampler2D uMain;      // premultiplied RGBA: Optimal over the period, or Feasible
@@ -147,6 +148,8 @@ varying vec2 vUv;
 
 // The "overlay" blend of the relief shading over a color (what the canvas did once): dark and light of the hillshade add relief.
 vec3 overlayBlend(vec3 b, float s) { return mix(2.0 * b * s, 1.0 - 2.0 * (1.0 - b) * (1.0 - s), step(0.5, b)); }
+// Shadow lift: opens up the dark parts (gamma, then a small floor), 0 leaves the color as it is.
+vec3 lifted(vec3 c, float k) { return pow(c, vec3(1.0 - 0.35 * k)) * (1.0 - 0.16 * k) + 0.16 * k; }
 
 vec4 over(vec4 top, vec4 bottom) { return top + bottom * (1.0 - top.a); } // premultiplied
 
@@ -169,6 +172,7 @@ void main() {
     vec3 sharp = mix(detail.rgb, overlayBlend(detail.rgb, shade), uShadeDetail);
     col = mix(col, sharp, detail.a * feather);
   }
+  col = lifted(col, uLift);
 
   vec4 layer = vec4(0.0); // premultiplied
   if (uMainOn > 0.5) layer = texture2D(uMain, img);
@@ -346,6 +350,7 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
       uHillshade: { value: hillshadeTexture },
       uShade: { value: 0 },
       uShadeDetail: { value: 0 },
+      uLift: { value: 0 },
       uDetailOn: { value: 0 },
       uWindow: { value: new THREE.Vector3(0, 0, 2 * MAP_RADIUS_KM) },
       uMapKm: { value: 2 * MAP_RADIUS_KM },
@@ -394,6 +399,10 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
       u.uEdgeFade.value = Math.max(edgeFade, 1e-4)
       shadeBase = reliefShading
       applyRelief()
+    },
+    /** Shadow lift (0 to 1): opens up the dark parts of the ground. */
+    setLift(value) {
+      u.uLift.value = value
     },
     /** The relief picture (hillshade of the LOLA map), laid over the photograph by the shader. */
     setHillshade(image) {

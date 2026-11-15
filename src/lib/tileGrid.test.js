@@ -30,6 +30,12 @@ test('the level whose pixels are as fine as asked, within the levels a layer has
   assert.equal(levelForPixelSize(100000, 3, 5), 3) // coarser than the shallowest level wanted
 })
 
+test('the LOLA hillshade layers of the relief surface cover the whole cap and stop at their deepest served level', () => {
+  assert.ok(TILE_LAYERS.shade30.boxKm > MAP_SPAN_KM / 2) // the 30 m hillshade reaches past the edge of the map (80 S)
+  assert.equal(levelForPixelSize(1, 3, TILE_LAYERS.shade30.maxLevel), 6)
+  assert.equal(levelForPixelSize(1, 7, TILE_LAYERS.shade10.maxLevel), 8)
+})
+
 test('the tiles that cover the whole cap at level 5: the tile at the corner of the pole is row 16, column 16', () => {
   const tiles = tilesCovering(FULL_WINDOW, 5)
   const pole = tiles.find((t) => t.row === 16 && t.col === 16)

@@ -442,6 +442,11 @@ export function createMapScene(container, terrain, { onPick, onProbe, locateCell
       ground.setRelief(value)
       zoneGround.setRelief(value)
     },
+    /** Shadow lift (0 to 1) of the ground and of the fine zone. */
+    setLift(value) {
+      ground.setLift(value)
+      zoneGround.setLift(value)
+    },
     setSample() {},
     setView() {}, // no standing on a site here: that is a 3D view
     lookAt() {},

@@ -151,6 +151,14 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   "Zoom to site") and pan only, smoothed (time constant 0.1 s), inside the map; pins and the cursor keep a constant size on the screen; the graticule is drawn on a canvas over the view at screen pixels (`paintScreenGrid`: 1 px lines,
   11 px values, nothing deformed, nothing uploaded while zooming; `scene.screenGrid` tells PolarSky to leave the ground's grid texture empty). The 3D views keep the texture grid, thinner and smaller than before.
   The **relief setting** (x1 to x4, "View settings") exists in both views: in 3D it raises the relief of the mesh; on the flat map it strengthens the **relief shading** (the LOLA hillshade is now laid over the photo by the shader, `uShade`, overlay blend, 0.3 at x1 up to 1.0 at x4, and over the sharp imagery and the fine zone from x2 on: `setRelief` in capMaterial.js and zoneMaterial.js). `paintBase` draws the photo only.
+- Clean surface of the 2D map (2026-11-15): the LRO NAC polar mosaic is a patchwork of swaths with different exposures (visible bands, pixelation, black patches), so the Top view's default **Surface** is
+  **Relief**: the LOLA hillshade of NASA Moon Trek (one fixed Sun for the whole map: no seams, crisp shadows, the look of NASA's SVS videos). `TILE_LAYERS.shade30` (`LRO_LOLA_Shade_SPole75_30mp_v04`, 134 m/px at its deepest
+  served level L6, 457 km around the pole) everywhere, `shade10` (`LRO_LOLA_Shade_SPolar875_10m`, 33 m/px at L8, 75.8 km around the pole) on top from level 7. The 5 m one (`SPole875_5mp`) shows the LOLA ground tracks as
+  scan lines: not used. View settings: **Surface** Relief / Photo (WAC + NAC, as before) / Mix (photo at 40% over the relief), and **Shadow lift** (`uLift`, `lifted()` in capMaterial.js and zoneMaterial.js: gamma and a small
+  floor, 30% by default, because the shadows of a hillshade are black). The 3D views always use the photo. Limit: beyond 75.8 km from the pole the relief is 134 m/px, so a very close zoom there is soft (the fine zones and the
+  500 m chunks are the sharp data). **QuickMap / ShadowCam** (checked 2026-11-15): LROC's Lunaserv WMS (`https://data.im-ldi.com/shadowcam/wms`, CORS open, polar stereographic `IAU2000:30118`, bbox in meters) works for the
+  WAC layer, but its `luna_shadowcam_pds` layer answers a server error ("database shadowcam does not exist") and is a set of single images, not a mosaic; the `luna_lroc_pds_rdr` layer is empty at the pole. Not used.
+  The **graticule** of the 2D map is a hairline in the bluish `--color-grid-map` over a dark casing (`LOOK_2D` in mapGrid.js), 10 px values.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

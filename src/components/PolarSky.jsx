@@ -36,12 +36,25 @@ const MIN_PAINT_MS = 66 // the layers on the ground are redrawn at most about 15
 
 // What the detail canvas is made of, bottom first (tileWindow.js): the imagery gets sharper with the zoom (LRO WAC, then the LRO NAC
 // mosaic of the south pole where it exists), then the layers of Moon Trek that the user switched on.
-const IMAGERY = [
+// The surface of the 2D map: 'relief' (LOLA hillshade: one Sun for the whole map, so no seams between images, crisp shadows), 'photo' (LRO
+// images: patchwork of exposures, but real albedo) or 'mix' (the photo at 40% over the relief). The 3D views always use the photo.
+const PHOTO = [
   { layer: TILE_LAYERS.wac, minLevel: 3, style: 'image' },
   { layer: TILE_LAYERS.nac, minLevel: 6, style: 'image' },
 ]
-const imagerySources = (layers) => [
-  ...IMAGERY,
+const RELIEF = [
+  { layer: TILE_LAYERS.shade30, minLevel: 3, style: 'image' },
+  { layer: TILE_LAYERS.shade10, minLevel: 7, style: 'image' },
+]
+const SURFACES = [
+  { key: 'relief', label: 'Relief' },
+  { key: 'photo', label: 'Photo' },
+  { key: 'mix', label: 'Mix' },
+]
+const surfaceSources = (surface) =>
+  surface === 'relief' ? RELIEF : surface === 'mix' ? [...RELIEF, ...PHOTO.map((s) => ({ ...s, opacity: 0.4 }))] : PHOTO
+const imagerySources = (layers, surface = 'photo') => [
+  ...surfaceSources(surface),
   ...(layers.rock ? [{ layer: TILE_LAYERS.rock, minLevel: 3, style: 'rock', opacity: 0.6 }] : []),
   ...(layers.psr ? [{ layer: TILE_LAYERS.psr, minLevel: 3, style: 'psr', opacity: 1 }] : []),
 ]
@@ -103,6 +116,8 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const flightRef = useRef(false) // false until the first pose is set: no flight when the view opens
   const { terrain, hillshade, photo, error } = useTerrain3d()
   const [exaggeration, setExaggeration] = useState(1)
+  const [surfaceChoice, setSurfaceChoice] = useState('relief') // surface of the 2D map
+  const [lift, setLift] = useState(0.3) // shadow lift (0 = as the data, 1 = shadows opened up)
   const [hover, setHover] = useState(null) // the finest cell under the pointer (hoverCell.js)
   const locateRef = useRef(() => null)
   const [areas, setAreas] = useState(null) // best areas found for the period, null before the first search
@@ -115,6 +130,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const standing = view === 'site'
   // The Top view is a flat 2D map (mapScene.js): no globe to load, a fraction of the drawing cost. The other views are the 3D scene.
   const engine = view === 'top' ? 'map' : '3d'
+  const surface = engine === 'map' ? surfaceChoice : 'photo'
   const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
   const { sample, samples, index, playing } = timeline
 
@@ -238,10 +254,10 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (scene.screenGrid) scene.ground.overlayCanvas.getContext('2d').clearRect(0, 0, scene.ground.overlayCanvas.width, scene.ground.overlayCanvas.height)
     else paintWindowGrid(scene.ground.overlayCanvas, mapWindow, { regions: REGIONS, colors: groundOverlayColors() })
     scene.ground.refreshOverlay()
-    tiles.configure(imagerySources({ psr: psrOn, rock: rockOn }))
+    tiles.configure(imagerySources({ psr: psrOn, rock: rockOn }, surface))
     tiles.setWindow(mapWindow)
     scene.ground.setWindow(mapWindow)
-  }, [terrain, hillshade, engine, mapWindow, psrOn, rockOn])
+  }, [terrain, hillshade, engine, mapWindow, psrOn, rockOn, surface])
 
   // The fine zone replaces the overview under it: a hole in the cap.
   useEffect(() => {
@@ -317,7 +333,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     scene.zoneGround.setHillshade(zoneData.image)
     const tiles = new TileWindow({
       canvas: scene.zoneGround.imageryCanvas,
-      sources: imagerySources({ psr: psrOn, rock: rockOn }),
+      sources: imagerySources({ psr: psrOn, rock: rockOn }, surface),
       underlay: zoneData.image,
       tint: cssToken('--color-layer-psr'),
       onPainted: () => scene.zoneGround.refreshImagery(),
@@ -326,11 +342,16 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     scene.zoneGround.refreshGrid()
     tiles.setWindow(win)
     return () => tiles.dispose()
-  }, [engine, zoneShown, zoneData, psrOn, rockOn])
+  }, [engine, zoneShown, zoneData, psrOn, rockOn, surface])
 
   useEffect(() => {
     sceneRef.current?.setExaggeration(exaggeration)
   }, [terrain, hillshade, engine, exaggeration])
+
+  // Shadow lift: opens up the dark parts of the surface (the shadows of a hillshade are black).
+  useEffect(() => {
+    sceneRef.current?.setLift(lift)
+  }, [terrain, hillshade, engine, lift])
 
   useEffect(() => {
     // The selected point (if any) gets a pin like a named site, colored by its score.
@@ -448,6 +469,24 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
               <label className="pop__field" title={engine === 'map' ? 'The map is flat: the relief setting strengthens the relief shading (hillshade of the LOLA map)' : undefined}>
                 <span className="controls__label">{engine === 'map' ? 'Relief shading' : 'Relief'} x{exaggeration}</span>
                 <input type="range" min="1" max="4" step="1" value={exaggeration} onChange={(e) => setExaggeration(Number(e.target.value))} />
+              </label>
+            )}
+            {engine === 'map' && (
+              <div className="pop__field">
+                <span className="controls__label">Surface</span>
+                <div className="tabs" role="group" aria-label="Surface of the map">
+                  {SURFACES.map((o) => (
+                    <button key={o.key} type="button" className={`tabs__tab${surfaceChoice === o.key ? ' tabs__tab--active' : ''}`} aria-pressed={surfaceChoice === o.key} title={o.key === 'relief' ? 'LOLA hillshade: clean, one Sun for the whole map' : o.key === 'photo' ? 'LRO images (patchwork of exposures)' : 'Photo at 40% over the relief'} onClick={() => setSurfaceChoice(o.key)}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!standing && (
+              <label className="pop__field" title="Opens up the dark parts of the surface (the shadows of the relief are black)">
+                <span className="controls__label">Shadow lift {Math.round(lift * 100)}%</span>
+                <input type="range" min="0" max="1" step="0.05" value={lift} onChange={(e) => setLift(Number(e.target.value))} />
               </label>
             )}
             <button type="button" className="button" onClick={() => sceneRef.current?.resetView()}>

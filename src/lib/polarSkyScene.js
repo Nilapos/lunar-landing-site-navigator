@@ -875,6 +875,12 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
   const api = {
     /** The ground of the cap (capMaterial.js): its canvases are painted by groundTexture.js, its layer and hole are set here. */
     ground,
+    /** Shadow lift (0 to 1) of the ground and of the fine zone. */
+    setLift(value) {
+      ground.setLift(value)
+      zoneGround.setLift(value)
+      invalidate()
+    },
     setExaggeration(value) {
       exaggeration = value
       capPositions(terrain, exaggeration, positions)

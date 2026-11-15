@@ -19,15 +19,19 @@ uniform sampler2D uImagery;
 uniform sampler2D uGrid;
 uniform sampler2D uLayer;
 uniform sampler2D uHillshade; // the zone's own hillshade picture
+uniform float uLift;          // shadow lift of the ground (0 to 1)
 uniform float uShade;         // relief shading of the 2D map's relief setting (none at x1: the imagery has its own)
 uniform float uLayerOn;
 uniform float uLayerAlpha;
 varying vec2 vUv;
 // The "overlay" blend of the relief shading over a color (what the canvas did once): dark and light of the hillshade add relief.
 vec3 overlayBlend(vec3 b, float s) { return mix(2.0 * b * s, 1.0 - 2.0 * (1.0 - b) * (1.0 - s), step(0.5, b)); }
+// Shadow lift: opens up the dark parts (gamma, then a small floor), 0 leaves the color as it is.
+vec3 lifted(vec3 c, float k) { return pow(c, vec3(1.0 - 0.35 * k)) * (1.0 - 0.16 * k) + 0.16 * k; }
 void main() {
   vec3 col = texture2D(uImagery, vUv).rgb;
   col = mix(col, overlayBlend(col, texture2D(uHillshade, vUv).r), uShade);
+  col = lifted(col, uLift);
   if (uLayerOn > 0.5) {
     vec4 layer = texture2D(uLayer, vec2(vUv.x, 1.0 - vUv.y)); // the data rows run from the top of the zone
     col = col * (1.0 - layer.a * uLayerAlpha) + layer.rgb * uLayerAlpha;
@@ -77,6 +81,7 @@ export function createZoneMaterial(anisotropy, size = 2048) {
       uLayer: { value: emptyLayer },
       uHillshade: { value: hillshadeTexture },
       uShade: { value: 0 },
+      uLift: { value: 0 },
       uLayerOn: { value: 0 },
       uLayerAlpha: { value: 1 },
     },
@@ -99,6 +104,10 @@ export function createZoneMaterial(anisotropy, size = 2048) {
     setHillshade(image) {
       hillshadeTexture.image = image
       hillshadeTexture.needsUpdate = true
+    },
+    /** Shadow lift (0 to 1): opens up the dark parts of the ground. */
+    setLift(value) {
+      u.uLift.value = value
     },
     setRelief(value) {
       u.uShade.value = Math.min(0.9, 0.3 * (value - 1))

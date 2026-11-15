@@ -28,6 +28,12 @@ export const TILE_LAYERS = {
   psr: { id: 'NAC_POLE_PSR_SOUTH_STRETCH', maxLevel: 8, boxKm: 304.01 },
   // LRO Diviner average rock abundance, colored; no data within about 280 km of the pole (checked on 2026-11-15).
   rock: { id: 'Diviner_avg_RockAbundance_SP', maxLevel: 5, boxKm: 931.05 },
+  // LOLA hillshade (one fixed Sun, so no seams, no exposure changes: the clean surface of the 2D map). 30 m per pixel natively, 134 m at
+  // its deepest served level; box of 457 km around the pole (checked on 2026-11-15).
+  shade30: { id: 'LRO_LOLA_Shade_SPole75_30mp_v04', maxLevel: 6, boxKm: 457.44 },
+  // LOLA hillshade at 10 m per pixel natively (33 m at its deepest served level), 75.8 km around the pole. The 5 m one (SPole875_5mp)
+  // shows the LOLA ground tracks as scan lines, so it is not used.
+  shade10: { id: 'LRO_LOLA_Shade_SPolar875_10m', maxLevel: 8, boxKm: 75.84 },
 }
 
 /** Side of a tile of `level` (km). */

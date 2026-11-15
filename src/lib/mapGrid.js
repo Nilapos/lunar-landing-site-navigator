@@ -80,15 +80,16 @@ export function formatLon(lon, step) {
   return `${trim(value, decimalsFor(step))}°${value === 0 || value === 180 ? '' : east ? 'E' : 'W'}`
 }
 
-// The look of the graticule: thin and translucent, so it frames the ground without taking it over.
-const LINE_ALPHA = 0.55
-const LABEL_ALPHA = 0.9
+// The look of the graticule: thin and translucent, so it frames the ground without taking it over. The 3D views (a texture seen in
+// perspective) need it a little stronger; the 2D map, like the cartographic frames of NASA's videos, a hairline.
+const LOOK_3D = { lineAlpha: 0.55, labelAlpha: 0.9, halo: 0.7 }
+const LOOK_2D = { lineAlpha: 0.7, labelAlpha: 0.85, halo: 0.6, casing: 0.28 }
 
 /**
  * Draws the graticule with its labels, and the candidate region squares, on a canvas context.
  *   layout: { px(x), py(y), scale, width, height }: km of the map plane to pixels, pixels per km, size of the canvas;
  *   win: { cx, cy, span } the part of the map seen (span: its larger side), which sets the lines and the labels to draw;
- *   style: { line, fontPx } widths in canvas pixels.
+ *   style: { line, fontPx, lineAlpha, labelAlpha, halo } widths in canvas pixels and opacities (LOOK_3D / LOOK_2D).
  */
 function drawGraticule(ctx, layout, win, { regions, colors, style }) {
   const { px, py, scale, width, height } = layout
@@ -98,9 +99,9 @@ function drawGraticule(ctx, layout, win, { regions, colors, style }) {
 
   ctx.save()
   ctx.lineWidth = style.line
-  ctx.strokeStyle = colors.grid
+  ctx.strokeStyle = style.lineColor ?? colors.grid
   ctx.lineJoin = 'round'
-  ctx.globalAlpha = LINE_ALPHA
+  ctx.globalAlpha = style.lineAlpha
   ctx.beginPath()
   for (const { rho } of parallels) {
     const half = holdsPole(win) || rho < reach ? Math.PI : Math.min(Math.PI, reach / rho)
@@ -119,6 +120,16 @@ function drawGraticule(ctx, layout, win, { regions, colors, style }) {
     const r1 = Math.min(MAP_RADIUS_KM * 1.02, rhoC + reach * 1.5)
     ctx.moveTo(px(r0 * Math.sin(a)), py(r0 * Math.cos(a)))
     ctx.lineTo(px(r1 * Math.sin(a)), py(r1 * Math.cos(a)))
+  }
+  if (style.casing) {
+    // A dark casing under the line keeps a hairline readable over light ground as well as dark.
+    const lineWidth = ctx.lineWidth
+    ctx.save()
+    ctx.lineWidth = lineWidth * 3
+    ctx.strokeStyle = '#000'
+    ctx.globalAlpha = style.casing
+    ctx.stroke()
+    ctx.restore()
   }
   ctx.stroke()
   ctx.globalAlpha = 1
@@ -142,14 +153,14 @@ function drawGraticule(ctx, layout, win, { regions, colors, style }) {
   ctx.font = `600 ${fontPx}px system-ui, sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.lineWidth = fontPx / 4
+  ctx.lineWidth = fontPx / 5
   ctx.lineJoin = 'round'
-  ctx.globalAlpha = LABEL_ALPHA
+  ctx.globalAlpha = style.labelAlpha
   const label = (text, x, y) => {
     if (x < fontPx || y < fontPx || x > width - fontPx || y > height - fontPx) return
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)'
+    ctx.strokeStyle = `rgba(0,0,0,${style.halo})`
     ctx.strokeText(text, x, y)
-    ctx.fillStyle = colors.grid
+    ctx.fillStyle = style.lineColor ?? colors.grid
     ctx.fillText(text, x, y)
   }
   for (const { lat, rho } of parallels) {
@@ -177,7 +188,7 @@ export function paintWindowGrid(canvas, win, { regions = [], colors }) {
   const scale = size / win.span // pixels per km
   const layout = { px: (x) => (x - left) * scale, py: (y) => (top - y) * scale, scale, width: size, height: size }
   // Seen reduced and tilted, so lines and values are a little larger than on the screen.
-  drawGraticule(ctx, layout, win, { regions, colors, style: { line: Math.max(2, size / 700), fontPx: Math.max(14, Math.round(size / 115)) } })
+  drawGraticule(ctx, layout, win, { regions, colors, style: { ...LOOK_3D, line: Math.max(2, size / 700), fontPx: Math.max(14, Math.round(size / 115)) } })
 }
 
 /**
@@ -193,5 +204,5 @@ export function paintScreenGrid(canvas, view, { regions = [], colors, dpr = 1 })
   const top = view.cy + view.heightKm / 2
   const layout = { px: (x) => (x - left) * scale, py: (y) => (top - y) * scale, scale, width: canvas.width, height: canvas.height }
   const win = { cx: view.cx, cy: view.cy, span: Math.max(view.widthKm, view.heightKm) }
-  drawGraticule(ctx, layout, win, { regions, colors, style: { line: Math.max(1, dpr), fontPx: Math.round(11 * dpr) } })
+  drawGraticule(ctx, layout, win, { regions, colors, style: { ...LOOK_2D, line: Math.max(1, dpr), fontPx: Math.round(10 * dpr), lineColor: colors.gridMap || colors.grid } })
 }

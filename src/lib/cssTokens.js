@@ -11,6 +11,7 @@ export function cssToken(name) {
 export function groundOverlayColors() {
   return {
     grid: cssToken('--color-grid'),
+    gridMap: cssToken('--color-grid-map'),
     regionFill: cssToken('--color-region-fill'),
     regionEdge: cssToken('--color-region-edge'),
   }

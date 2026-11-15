@@ -31,6 +31,7 @@
   --color-region-tint: rgb(40 196 200 / 0.14);
   --color-grid: rgb(116 128 184 / 0.85);
   --color-grid-line: #7480b8;
+  --color-grid-map: rgb(150 196 255); /* hairline graticule of the flat 2D map (NASA SVS style: thin, bluish) */
 
   /* Accent of the interface = the region edge */
   --color-accent: var(--color-region-edge);
