@@ -523,7 +523,10 @@ a:hover { color: var(--color-accent-strong); }
 .scorecard__caption { margin: 0; font-size: var(--text-xs); color: var(--color-text-faint); }
 .gauges { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .gauges__row { display: grid; grid-template-columns: 56px 1fr 26px; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
-.gauges__bar { height: 4px; background: var(--color-hairline); border-radius: var(--radius-pill); overflow: hidden; }
+.gauges__bar { position: relative; height: 4px; background: var(--color-hairline); border-radius: var(--radius-pill); overflow: hidden; }
+/* 100% of the need (requirement just met) is the middle of the bar, which goes up to 200%. */
+.gauges__bar::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--color-text-faint); }
+.scores__meter::before { content: ''; position: absolute; z-index: 1; top: -2px; bottom: -2px; left: 50%; width: 1px; background: var(--color-text-faint); }
 .gauges__fill { display: block; height: 100%; border-radius: inherit; background: var(--color-text-faint); transition: width 0.3s ease; }
 .gauges__fill--ok { background: var(--color-ok); }
 .gauges__fill--warn { background: var(--color-warn); }

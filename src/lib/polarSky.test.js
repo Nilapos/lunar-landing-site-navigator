@@ -119,7 +119,7 @@ test('a flat cell near the pole with the Sun and the Earth up is a good zone', (
   assert.equal(probe.fractions.sun, 1)
   assert.equal(probe.fractions.both, 1)
   assert.ok(probe.now.earth.margin > 0 && probe.now.sun.margin > 0)
-  assert.equal(probe.score, 99) // terrain 100, power 100, comms 97 (the antenna gives 1.95 times the data rate needed)
+  assert.equal(probe.score, 198) // % of the need: terrain 200, power 200, comms 195 (the antenna gives 1.95 times the data rate needed)
 })
 
 test('too steep, or hidden from the Earth by a rim: red, with the reason', () => {
@@ -133,7 +133,7 @@ test('too steep, or hidden from the Earth by a rim: red, with the reason', () =>
   assert.equal(b.level, 'fail')
   assert.equal(b.fractions.earth, 0)
   assert.ok(b.now.sun.margin < 0)
-  assert.equal(b.score, 33) // terrain 100, power 0, comms 0
+  assert.equal(b.score, 67) // % of the need: terrain 200, power 0, comms 0
 })
 
 test('no card outside the map', () => {

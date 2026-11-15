@@ -27,7 +27,7 @@ const VERDICT_ROWS = [
 
 const SCORE_ROWS = [
   ['global', 'Global score'],
-  ['solar', 'Solar exposure'],
+  ['solar', 'Night endurance'],
   ['telecom', 'Telecom'],
   ['window', 'Window duration'],
   ['topography', 'Topography'],
@@ -70,7 +70,7 @@ export default function ComparisonTable({ rows, labelA, labelB, evalA, evalB }) 
               const b = evalB.scores[key]
               return (
                 <tr key={`score-${key}`}>
-                  <th scope="row">{label} (/100)</th>
+                  <th scope="row">{label} (% of the need)</th>
                   <td className={a > b ? 'compare__better' : ''}>{a}</td>
                   <td className={b > a ? 'compare__better' : ''}>{b}</td>
                   <td className="compare__delta">{a === b ? '=' : `${b > a ? '+' : '-'}${Math.abs(b - a)}`}</td>

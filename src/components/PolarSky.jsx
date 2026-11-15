@@ -70,7 +70,7 @@ function ProbeCard({ probe, maxSlopeDeg, cell }) {
     <div className="skycard skycard--probe">
       <p className="skycard__title">
         <span className={`skycard__badge skycard__badge--${probe.level}`}>
-          {LEVEL_LABEL[probe.level]} {probe.score}/100
+          {LEVEL_LABEL[probe.level]} {probe.score}% of the need
         </span>
         <span className="skycard__hint">click to analyze this place</span>
       </p>

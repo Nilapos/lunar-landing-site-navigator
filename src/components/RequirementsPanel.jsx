@@ -55,12 +55,13 @@ export default function RequirementsPanel({ requirements, onChange, onReset }) {
       <details className="panel__detail">
         <summary>How are the scores and colors computed?</summary>
         <p>
-          For each requirement: ratio = what the site offers / what the rover needs. Score = 100 x min(ratio / 2, 1):
-          50 means the requirement is just met, 100 means at least twice the margin. Green from ratio 1.2 (score 60),
-          orange between 1 and 1.2, red below 1. The global score is the average of the four.
+          For each requirement: ratio = what the site offers / what the rover needs. Score = 100 x ratio, in % of the need,
+          shown up to 200 (twice the need). 100 means the requirement is just met. Green from 120, orange from 100 to 120,
+          red below 100. The global score is the average of the four; the verdict (Feasible / Marginal / Not feasible) is the
+          worst requirement, so one red requirement makes a site not feasible even with a good average.
         </p>
         <ul>
-          <li>Solar exposure: battery autonomy / longest darkness.</li>
+          <li>Night endurance: battery autonomy / longest darkness.</li>
           <li>Telecom: the lower of (Earth link time per hour / needed) and (antenna data rate / needed).</li>
           <li>Window duration: time Sun and Earth stay visible together after landing / landing sequence length.</li>
           <li>Topography: landing slope limit / steepest slope within 100 m (LOLA map, 20 m resolution, so features smaller than that are smoothed). With a rover, also its drive slope limit / the slope under which 90% of the ground within 500 m lies; the lower of the two counts.</li>

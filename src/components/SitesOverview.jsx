@@ -33,7 +33,7 @@ export default function SitesOverview({ items, loadedCount, start, days, selecte
               <tr>
                 <th scope="col">Site</th>
                 <th scope="col">Global</th>
-                <th scope="col">Solar</th>
+                <th scope="col">Night endurance</th>
                 <th scope="col">Telecom</th>
                 <th scope="col">Window</th>
                 <th scope="col">Topo.</th>

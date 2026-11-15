@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { formatUtc } from '../lib/format.js'
 import { causeText } from '../lib/polarSky.js'
-import { scoreLevel } from '../lib/scores.js'
+import { MAX_SCORE, scoreLevel } from '../lib/scores.js'
 import { LEVEL_LABEL } from '../lib/verdict.js'
 
 const GAUGES = [
-  { key: 'solar', label: 'Solar' },
+  { key: 'solar', label: 'Night endurance' },
   { key: 'telecom', label: 'Telecom' },
   { key: 'window', label: 'Window' },
   { key: 'topography', label: 'Terrain' },
@@ -71,7 +71,7 @@ export default function ScoreCard({ site, atMs, startMs, evaluation, states, onL
 
       <div className="scorecard__score">
         <span className={`scorecard__value scorecard__value--${level}`}>{evaluation ? evaluation.scores.global : '–'}</span>
-        <span className="scorecard__max">/100</span>
+        <span className="scorecard__max">% of the need (mean)</span>
         {evaluation && <span className={`pill pill--${evaluation.overall}`}>{LEVEL_LABEL[evaluation.overall]}</span>}
       </div>
       <p className="scorecard__caption">{moved ? 'If we land at this moment' : 'Landing at the start of the period'}</p>
@@ -84,9 +84,10 @@ export default function ScoreCard({ site, atMs, startMs, evaluation, states, onL
             <li key={g.key} className="gauges__row" title={evaluation.items.find((i) => i.key === ITEM_OF_GAUGE[g.key])?.detail}>
               <span className="gauges__label">{g.label}</span>
               <span className="gauges__bar">
-                <span className={`gauges__fill gauges__fill--${scoreLevel(evaluation.scores[g.key])}`} style={{ width: `${evaluation.scores[g.key]}%` }} />
+                {/* The bar goes up to 200% of the need; the mark in the middle is 100% (requirement just met). */}
+                <span className={`gauges__fill gauges__fill--${scoreLevel(evaluation.scores[g.key])}`} style={{ width: `${(evaluation.scores[g.key] / MAX_SCORE) * 100}%` }} />
               </span>
-              <span className="gauges__value">{evaluation.scores[g.key]}</span>
+              <span className="gauges__value">{evaluation.scores[g.key]}%</span>
             </li>
           ))}
         </ul>

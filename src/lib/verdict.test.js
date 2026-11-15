@@ -27,13 +27,15 @@ const evaluate = (s, req = {}, terrain = FLAT) =>
 const level = (ev, key) => ev.items.find((i) => i.key === key).level
 const score = (ev, key) => ev.items.find((i) => i.key === key).score
 
-test('margin score: 50 when the requirement is just met, 100 at twice the margin', () => {
-  assert.equal(marginScore(1), 50)
-  assert.equal(marginScore(2), 100)
-  assert.equal(marginScore(5), 100)
+test('margin score in % of the need: 100 when the requirement is just met, capped at 200', () => {
+  assert.equal(marginScore(1), 100)
+  assert.equal(marginScore(0.934), 93)
+  assert.equal(marginScore(0.999), 99) // just under the need never reads as 100
+  assert.equal(marginScore(2), 200)
+  assert.equal(marginScore(5), 200)
   assert.equal(marginScore(0), 0)
-  assert.equal(marginScore(Infinity), 100)
-  assert.equal(marginScore(1.2), 60)
+  assert.equal(marginScore(Infinity), 200)
+  assert.equal(marginScore(1.2), 120)
 })
 
 test('levels from a ratio and from a score agree', () => {
@@ -56,8 +58,8 @@ test('fractionSteeperThan counts histogram bins from the limit up', () => {
 test('everything visible all the time on flat ground is feasible with high scores', () => {
   const ev = evaluate(series(100, () => 3, () => 3))
   assert.equal(ev.overall, 'ok')
-  assert.equal(ev.scores.solar, 100)
-  assert.ok(ev.scores.global >= 90)
+  assert.equal(ev.scores.solar, 200)
+  assert.ok(ev.scores.global >= 180)
 })
 
 test('power: darkness longer than the battery autonomy fails, close to it warns', () => {
@@ -66,7 +68,7 @@ test('power: darkness longer than the battery autonomy fails, close to it warns'
   assert.equal(level(evaluate(s, { batteryHours: 72 }), 'power'), 'fail')
   assert.equal(level(evaluate(s, { batteryHours: 100 }), 'power'), 'warn') // ratio 1.11
   assert.equal(level(evaluate(s, { batteryHours: 200 }), 'power'), 'ok')
-  assert.equal(score(evaluate(s, { batteryHours: 90.5 }), 'power'), 50) // darkness is 90.5 h (interpolated): just met
+  assert.equal(score(evaluate(s, { batteryHours: 90.5 }), 'power'), 100) // darkness is 90.5 h (interpolated): just met
 })
 
 test('power: a Sun that never rises fails with a score of 0', () => {

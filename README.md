@@ -12,7 +12,7 @@ Mission planners, educators and the public can compare landing sites and landing
 - **Direct-to-Earth communication**: Earth visibility windows, time before Earthset.
 - **Terrain**: slopes around the site and the zones a rover cannot drive.
 
-Every site gets a green / orange / red verdict and four scores out of 100 (Solar Exposure, Telecom, Window Duration, Topography) plus a Global Score, computed against the rover requirements you type in.
+Every site gets a green / orange / red verdict and four scores in % of the need, shown up to 200 (Night endurance, Telecom, Window Duration, Topography) plus a Global Score, computed against the rover requirements you type in.
 
 ## A 2-minute tour
 
@@ -26,7 +26,7 @@ Every site gets a green / orange / red verdict and four scores out of 100 (Solar
 
 ## How the scores work
 
-One rule everywhere: `ratio = what the site offers / what the rover needs`, `score = 100 x min(ratio / 2, 1)` (50 means the requirement is just met, 100 means at least twice the margin); green from ratio 1.2, orange between 1 and 1.2, red below 1. The Global Score is the average of the four. The rover requirements in the left panel are placeholders to adapt.
+One rule everywhere: `ratio = what the site offers / what the rover needs`, `score = 100 x min(ratio, 2)`, in % of the need (100 means the requirement is just met, shown up to 200 = twice the need); green from 120, orange from 100 to 120, red below 100. The Global Score is the average of the four; the verdict is the worst requirement. The rover requirements in the left panel are placeholders to adapt.
 
 ## Data and sources
 

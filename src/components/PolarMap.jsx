@@ -61,12 +61,12 @@ export default function PolarMap({ items, selected, onSelect }) {
 
         {items.map(({ site, evaluation }) => {
           const { x, y } = projectToMap(site.lat, site.lon)
-          // Marker color = level of the global score (green from 60, orange from 50, red below).
+          // Marker color = level of the global score (green from 120, orange from 100, red below: % of the need).
           const level = evaluation ? scoreLevel(evaluation.scores.global) : 'unknown'
           const labels = Object.entries(selected).filter(([, id]) => id === site.id).map(([label]) => label)
           const offset = LABEL_OFFSETS[site.id] ?? DEFAULT_OFFSET
           const title = evaluation
-            ? `${site.name}: global score ${evaluation.scores.global}/100 (overall verdict: ${LEVEL_LABEL[evaluation.overall]})`
+            ? `${site.name}: global score ${evaluation.scores.global}% of the need (overall verdict: ${LEVEL_LABEL[evaluation.overall]})`
             : `${site.name}: loading`
           return (
             <g

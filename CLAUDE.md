@@ -28,10 +28,11 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 - A **scenario** = a site + a landing date + a period. `src/lib/scenario.js` turns a scenario's series into
   Sun / Earth / "both at once" windows and metrics, and compares two scenarios (`compareScenarios`).
   `src/lib/useScenario.js` (hook, with `useEphemeris.js`) loads and analyzes one scenario.
-- `src/lib/verdict.js` + `src/lib/scores.js`: green / orange / red verdicts and /100 scores (Solar Exposure,
+- `src/lib/verdict.js` + `src/lib/scores.js`: green / orange / red verdicts and scores in % of the need (Night endurance, key `solar`,
   Telecom, Window Duration, Topography, Global = average) by comparing measured values with the rover
   requirements typed in `RequirementsPanel`. One rule everywhere: ratio = offered / needed, score =
-  100 x min(ratio / 2, 1) (50 = just met), green from ratio 1.2. No home-made formulas.
+  100 x min(ratio, 2) (100 = just met, capped at 200 = `MAX_SCORE`), red below 100, orange to 120, green from 120 (ratio 1.2).
+  The verdict of a site is its worst requirement, not the average. No home-made formulas.
 - Slopes: `slopeStats` in `terrain.js` (LOLA **20 m** since 2026-11-15, within 100 m of the site; the horizon profiles are still from the 80 m map), recomputed alone with
   `node scripts/compute-horizons.mjs "LOLA data/ldem_80s_20m/ldem_80s_20m.img" --slopes-only`; without the flag the script also recomputes the horizons (then give it the 80 m map), precomputed with the horizons
   into `src/data/site-terrain.json` by `scripts/compute-horizons.mjs` (rerun it when sites change).
