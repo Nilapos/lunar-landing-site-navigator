@@ -23,5 +23,7 @@ export function useScenario(state, enabled = true, thresholds = DEFAULT_THRESHOL
     () => (data ? analyzeScenario(data.series, profile, { minSunDeg, minEarthDeg }) : null),
     [data, profile, minSunDeg, minEarthDeg],
   )
-  return { site, profile, terrain, data, error, loading, analysis }
+  // The same object as long as nothing in it changes: what is worked out from it (the range, the verdicts, the Feasible steps) is
+  // then kept from one step of the timeline to the next, instead of being redone for the whole period at every step.
+  return useMemo(() => ({ site, profile, terrain, data, error, loading, analysis }), [site, profile, terrain, data, error, loading, analysis])
 }

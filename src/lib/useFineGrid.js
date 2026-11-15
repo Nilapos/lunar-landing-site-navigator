@@ -6,8 +6,9 @@ const MAX_CHUNKS = 80 // chunks shown around the target (about 2.4 MB downloaded
 
 /**
  * The 500 m chunks around the point the camera looks at, loaded as it moves (and kept, up to what was seen).
- * `view`: { xKm, yKm, distanceKm } (map plane, from the scene) or null. Returns the loaded chunks near it; an empty list
- * when there is no fine grid (the index is missing) or the camera is far away.
+ * `view`: { xKm, yKm, distanceKm, max } (map plane, from the scene; `max`: how many chunks at most, MAX_CHUNKS when left out) or
+ * null. Returns the loaded chunks near it, nearest first; an empty list when there is no fine grid (the index is missing) or the
+ * camera is far away.
  */
 export function useFineChunks(view) {
   const [index, setIndex] = useState(undefined) // undefined while loading, null when there is none
@@ -23,7 +24,7 @@ export function useFineChunks(view) {
   }, [])
 
   const wanted = useMemo(
-    () => (index && view && view.distanceKm < MAX_DISTANCE_KM ? chunksNear(index, view.xKm, view.yKm, MAX_CHUNKS) : []),
+    () => (index && view && view.distanceKm < MAX_DISTANCE_KM ? chunksNear(index, view.xKm, view.yKm, view.max ?? MAX_CHUNKS) : []),
     [index, view],
   )
 

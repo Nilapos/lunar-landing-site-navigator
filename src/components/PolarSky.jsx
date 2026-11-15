@@ -4,7 +4,7 @@ import { southPoleSites } from '../data/south-pole-sites.js'
 import { pointSite } from '../lib/pointSite.js'
 import { probeCell } from '../lib/cellProbe.js'
 import { cellLabel, finestCell } from '../lib/hoverCell.js'
-import { MAP_RADIUS_KM } from '../lib/polarMap.js'
+import { MAP_RADIUS_KM, polarRadiusKm } from '../lib/polarMap.js'
 import { cssToken, groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent } from '../lib/format.js'
 import { groundLook, layerPlan, paintBase, paintFine, staticLayers, zoneLayer } from '../lib/groundTexture.js'
@@ -33,6 +33,7 @@ const REGIONS = candidateRegions(southPoleSites)
 const signed = (deg) => `${deg >= 0 ? '+' : '−'}${Math.abs(deg).toFixed(1)}°`
 
 const MIN_PAINT_MS = 66 // the layers on the ground are redrawn at most about 15 times a second
+const SITE_CHUNKS = 25 // 500 m chunks loaded around the observer of the On site view (about 0.75 MB)
 
 // What the detail canvas is made of, bottom first (tileWindow.js): the imagery gets sharper with the zoom (LRO WAC, then the LRO NAC
 // mosaic of the south pole where it exists), then the layers of Moon Trek that the user switched on.
@@ -122,9 +123,17 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
   const [mapWindow, setMapWindow] = useState(FULL_WINDOW) // the part of the map the grid and the detail are drawn for (follows the zoom)
   const tilesRef = useRef(null)
   const [viewInfo, setViewInfo] = useState(null) // where the camera looks and from how far (for the 500 m chunks)
-  const fineChunks = useFineChunks(viewInfo)
   const [near, setNear] = useState(false) // the camera is close to the selected site: its fine zone replaces the overview
   const standing = view === 'site'
+  // Standing on a site, the 500 m chunks wanted are the ones around it (5 x 5 chunks, 40 km each way): the relief of the ground.
+  const standingAt = siteA ?? items.find((i) => i.site.id === selected.A)?.site ?? null
+  const standingView = useMemo(() => {
+    if (!standing || !standingAt) return null
+    const rho = polarRadiusKm(standingAt.lat)
+    const lon = (standingAt.lon * Math.PI) / 180
+    return { xKm: rho * Math.sin(lon), yKm: rho * Math.cos(lon), distanceKm: 0, max: SITE_CHUNKS }
+  }, [standing, standingAt])
+  const fineChunks = useFineChunks(standingView ?? viewInfo)
   // The Top view is a flat 2D map (mapScene.js): no globe to load, a fraction of the drawing cost. The other views are the 3D scene.
   // Going to the Top view, the 3D camera first flies to the straight-down pose, then the flat map takes over with a cross-fade; coming
   // back, the 3D scene opens on that pose and flies out (the picture of the map fades into it).
@@ -144,7 +153,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
   const { sample, samples, index, playing } = timeline
 
   // The site of scenario A: the lines, the score card and the site camera are about it.
-  const site = siteA ?? items.find((i) => i.site.id === selected.A)?.site ?? null
+  const site = standingAt
   const profileOf = (s) => (s.custom ? s.profile : horizonFile.profiles[s.id])
   const states = useMemo(
     () => (site && sample ? siteBodyStates(site, sample, profileOf(site), requirements) : null),
@@ -152,7 +161,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
   )
 
   // Fine zone (100 to 250 m cells) of the selected site, loaded when the camera first comes close.
-  const zoneData = useZone(site && !site.custom ? site.id : null, near)
+  const zoneData = useZone(site && !site.custom ? site.id : null, near || standing)
   const zoneGrid = useMemo(() => (zoneData.zone ? zoneFrames(zoneData.zone) : null), [zoneData.zone])
   const zoneShown = near && !standing && !!zoneData.zone && !!zoneData.image
 
@@ -330,6 +339,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene || !terrain || !hillshade) return undefined
+    if (standing) return undefined // standing on the site the map is not shown: nothing to paint at every step
     if (fineChunks.length === 0) {
       scene.ground.refreshFine(false)
       return undefined
@@ -345,7 +355,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
     }
     const timer = setTimeout(run, wait)
     return () => clearTimeout(timer)
-  }, [terrain, hillshade, engine, sample, samples, index, layers, requirements, fineChunks])
+  }, [terrain, hillshade, engine, sample, samples, index, layers, requirements, fineChunks, standing])
 
   // The fine zone: its mesh when shown, and its own texture (same layers, computed on its cells).
   useEffect(() => {
@@ -433,6 +443,16 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
       site && states ? { lat: site.lat, lon: site.lon, sunVisible: states.sun.visible, earthVisible: states.earth.visible } : null,
     )
   }, [terrain, hillshade, engine, site, states])
+
+  // The grids the ground of the On site view is built from (siteRelief.js): the overview, the 500 m chunks around the observer and
+  // the fine zone of the site as they arrive. Only followed while standing (in orbit the chunks change with every move).
+  const reliefChunks = standing ? fineChunks : null
+  const reliefZone = standing ? zoneData.zone : null
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene?.setReliefData || !frames || !standing) return
+    scene.setReliefData({ frames, chunks: reliefChunks ?? [], zone: reliefZone, zoneFrames: reliefZone ? zoneGrid : null })
+  }, [terrain, hillshade, engine, standing, frames, reliefChunks, reliefZone, zoneGrid])
 
   // Camera: standing on the site, or one of the orbit poses (the move between them is animated). The first time, the view opens
   // on the whole Moon and dives to the pole, like NASA's videos.
