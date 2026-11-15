@@ -135,6 +135,16 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   reflected by terrain, shadow of the vehicle on its panels, temperature and dust (put them in the efficiency), the horizon's variation across the Sun's disc, a load that changes between day and night.
   Limit to remember: the energy ratio is an average over T; the battery lines of the detail (lowest charge, share of the period without power) show when the day/night mismatch empties the battery even if the ratio is high.
   Maps and the Feasible layer do not use it yet (the grid samples from /api/sky have no Sun distance).
+- Zoom-adaptive imagery, graticule and cursor (2026-11-15): a **window** of the map plane (`tileGrid.js` `windowFor`: the whole cap, or the cap divided by a power of two, centered on a multiple of a quarter of
+  its size, follows the camera; `polarSkyScene.js` reports it with `onWindow` once the camera has kept it 250 ms and no flight runs). Two 2048 canvases are drawn for it and mapped on the cap by `capMaterial.js`
+  (`uWindow`): the **detail** (`tileWindow.js`: tiles of NASA Moon Trek, fetched straight from trek.nasa.gov, CORS open, cached 480 tiles, coarse pass then the level whose pixels match the canvas, middle first) and the **grid**
+  (`mapGrid.js`: latitude circles and meridians with their values, 2 degrees of latitude for the whole cap down to 0.005 degree, plus the candidate region squares, outline only when zoomed in). The fine zone has its own pair
+  (`zoneMaterial.js`, window = the zone, 16 km). Moon Trek layers (all share one grid, see `tileGrid.js`; the real deepest level on the server is the listed count minus 3): imagery = `LRO_WAC_Mosaic_SPole60_100m_v02` (level 5, 267 m/px)
+  then `LRO_NAC_Mosaic_SPole85.5_1mp` (level 11, 4.2 m/px, 85.5 S to the pole); **PSR** = `NAC_POLE_PSR_SOUTH_STRETCH` (LROC NAC 10 m/px mosaic of the permanently shadowed regions, level 8: opaque inside them, drawn as a violet
+  footprint with an outline and the floor images faint); **Rocks** = `Diviner_avg_RockAbundance_SP` (LRO Diviner rock abundance, colored tiles, level 5, 267 m/px). The rock abundance product has **no data within about 280 km of
+  the pole**: it only shows on the rim of the cap; it is not a roughness (Moon Trek also has `LRO_LOLA_ClrRoughness_SPole75S_240m` but only down to level 3, about 1 km/px). Both toggles are pills in `LayerToggles.jsx`.
+  The cursor (`hoverCell.js`, tested) frames the finest cell there is data for under the pointer (zone 125 m, loaded 500 m chunk, else the 2.4 km cell) and the probe card is about that cell; the frame is never smaller than 22 px on the screen.
+  Needs the network: without it the app keeps the stitched photo of the cap and the grid. `__tiles` (dev) is the cap's TileWindow.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

@@ -5,12 +5,10 @@
 // by paintZone, and is shown in place of the overview when zoomed in.
 import { feasibilityLevels, feasibilityKey, feasibilityOverlay } from './feasibility.js'
 import { goFractionOverlay, goFractions, goOverlay, visibilityOverlay } from './illumination.js'
-import { GRID_LATS, GRID_LONS, circleRadius, projectToMap, regionSquare } from './polarMap.js'
 import { slopeOverlayRgba } from './terrain3d.js'
 import { zoneRect } from './zones.js'
 
 export const TEXTURE_SIZE = 2048
-export const ZONE_TEXTURE_SIZE = 512
 const RELIEF_SHADING = 0.3 // strength of the hillshade laid over the photograph
 
 /** How the layers sit on the ground: see-through over the photograph, and the rim of the cap fades into the Moon around it. */
@@ -71,14 +69,6 @@ function layerPixels({ terrain, frames, sample, samples, layers, requirements, f
   return out
 }
 
-function gridCanvas(rgba, grid) {
-  const small = document.createElement('canvas')
-  small.width = grid
-  small.height = grid
-  small.getContext('2d').putImageData(new ImageData(rgba, grid, grid), 0, 0)
-  return small
-}
-
 /**
  * Paints the base of the whole map (TEXTURE_SIZE square canvas): the photograph with the hillshade as a light relief shading, or,
  * without the photograph, the hillshade alone. Done once (and again if the pictures arrive later), not at every step.
@@ -96,16 +86,6 @@ export function paintBase(canvas, { hillshade, photo }) {
   ctx.globalAlpha = RELIEF_SHADING
   ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   ctx.restore()
-}
-
-/**
- * Paints the graticule and the candidate region squares (TEXTURE_SIZE square canvas, transparent elsewhere).
- *   overlay: { regions: [{ lat, lon }], colors: { grid, regionFill, regionEdge } }
- */
-export function paintOverlay(canvas, overlay) {
-  const ctx = canvas.getContext('2d')
-  ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  if (overlay) drawOverlay(ctx, overlay)
 }
 
 // Straight (not premultiplied) RGBA of several layers laid one over the other, bottom first.
@@ -214,43 +194,11 @@ export function paintFine(canvas, { fine, sample, samples, layers, requirements 
 }
 
 /**
- * Repaints `canvas` (ZONE_TEXTURE_SIZE square), the texture of a fine zone: its own hillshade, then the same layers
- * computed on its cells (drawn without smoothing, so each cell stays a visible square).
- *   zone: see zones.js;  frames: zoneFrames(zone);  hillshade: the zone's picture; the other fields as for paintGround.
+ * The layers computed on the cells of a fine zone, for the moment shown, as one picture for the GPU (zoneMaterial.js): premultiplied RGBA
+ * (zone.grid squared, rows from the top of the zone), or null when no layer is shown.
+ *   zone: see zones.js;  frames: zoneFrames(zone);  the other fields as for staticLayers.
  */
-export function paintZone(canvas, { hillshade, zone, frames, sample, samples, layers, requirements }) {
-  const S = ZONE_TEXTURE_SIZE
-  const ctx = canvas.getContext('2d')
-  ctx.clearRect(0, 0, S, S)
-  ctx.drawImage(hillshade, 0, 0, S, S)
-  ctx.imageSmoothingEnabled = false
-  for (const rgba of layerPixels({ terrain: zone, frames, sample, samples, layers, requirements })) ctx.drawImage(gridCanvas(rgba, zone.grid), 0, 0, S, S)
-}
-
-// Graticule (thin lines) then one translucent square with a bright edge per candidate region.
-function drawOverlay(ctx, { regions, colors }) {
-  const S = TEXTURE_SIZE
-  ctx.save()
-  ctx.strokeStyle = colors.grid
-  ctx.lineWidth = (3 * S) / 1024 // the texture is seen reduced: thinner lines vanish
-  ctx.beginPath()
-  for (const lat of GRID_LATS) {
-    ctx.moveTo(S / 2 + circleRadius(lat) * S, S / 2)
-    ctx.arc(S / 2, S / 2, circleRadius(lat) * S, 0, Math.PI * 2)
-  }
-  for (const lon of GRID_LONS) {
-    const edge = projectToMap(-80, lon)
-    ctx.moveTo(S / 2, S / 2)
-    ctx.lineTo(edge.x * S, edge.y * S)
-  }
-  ctx.stroke()
-  ctx.fillStyle = colors.regionFill
-  ctx.strokeStyle = colors.regionEdge
-  ctx.lineWidth = (3 * S) / 1024
-  for (const r of regions) {
-    const sq = regionSquare(r.lat, r.lon)
-    ctx.fillRect(sq.x * S, sq.y * S, sq.side * S, sq.side * S)
-    ctx.strokeRect(sq.x * S, sq.y * S, sq.side * S, sq.side * S)
-  }
-  ctx.restore()
+export function zoneLayer({ zone, frames, sample, samples, layers, requirements }) {
+  const list = layerPixels({ terrain: zone, frames, sample, samples, layers, requirements })
+  return list.length === 0 ? null : premultiplied(stackLayers(list, zone.grid))
 }

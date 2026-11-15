@@ -7,6 +7,11 @@ const LAYERS = [
   { key: 'earth', label: 'Earth', swatch: 'earth', title: 'Earth visible (direct link)' },
   { key: 'slope', label: 'Slope', swatch: 'slope', title: 'Forbidden zones' },
 ]
+// Layers from NASA Moon Trek tiles, shown on the photo whatever the mode (they are data of the place, not of the moment).
+const DATA_LAYERS = [
+  { key: 'psr', label: 'PSR', swatch: 'psr', title: 'Permanently shadowed regions (LROC NAC mosaic of the south pole, via NASA Moon Trek): the footprint of the regions that never see the Sun, with the images of their floors' },
+  { key: 'rock', label: 'Rocks', swatch: 'rock', title: 'Rock abundance (LRO Diviner, via NASA Moon Trek): blue little, red a lot. The product has no data within about 280 km of the pole' },
+]
 const BASE = { sun: true, earth: true, slope: true }
 const NO_MODE = { go: false, feasible: false }
 
@@ -50,6 +55,19 @@ export default function LayerToggles({ layers, onChange, maxSlopeDeg }) {
         <span className="swatch swatch--go" />
         Feasible
       </button>
+      {DATA_LAYERS.map((l) => (
+        <button
+          key={l.key}
+          type="button"
+          className={`layers__pill${layers[l.key] ? ' layers__pill--on' : ''}`}
+          aria-pressed={!!layers[l.key]}
+          title={l.title}
+          onClick={() => onChange({ ...layers, [l.key]: !layers[l.key] })}
+        >
+          <span className={`swatch swatch--${l.swatch}`} />
+          {l.label}
+        </button>
+      ))}
       {layers.go && (
         <div className="tabs layers__mode" role="group" aria-label="Optimal layer mode">
           <button type="button" className={`tabs__tab${layers.goPeriod ? '' : ' tabs__tab--active'}`} aria-pressed={!layers.goPeriod} onClick={() => onChange({ ...layers, goPeriod: false })}>
