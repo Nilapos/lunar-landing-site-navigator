@@ -4,6 +4,7 @@ import { southPoleSites } from '../data/south-pole-sites.js'
 import { pointSite } from '../lib/pointSite.js'
 import { probeCell } from '../lib/cellProbe.js'
 import { cellLabel, finestCell } from '../lib/hoverCell.js'
+import { MAP_RADIUS_KM } from '../lib/polarMap.js'
 import { cssToken, groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent } from '../lib/format.js'
 import { groundLook, layerPlan, paintBase, paintFine, staticLayers, zoneLayer } from '../lib/groundTexture.js'
@@ -19,6 +20,7 @@ import { useFeasibility } from '../lib/useFeasibility.js'
 import { useFineChunks } from '../lib/useFineGrid.js'
 import { useZone } from '../lib/useZone.js'
 import { zoneFrames, zonePatchRect } from '../lib/zones.js'
+import { loadRoughness } from '../lib/roughness.js'
 import { LEVEL_LABEL } from '../lib/verdict.js'
 import LayerToggles from './LayerToggles.jsx'
 import Pop from './Pop.jsx'
@@ -52,7 +54,6 @@ const surfaceSources = (surface) =>
   surface === 'relief' ? RELIEF : surface === 'mix' ? [...RELIEF, ...PHOTO.map((s) => ({ ...s, opacity: 0.4 }))] : PHOTO
 const imagerySources = (layers, surface = 'photo') => [
   ...surfaceSources(surface),
-  ...(layers.rock ? [{ layer: TILE_LAYERS.rock, minLevel: 3, style: 'rock', opacity: 0.6 }] : []),
   ...(layers.psr ? [{ layer: TILE_LAYERS.psr, minLevel: 3, style: 'psr', opacity: 1 }] : []),
 ]
 
@@ -272,10 +273,10 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
     scene.ground.setLook(groundLook(photo))
   }, [terrain, hillshade, engine, photo])
 
-  // The window of the map (it follows the zoom): the grid with its values, and the detail (sharper imagery, PSR, rock abundance) drawn
+  // The window of the map (it follows the zoom): the grid with its values, and the detail (sharper imagery, PSR) drawn
   // for it. What the tiles that have not arrived yet will add is drawn as they come.
   const psrOn = !!layers.psr
-  const rockOn = !!layers.rock
+  const roughOn = !!layers.rough
   useEffect(() => {
     const scene = sceneRef.current
     const tiles = tilesRef.current
@@ -283,10 +284,10 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
     if (scene.screenGrid) scene.ground.overlayCanvas.getContext('2d').clearRect(0, 0, scene.ground.overlayCanvas.width, scene.ground.overlayCanvas.height)
     else paintWindowGrid(scene.ground.overlayCanvas, mapWindow, { regions: REGIONS, colors: groundOverlayColors() })
     scene.ground.refreshOverlay()
-    tiles.configure(imagerySources({ psr: psrOn, rock: rockOn }, surface))
+    tiles.configure(imagerySources({ psr: psrOn }, surface))
     tiles.setWindow(mapWindow)
     scene.ground.setWindow(mapWindow)
-  }, [terrain, hillshade, engine, mapWindow, psrOn, rockOn, surface])
+  }, [terrain, hillshade, engine, mapWindow, psrOn, surface])
 
   // The fine zone replaces the overview under it: a hole in the cap.
   useEffect(() => {
@@ -362,7 +363,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
     scene.zoneGround.setHillshade(zoneData.image)
     const tiles = new TileWindow({
       canvas: scene.zoneGround.imageryCanvas,
-      sources: imagerySources({ psr: psrOn, rock: rockOn }, surface),
+      sources: imagerySources({ psr: psrOn }, surface),
       underlay: zoneData.image,
       tint: cssToken('--color-layer-psr'),
       onPainted: () => scene.zoneGround.refreshImagery(),
@@ -371,11 +372,32 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
     scene.zoneGround.refreshGrid()
     tiles.setWindow(win)
     return () => tiles.dispose()
-  }, [engine, zoneShown, zoneData, psrOn, rockOn, surface])
+  }, [engine, zoneShown, zoneData, psrOn, surface])
 
   useEffect(() => {
     sceneRef.current?.setExaggeration(exaggeration)
   }, [terrain, hillshade, engine, exaggeration])
+
+  // The roughness layer (roughness.js): the file is loaded the first time it is switched on; one texture serves the cap and the fine zone.
+  const [roughness, setRoughnessData] = useState(null)
+  useEffect(() => {
+    if (!roughOn || roughness) return undefined
+    let cancelled = false
+    loadRoughness()
+      .then((r) => !cancelled && setRoughnessData(r))
+      .catch((e) => console.warn('Roughness layer unavailable:', e.message))
+    return () => {
+      cancelled = true
+    }
+  }, [roughOn, roughness])
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene) return
+    const on = roughOn && roughness
+    const texture = scene.ground.setRoughness(on ? roughness.data : null, roughness?.n, roughness?.countsPerM)
+    const zone = zoneShown ? zoneData.zone : null
+    scene.zoneGround.setRoughness(on && zone ? texture : null, zone ? { cx: zone.centerXKm, cy: zone.centerYKm, span: zone.sizeKm } : null, 2 * MAP_RADIUS_KM, roughness?.countsPerM)
+  }, [terrain, hillshade, engine, roughOn, roughness, zoneShown, zoneData.zone])
 
   // Shadow lift: opens up the dark parts of the surface (the shadows of a hillshade are black).
   useEffect(() => {
@@ -531,7 +553,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
           <Pop icon="info" label="About this view">
             <p className="pop__text">
               Sun and Earth: true direction and true angular size (the Sun is 0.53° wide, the Earth 1.9°), from JPL Horizons; surface:
-              LOLA map on the real sphere; textures and the Sun&apos;s glare are stylized, but the Moon and the cap itself are real LRO WAC mosaics (NASA/GSFC/Arizona State University, via NASA Moon Trek). Zooming in sharpens the imagery with Moon Trek tiles: the LRO WAC mosaic, then the LRO NAC mosaic of the south pole (down to about 4 m per pixel, poleward of 85.5 S). The PSR layer is the LROC NAC mosaic of the permanently shadowed regions, the Rocks layer the LRO Diviner rock abundance (no data within about 280 km of the pole). Drag to rotate, right-drag to move; click the
+              LOLA map on the real sphere; textures and the Sun&apos;s glare are stylized, but the Moon and the cap itself are real LRO WAC mosaics (NASA/GSFC/Arizona State University, via NASA Moon Trek). Zooming in sharpens the imagery with Moon Trek tiles: the LRO WAC mosaic, then the LRO NAC mosaic of the south pole (down to about 4 m per pixel, poleward of 85.5 S). The PSR layer is the LROC NAC mosaic of the permanently shadowed regions, the Roughness layer the height variation of the LOLA 20 m map at the scale of 100 m, over 500 m cells (our own metric; a faint veil on the broken ground, nothing on smooth ground). Drag to rotate, right-drag to move; click the
               view, then scroll to zoom. Lines go from the site to the Sun (yellow) and the Earth (blue), faint when the terrain hides
               the body. Move over the ground to judge a 2.4 km cell, click to pin its card; click a pin to analyze that site. Cells are an
               overview: on summits and slopes near the pole they can differ from the precise site analysis, which is the one to use for

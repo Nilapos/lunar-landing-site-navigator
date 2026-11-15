@@ -80,8 +80,8 @@ const newCanvas = (size) => {
 
 /**
  * A window drawn on `canvas` (square). `sources`: [{ layer, minLevel, maxLevel?, style, opacity }] bottom first, where layer is an
- * entry of TILE_LAYERS and style 'image' (tiles as they are), 'psr' (footprint of the permanently shadowed regions: tinted, outlined, the
- * images inside them faint) or 'rock' (translucent). `onPainted` is called after every repaint that changed the canvas.
+ * entry of TILE_LAYERS and style 'image' (tiles as they are) or 'psr' (footprint of the permanently shadowed regions: tinted, outlined, the
+ * images inside them faint). `onPainted` is called after every repaint that changed the canvas.
  */
 export class TileWindow {
   constructor({ canvas, sources, underlay = null, tint = 'rgb(168 130 255)', onPainted = () => {} }) {
@@ -152,19 +152,13 @@ export class TileWindow {
     if (Math.ceil(Math.log2(pixelSizeM(0) / pixelM)) < (source.minLevel ?? 0)) return
     const level = levelForPixelSize(pixelM, source.minLevel ?? 0, maxLevel)
     // Translucent styles are drawn whole on a scratch canvas first, then laid over with their opacity (no double coverage by the passes).
-    const layered = source.style === 'psr' || source.style === 'rock'
+    const layered = source.style === 'psr'
     const target = layered ? this.scratchContext(size) : ctx
     if (layered) target.clearRect(0, 0, size, size)
     const opacity = layered ? 1 : source.opacity ?? 1
     if (level - (source.minLevel ?? 0) >= 2) this.drawTiles(target, layer, Math.max(source.minLevel ?? 0, level - 3), size, opacity)
     this.drawTiles(target, layer, level, size, opacity)
     if (source.style === 'psr') this.compositePsr(ctx, size, source.opacity ?? 1)
-    else if (source.style === 'rock') {
-      ctx.save()
-      ctx.globalAlpha = source.opacity ?? 1
-      ctx.drawImage(this.scratch.canvas, 0, 0)
-      ctx.restore()
-    }
   }
 
   drawTiles(ctx, layer, level, size, opacity) {

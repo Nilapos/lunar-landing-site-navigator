@@ -11,7 +11,7 @@
 //   fine     (2048 canvas, only drawn while 500 m chunks are loaded): the same layers at the chunks' own resolution. Inside a chunk
 //            its alpha is 0.5 + layer alpha / 2, and 0 elsewhere, so the alpha also tells where the chunk replaces the overview layer;
 //   window   (two 2048 canvases, redrawn when the camera moves enough): a square window of the map that follows the zoom, drawn at the
-//            resolution of the screen: `detail` (the Moon Trek imagery sharpened for that window, and the PSR / rock abundance layers) over
+//            resolution of the screen: `detail` (the Moon Trek imagery sharpened for that window, and the PSR layer) over
 //            the photo, and `grid` (the latitude / longitude graticule with its labels and the candidate regions), see tileWindow.js.
 // The rim of the cap fades to transparent (a function of the distance to the pole), and a "hole" can be cut where a fine zone
 // takes over. All colors are the raw sRGB values of the pictures (no color-space conversion on either side).
@@ -19,6 +19,7 @@ import * as THREE from 'three'
 import { TEXTURE_SIZE } from './groundTexture.js'
 import { AZIMUTHS, HORIZON_MIN_DEG, HORIZON_STEP_DEG } from './horizonGrid.js'
 import { MAP_RADIUS_KM } from './polarMap.js'
+import { ROUGH_COLORS, ROUGHNESS_GLSL } from './roughness.js'
 import { MOON_RADIUS_M } from './terrain.js'
 
 const ATLAS_COLUMNS = 9 // the 72 azimuths of the horizon as 9 x 8 tiles of grid x grid texels
@@ -125,11 +126,12 @@ const CAP_FRAGMENT = `
 precision highp float;
 uniform sampler2D uBase;
 uniform sampler2D uOverlay;   // the grid of the window (graticule, labels, regions)
-uniform sampler2D uDetail;    // the detail of the window (imagery sharpened for the zoom, PSR, rock abundance)
+uniform sampler2D uDetail;    // the detail of the window (imagery sharpened for the zoom, PSR)
 uniform sampler2D uHillshade; // the relief picture, laid over the photograph (uShade) and over the detail (uShadeDetail)
 uniform float uShade;
 uniform float uShadeDetail;
 uniform float uLift;          // shadow lift of the ground (0 to 1)
+${ROUGHNESS_GLSL}
 uniform sampler2D uFine;
 uniform sampler2D uLive;      // the baked live layers (premultiplied), see BAKE_FRAGMENT
 uniform sampler2D uMain;      // premultiplied RGBA: Optimal over the period, or Feasible
@@ -173,6 +175,11 @@ void main() {
     col = mix(col, sharp, detail.a * feather);
   }
   col = lifted(col, uLift);
+  // Roughness: a faint veil on the ground, under the Sun / Earth / slope layers (see roughness.js).
+  if (uRoughOn > 0.5) {
+    vec4 rf = roughFill(img);
+    col = col * (1.0 - rf.a) + rf.rgb;
+  }
 
   vec4 layer = vec4(0.0); // premultiplied
   if (uMainOn > 0.5) layer = texture2D(uMain, img);
@@ -338,6 +345,9 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
     renderer.setRenderTarget(previous)
   }
 
+  const emptyRough = new THREE.DataTexture(new Uint8Array(1), 1, 1, THREE.RedFormat)
+  emptyRough.needsUpdate = true
+  let roughTexture = null
   const material = new THREE.ShaderMaterial({
     vertexShader: VERTEX,
     fragmentShader: CAP_FRAGMENT,
@@ -351,6 +361,12 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
       uShade: { value: 0 },
       uShadeDetail: { value: 0 },
       uLift: { value: 0 },
+      uRough: { value: emptyRough },
+      uRoughOn: { value: 0 },
+      uRoughScale: { value: 2.55 },
+      uRoughLow: { value: new THREE.Vector3(...ROUGH_COLORS.low) },
+      uRoughMid: { value: new THREE.Vector3(...ROUGH_COLORS.mid) },
+      uRoughHigh: { value: new THREE.Vector3(...ROUGH_COLORS.high) },
       uDetailOn: { value: 0 },
       uWindow: { value: new THREE.Vector3(0, 0, 2 * MAP_RADIUS_KM) },
       uMapKm: { value: 2 * MAP_RADIUS_KM },
@@ -399,6 +415,26 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
       u.uEdgeFade.value = Math.max(edgeFade, 1e-4)
       shadeBase = reliefShading
       applyRelief()
+    },
+    /**
+     * The roughness layer (roughness.js): the n x n bytes of the whole map (rows from the top, countsPerM bytes per meter), or null to switch it off.
+     * Returns the texture, which the fine zone shares (zoneMaterial.js).
+     */
+    setRoughness(data, n, countsPerM) {
+      u.uRoughOn.value = data ? 1 : 0
+      if (!data) return roughTexture
+      u.uRoughScale.value = 255 / countsPerM
+      if (!roughTexture || roughTexture.image.data !== data) {
+        roughTexture?.dispose()
+        roughTexture = new THREE.DataTexture(data, n, n, THREE.RedFormat)
+        roughTexture.unpackAlignment = 1
+        roughTexture.colorSpace = THREE.NoColorSpace
+        roughTexture.minFilter = roughTexture.magFilter = THREE.LinearFilter
+        roughTexture.generateMipmaps = false
+        roughTexture.needsUpdate = true
+        u.uRough.value = roughTexture
+      }
+      return roughTexture
     },
     /** Shadow lift (0 to 1): opens up the dark parts of the ground. */
     setLift(value) {
@@ -457,6 +493,8 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
     },
     dispose() {
       hillshadeTexture.dispose()
+      roughTexture?.dispose()
+      emptyRough.dispose()
       for (const t of [base, overlay, detail, fine, horizon, slopeDeg, main.texture, slopeLayer.texture]) t.dispose()
       target.dispose()
       bakeQuad.geometry.dispose()

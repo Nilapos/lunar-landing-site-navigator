@@ -368,7 +368,7 @@ a:hover { color: var(--color-accent-strong); }
 .swatch--earth { background: var(--color-layer-earth); }
 .swatch--slope { background: var(--color-layer-slope); }
 .swatch--psr { background: var(--color-layer-psr); }
-.swatch--rock { background: linear-gradient(90deg, var(--color-layer-rock-low), var(--color-layer-rock-mid), var(--color-layer-rock-high)); }
+.swatch--rough { background: linear-gradient(90deg, var(--color-layer-rough-low), var(--color-layer-rough-mid), var(--color-layer-rough-high)); }
 .swatch--go { background: var(--color-layer-go); box-shadow: 0 0 6px var(--color-layer-go); }
 
 .view3d { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
