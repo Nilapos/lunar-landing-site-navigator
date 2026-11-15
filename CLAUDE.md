@@ -145,6 +145,11 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   the pole**: it only shows on the rim of the cap; it is not a roughness (Moon Trek also has `LRO_LOLA_ClrRoughness_SPole75S_240m` but only down to level 3, about 1 km/px). Both toggles are pills in `LayerToggles.jsx`.
   The cursor (`hoverCell.js`, tested) frames the finest cell there is data for under the pointer (zone 125 m, loaded 500 m chunk, else the 2.4 km cell) and the probe card is about that cell; the frame is never smaller than 22 px on the screen.
   Needs the network: without it the app keeps the stitched photo of the cap and the grid. `__tiles` (dev) is the cap's TileWindow.
+  **The Top view is a flat 2D map** (`src/lib/mapScene.js`, 2026-11-15): `PolarSky.jsx` makes `createMapScene` for `view === 'top'` and `createPolarSkyScene` (3D: Globe, Orbit, On site) otherwise, with the same interface
+  for what the component drives (`ground`, `zoneGround`, `setSites`, `setZone`, `flyTo`, `zoomToSite`, `onWindow`, `locateCell`...), so every effect runs unchanged on either; the scene is made again when the view switches (`engine` is a
+  dependency of the effects). The map: orthographic camera straight above (lon 0 up), the cap material on a flat square, the fine zone a flat square over it, no sphere, stars or relief mesh; zoom (wheel, double click, +/- buttons,
+  "Zoom to site") and pan only, smoothed (time constant 0.1 s), inside the map; pins and the cursor keep a constant size on the screen; the graticule is drawn on a canvas over the view at screen pixels (`paintScreenGrid`: 1 px lines,
+  11 px values, nothing deformed, nothing uploaded while zooming; `scene.screenGrid` tells PolarSky to leave the ground's grid texture empty). The 3D views keep the texture grid, thinner and smaller than before.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

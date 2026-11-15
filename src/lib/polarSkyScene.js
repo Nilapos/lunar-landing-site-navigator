@@ -528,8 +528,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
       mesh.renderOrder = order
       reticle.add(mesh)
     }
-    draw(ring(0.62, 0.5), 0x000000, 8) // dark halo around the frame, for contrast on bright ground
-    draw(ring(0.5, 0.43), 0xffffff, 9)
+    draw(ring(0.57, 0.5), 0x000000, 8) // thin dark halo around the frame, for contrast on bright ground
+    draw(ring(0.5, 0.46), 0xffffff, 9)
     draw(dot(0.1), 0x000000, 8)
     draw(dot(0.065), 0xffffff, 9)
   }

@@ -80,28 +80,27 @@ export function formatLon(lon, step) {
   return `${trim(value, decimalsFor(step))}°${value === 0 || value === 180 ? '' : east ? 'E' : 'W'}`
 }
 
+// The look of the graticule: thin and translucent, so it frames the ground without taking it over.
+const LINE_ALPHA = 0.55
+const LABEL_ALPHA = 0.9
+
 /**
- * Draws the graticule with its labels, and the candidate region squares, for `win` on `canvas` (square, cleared first).
- *   colors: { grid, regionFill, regionEdge } (see cssTokens.js); regions: [{ lat, lon }]
+ * Draws the graticule with its labels, and the candidate region squares, on a canvas context.
+ *   layout: { px(x), py(y), scale, width, height }: km of the map plane to pixels, pixels per km, size of the canvas;
+ *   win: { cx, cy, span } the part of the map seen (span: its larger side), which sets the lines and the labels to draw;
+ *   style: { line, fontPx } widths in canvas pixels.
  */
-export function paintWindowGrid(canvas, win, { regions = [], colors }) {
-  const size = canvas.width
-  const ctx = canvas.getContext('2d')
-  ctx.clearRect(0, 0, size, size)
-  const left = win.cx - win.span / 2
-  const top = win.cy + win.span / 2
-  const scale = size / win.span // pixels per km
-  const px = (x) => (x - left) * scale
-  const py = (y) => (top - y) * scale
+function drawGraticule(ctx, layout, win, { regions, colors, style }) {
+  const { px, py, scale, width, height } = layout
   const { parallels, meridians, latStep, lonStep } = gridLines(win)
   const { rho: rhoC, theta: thetaC } = polarOf(win.cx, win.cy)
   const reach = win.span * 0.75
-  const line = Math.max(2, size / 512)
 
   ctx.save()
-  ctx.lineWidth = line
+  ctx.lineWidth = style.line
   ctx.strokeStyle = colors.grid
   ctx.lineJoin = 'round'
+  ctx.globalAlpha = LINE_ALPHA
   ctx.beginPath()
   for (const { rho } of parallels) {
     const half = holdsPole(win) || rho < reach ? Math.PI : Math.min(Math.PI, reach / rho)
@@ -122,6 +121,7 @@ export function paintWindowGrid(canvas, win, { regions = [], colors }) {
     ctx.lineTo(px(r1 * Math.sin(a)), py(r1 * Math.cos(a)))
   }
   ctx.stroke()
+  ctx.globalAlpha = 1
 
   // Candidate regions: translucent squares with a bright edge, as in NASA's Artemis III videos.
   ctx.fillStyle = colors.regionFill
@@ -132,21 +132,22 @@ export function paintWindowGrid(canvas, win, { regions = [], colors }) {
     const rho = polarRadiusKm(r.lat)
     const cx = px(rho * Math.sin(r.lon * RAD))
     const cy = py(rho * Math.cos(r.lon * RAD))
-    if (cx < -half || cy < -half || cx > size + half || cy > size + half) continue
+    if (cx < -half || cy < -half || cx > width + half || cy > height + half) continue
     if (fillRegions) ctx.fillRect(cx - half, cy - half, 2 * half, 2 * half)
     ctx.strokeRect(cx - half, cy - half, 2 * half, 2 * half)
   }
 
-  // Values: each circle where it is nearest the middle of the window, each meridian at the distance of the middle from the pole.
-  const fontPx = Math.max(18, Math.round(size / 60))
+  // Values: each circle where it is nearest the middle of the view, each meridian at the distance of the middle from the pole.
+  const fontPx = style.fontPx
   ctx.font = `600 ${fontPx}px system-ui, sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.lineWidth = fontPx / 4
   ctx.lineJoin = 'round'
+  ctx.globalAlpha = LABEL_ALPHA
   const label = (text, x, y) => {
-    if (x < fontPx || y < fontPx || x > size - fontPx || y > size - fontPx) return
-    ctx.strokeStyle = 'rgba(0,0,0,0.75)'
+    if (x < fontPx || y < fontPx || x > width - fontPx || y > height - fontPx) return
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)'
     ctx.strokeText(text, x, y)
     ctx.fillStyle = colors.grid
     ctx.fillText(text, x, y)
@@ -161,4 +162,36 @@ export function paintWindowGrid(canvas, win, { regions = [], colors }) {
     label(formatLon(lon, lonStep), px(along * Math.sin(a)), py(along * Math.cos(a)) + fontPx * 0.9)
   }
   ctx.restore()
+}
+
+/**
+ * The graticule for a square window of the map, drawn on `canvas` (square, cleared first): the texture of the 3D views, where it is
+ * laid on the ground (so seen in perspective). colors: { grid, regionFill, regionEdge } (see cssTokens.js); regions: [{ lat, lon }].
+ */
+export function paintWindowGrid(canvas, win, { regions = [], colors }) {
+  const size = canvas.width
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, size, size)
+  const left = win.cx - win.span / 2
+  const top = win.cy + win.span / 2
+  const scale = size / win.span // pixels per km
+  const layout = { px: (x) => (x - left) * scale, py: (y) => (top - y) * scale, scale, width: size, height: size }
+  // Seen reduced and tilted, so lines and values are a little larger than on the screen.
+  drawGraticule(ctx, layout, win, { regions, colors, style: { line: Math.max(2, size / 700), fontPx: Math.max(14, Math.round(size / 115)) } })
+}
+
+/**
+ * The graticule for the 2D map, drawn on a canvas laid over the view at the pixels of the screen: lines one device pixel wide, values of a
+ * constant size whatever the zoom, nothing deformed.
+ *   view: { cx, cy, widthKm, heightKm } the part of the map seen;  dpr: device pixels per CSS pixel.
+ */
+export function paintScreenGrid(canvas, view, { regions = [], colors, dpr = 1 }) {
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  const scale = canvas.width / view.widthKm
+  const left = view.cx - view.widthKm / 2
+  const top = view.cy + view.heightKm / 2
+  const layout = { px: (x) => (x - left) * scale, py: (y) => (top - y) * scale, scale, width: canvas.width, height: canvas.height }
+  const win = { cx: view.cx, cy: view.cy, span: Math.max(view.widthKm, view.heightKm) }
+  drawGraticule(ctx, layout, win, { regions, colors, style: { line: Math.max(1, dpr), fontPx: Math.round(11 * dpr) } })
 }

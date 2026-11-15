@@ -177,7 +177,10 @@ export class TileWindow {
     ctx.imageSmoothingEnabled = true
     // The middle of the window first.
     const tiles = tilesCovering(win, level)
+    const box = layer.boxKm
     for (const tile of tiles) {
+      // A layer that covers only part of the square has no tile outside its box: do not ask (the server answers 404).
+      if (box !== null && (tile.x0 + tile.size <= -box || tile.x0 >= box || tile.y0 - tile.size >= box || tile.y0 <= -box)) continue
       const dx = (tile.x0 - left) * scale
       const dy = (top - tile.y0) * scale
       const ds = tile.size * scale

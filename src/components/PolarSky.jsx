@@ -11,6 +11,7 @@ import { groundLook, layerPlan, paintBase, paintFine, staticLayers, zoneLayer } 
 import { buildCellFrames } from '../lib/illumination.js'
 import { paintWindowGrid } from '../lib/mapGrid.js'
 import { latLonOf, siteBodyStates } from '../lib/polarSky.js'
+import { createMapScene } from '../lib/mapScene.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
 import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
 import { unitVector } from '../lib/sky.js'
@@ -97,6 +98,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const onPickPointRef = useRef(onPickPoint)
   const fineRef = useRef([])
   const lastPaintRef = useRef(0)
+  const introDoneRef = useRef(false) // the view opens on the globe and dives, once; later switches of view do not replay it
   const pinsShownRef = useRef({ scene: null, json: null })
   const flightRef = useRef(false) // false until the first pose is set: no flight when the view opens
   const { terrain, hillshade, photo, error } = useTerrain3d()
@@ -111,6 +113,8 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const fineChunks = useFineChunks(viewInfo)
   const [near, setNear] = useState(false) // the camera is close to the selected site: its fine zone replaces the overview
   const standing = view === 'site'
+  // The Top view is a flat 2D map (mapScene.js): no globe to load, a fraction of the drawing cost. The other views are the 3D scene.
+  const engine = view === 'top' ? 'map' : '3d'
   const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
   const { sample, samples, index, playing } = timeline
 
@@ -182,7 +186,10 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
 
   useEffect(() => {
     if (!terrain || !hillshade || !containerRef.current) return undefined
-    const scene = createPolarSkyScene(containerRef.current, terrain, {
+    const make = engine === 'map' ? createMapScene : createPolarSkyScene
+    const scene = make(containerRef.current, terrain, {
+      regions: REGIONS,
+      gridColors: groundOverlayColors(),
       onPick: (id) => onSelectRef.current(id),
       onProbe: setHover,
       locateCell: (x, y, overviewIndex) => locateRef.current(x, y, overviewIndex),
@@ -208,7 +215,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
       scene.dispose()
       sceneRef.current = null
     }
-  }, [terrain, hillshade])
+  }, [terrain, hillshade, engine])
 
   // The ground in pieces (capMaterial.js): the base and the overlay are painted once, here, when their pictures are there.
   useEffect(() => {
@@ -217,7 +224,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     paintBase(scene.ground.baseCanvas, { hillshade, photo })
     scene.ground.refreshBase()
     scene.ground.setLook(groundLook(photo))
-  }, [terrain, hillshade, photo])
+  }, [terrain, hillshade, engine, photo])
 
   // The window of the map (it follows the zoom): the grid with its values, and the detail (sharper imagery, PSR, rock abundance) drawn
   // for it. What the tiles that have not arrived yet will add is drawn as they come.
@@ -227,17 +234,18 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     const scene = sceneRef.current
     const tiles = tilesRef.current
     if (!scene || !tiles) return
-    paintWindowGrid(scene.ground.overlayCanvas, mapWindow, { regions: REGIONS, colors: groundOverlayColors() })
+    if (scene.screenGrid) scene.ground.overlayCanvas.getContext('2d').clearRect(0, 0, scene.ground.overlayCanvas.width, scene.ground.overlayCanvas.height)
+    else paintWindowGrid(scene.ground.overlayCanvas, mapWindow, { regions: REGIONS, colors: groundOverlayColors() })
     scene.ground.refreshOverlay()
     tiles.configure(imagerySources({ psr: psrOn, rock: rockOn }))
     tiles.setWindow(mapWindow)
     scene.ground.setWindow(mapWindow)
-  }, [terrain, hillshade, mapWindow, psrOn, rockOn])
+  }, [terrain, hillshade, engine, mapWindow, psrOn, rockOn])
 
   // The fine zone replaces the overview under it: a hole in the cap.
   useEffect(() => {
     sceneRef.current?.ground.setHole(zoneShown ? zonePatchRect(zoneData.zone) : null)
-  }, [terrain, hillshade, zoneShown, zoneData.zone])
+  }, [terrain, hillshade, engine, zoneShown, zoneData.zone])
 
   // The layers of the 2.4 km map: the GPU computes sunlight, shadows, Earth visibility and the instant Optimal layer from the Sun
   // and Earth directions, so a step of the timeline only sets a few uniforms (capMaterial.js).
@@ -252,7 +260,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
         : { sunDir: [1, 0, 0], earthUnit: [1, 0, 0], earthKm: 384400 },
       requirements,
     )
-  }, [terrain, hillshade, frames, sample, samples, layers, requirements])
+  }, [terrain, hillshade, engine, frames, sample, samples, layers, requirements])
 
   const hasSample = !!sample
   const { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, slope: slopeOn } = layers
@@ -262,7 +270,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     const scene = sceneRef.current
     if (!scene || !terrain || !hillshade) return
     scene.ground.setStatic(staticLayers({ terrain, frames, sample: hasSample ? {} : null, samples, layers: { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, slope: slopeOn }, requirements, feasibleLevels: feasible.levels }))
-  }, [terrain, hillshade, frames, samples, goOn, goPeriodOn, feasibleOn, slopeOn, hasSample, requirements, feasible.levels])
+  }, [terrain, hillshade, engine, frames, samples, goOn, goPeriodOn, feasibleOn, slopeOn, hasSample, requirements, feasible.levels])
 
   // The same layers at the resolution of the loaded 500 m chunks, drawn on the CPU: at most MIN_PAINT_MS apart (the last state
   // is always painted), since a play or a drag of the timeline changes the moment far more often than the eye can tell.
@@ -284,12 +292,12 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     }
     const timer = setTimeout(run, wait)
     return () => clearTimeout(timer)
-  }, [terrain, hillshade, sample, samples, layers, requirements, fineChunks])
+  }, [terrain, hillshade, engine, sample, samples, layers, requirements, fineChunks])
 
   // The fine zone: its mesh when shown, and its own texture (same layers, computed on its cells).
   useEffect(() => {
     sceneRef.current?.setZone(zoneData.zone, zoneShown)
-  }, [terrain, hillshade, zoneData.zone, zoneShown])
+  }, [terrain, hillshade, engine, zoneData.zone, zoneShown])
 
   // The layers on the cells of the zone, for the moment shown.
   useEffect(() => {
@@ -297,7 +305,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (!scene || !zoneShown) return
     scene.zoneGround.setLook(groundLook(photo).layerAlpha)
     scene.zoneGround.setLayer(zoneLayer({ zone: zoneData.zone, frames: zoneGrid, sample, samples, layers, requirements }), zoneData.zone.grid)
-  }, [zoneShown, zoneData, zoneGrid, sample, samples, layers, requirements, photo])
+  }, [engine, zoneShown, zoneData, zoneGrid, sample, samples, layers, requirements, photo])
 
   // The imagery of the zone (sharpened with the tiles of Moon Trek, the zone's own hillshade until they have come) and its graticule.
   useEffect(() => {
@@ -316,11 +324,11 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     scene.zoneGround.refreshGrid()
     tiles.setWindow(win)
     return () => tiles.dispose()
-  }, [zoneShown, zoneData, psrOn, rockOn])
+  }, [engine, zoneShown, zoneData, psrOn, rockOn])
 
   useEffect(() => {
     sceneRef.current?.setExaggeration(exaggeration)
-  }, [terrain, hillshade, exaggeration])
+  }, [terrain, hillshade, engine, exaggeration])
 
   useEffect(() => {
     // The selected point (if any) gets a pin like a named site, colored by its score.
@@ -334,17 +342,17 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (pinsShownRef.current.scene === scene && pinsShownRef.current.json === json) return
     pinsShownRef.current = { scene, json }
     scene.setSites(pins)
-  }, [terrain, hillshade, items, selected, site, evaluation])
+  }, [terrain, hillshade, engine, items, selected, site, evaluation])
 
   useEffect(() => {
     sceneRef.current?.setSample(sample)
-  }, [terrain, hillshade, sample])
+  }, [terrain, hillshade, engine, sample])
 
   useEffect(() => {
     sceneRef.current?.setFocus(
       site && states ? { lat: site.lat, lon: site.lon, sunVisible: states.sun.visible, earthVisible: states.earth.visible } : null,
     )
-  }, [terrain, hillshade, site, states])
+  }, [terrain, hillshade, engine, site, states])
 
   // Camera: standing on the site, or one of the orbit poses (the move between them is animated). The first time, the view opens
   // on the whole Moon and dives to the pole, like NASA's videos.
@@ -358,7 +366,9 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     } else {
       scene.setView(null)
       const pose = view === 'top' || view === 'globe' ? view : 'orbit'
-      if (!flightRef.current && pose !== 'globe') {
+      const first = !introDoneRef.current
+      introDoneRef.current = true
+      if (engine === '3d' && first && pose !== 'globe') {
         scene.setOrbitPose('globe', false)
         dive = setTimeout(() => scene.setOrbitPose(pose, true), 1200)
       } else {
@@ -367,7 +377,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     }
     flightRef.current = true
     return () => clearTimeout(dive)
-  }, [terrain, hillshade, standing, view, site])
+  }, [terrain, hillshade, engine, standing, view, site])
 
   if (error) return <p className="notice notice--error">{error}</p>
   return (
@@ -417,9 +427,22 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
               Zoom to site
             </button>
           )}
+          {engine === 'map' && (
+            <div className="tabs" role="group" aria-label="Zoom the map">
+              <button type="button" className="tabs__tab" title="Zoom in (also the mouse wheel and a double click)" aria-label="Zoom in" onClick={() => sceneRef.current?.zoomBy(0.55)}>
+                +
+              </button>
+              <button type="button" className="tabs__tab" title="Zoom out" aria-label="Zoom out" onClick={() => sceneRef.current?.zoomBy(1 / 0.55)}>
+                −
+              </button>
+              <button type="button" className="tabs__tab" title="The whole map" onClick={() => sceneRef.current?.resetView()}>
+                Fit
+              </button>
+            </div>
+          )}
           <LayerToggles layers={layers} onChange={onLayers} maxSlopeDeg={requirements.maxSlopeDeg} />
           <Pop icon="tune" label="View settings">
-            {!standing && (
+            {!standing && engine === '3d' && (
               <label className="pop__field">
                 <span className="controls__label">Relief x{exaggeration}</span>
                 <input type="range" min="1" max="4" step="1" value={exaggeration} onChange={(e) => setExaggeration(Number(e.target.value))} />
