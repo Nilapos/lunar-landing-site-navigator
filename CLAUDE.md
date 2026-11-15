@@ -64,8 +64,8 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   parses them and builds the patch geometry; `useZone` loads one when the camera comes within about 90 km of the selected site (`near`,
   reported by `polarSkyScene.js`); `paintZone` paints the same layers on its cells and the cap material cuts a hole in the overview
   under it (`ground.setHole`). The "Zoom to site" button flies the camera down to it. `createDemAuto` (terrain.js) reads any LDEM_80S product (80, 40 or 20 m).
-  The committed zones come from the 80 m map (250 m cells); rebuild them with the 20 m map (`LOLA data/ldem_80s_20m/`, 1.85 GB) for 125 m
-  cells. The other scripts (compute-horizons, build-3d-data, build-horizon-grid, render-map) still assume the 80 m map.
+  The committed zones come from the 20 m map (`LOLA data/ldem_80s_20m/`, 1.85 GB, git-ignored, from NASA PDS Geosciences: 128 x 128 cells of 125 m per 16 km zone, built 2026-11-15
+  with `node scripts/build-zones.mjs "LOLA data/ldem_80s_20m/ldem_80s_20m.img" --cell 125 --size 16`, about 2 minutes). The other scripts (compute-horizons, build-3d-data, build-horizon-grid, render-map) still assume the 80 m map.
 - Best landing areas (`src/lib/bestAreas.js`, tested; `BestAreas` card in the sky view): `findBestAreas` takes the share of the period each 2.4 km
   cell is optimal (`goFractions`), judges the best ~400 cells like sites (`probeCell`, same rules and scores as verdict.js), keeps distinct areas
   15 km apart, only south of 83 S (near the map edge the horizon walk is cut short). Clicking an area flies the camera there; the scene marks the
@@ -75,8 +75,8 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   (about 600 chunks, 43 MB raw, 15-18 MB compressed). `src/lib/fineGrid.js` (tested) decodes a chunk as a "zone" (zones.js), `useFineChunks`
   loads the ~80 chunks around the point the camera looks at (reported by `polarSkyScene.js` through `onView`), and `paintFine` draws each
   loaded chunk at its own resolution on a 2048 px canvas that the cap shader lays over the overview layers. Without the data files the app simply stays on the 2.4 km overview.
-  Rule agreed 2026-11-14: build it ONCE from the 20 m map and commit that single version (each committed regeneration adds a full copy to
-  the history). Until then `public/grid500/` is excluded locally in `.git/info/exclude` and must not be committed.
+  Built ONCE from the 20 m map on 2026-11-15 (637 chunks, 21 MB; about 15 minutes with `node scripts/build-fine-grid.mjs "LOLA data/ldem_80s_20m/ldem_80s_20m.img" --cell 500`) and committed;
+  rule: do not regenerate and commit it again without a strong reason (each committed regeneration adds a full copy to the history).
 - Selected points (`src/lib/pointSite.js`, tested): a click on the ground of the sky view selects that place as the site of scenario A
   (`pointSite` builds a site with `custom: true`, a 360-value horizon and slope statistics taken from the 500 m cell when its chunk is loaded,
   else from the 2.4 km cell). `useScenario(..., customSite)`, `SiteControls`, `PolarSky` and `ScoreCard` accept it; the real ephemeris is
