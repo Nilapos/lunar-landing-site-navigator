@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import horizonFile from '../data/horizon-profiles.json'
 import { southPoleSites } from '../data/south-pole-sites.js'
-import { findBestAreas } from '../lib/bestAreas.js'
 import { pointSite } from '../lib/pointSite.js'
 import { probeCell } from '../lib/cellProbe.js'
 import { cellLabel, finestCell } from '../lib/hoverCell.js'
 import { cssToken, groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent } from '../lib/format.js'
 import { groundLook, layerPlan, paintBase, paintFine, staticLayers, zoneLayer } from '../lib/groundTexture.js'
-import { buildCellFrames } from '../lib/illumination.js'
 import { paintWindowGrid } from '../lib/mapGrid.js'
 import { latLonOf, siteBodyStates } from '../lib/polarSky.js'
 import { createMapScene } from '../lib/mapScene.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
-import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
+import { candidateRegions, sitePins } from '../lib/useTerrain3d.js'
 import { unitVector } from '../lib/sky.js'
 import { FULL_WINDOW, TILE_LAYERS } from '../lib/tileGrid.js'
 import { TileWindow } from '../lib/tileWindow.js'
@@ -22,7 +20,6 @@ import { useFineChunks } from '../lib/useFineGrid.js'
 import { useZone } from '../lib/useZone.js'
 import { zoneFrames, zonePatchRect } from '../lib/zones.js'
 import { LEVEL_LABEL } from '../lib/verdict.js'
-import BestAreas from './BestAreas.jsx'
 import LayerToggles from './LayerToggles.jsx'
 import Pop from './Pop.jsx'
 import ScoreCard from './ScoreCard.jsx'
@@ -104,7 +101,7 @@ function ProbeCard({ probe, maxSlopeDeg, cell }) {
  *   view: 'globe' | 'orbit' | 'top' | 'site';  onView(view): change of camera (all but site);
  *   evaluation, startMs, onLand, onShiftLanding: the score card (see ScoreCard).
  */
-export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint, requirements, timeline, layers, onLayers, view, onView, evaluation, startMs, onLand, onShiftLanding }) {
+export default function PolarSky({ terrainData, frames, areas, flyTarget, items, selected, onSelect, siteA, onPickPoint, requirements, timeline, layers, onLayers, view, onView, evaluation, startMs, onLand, onShiftLanding }) {
   const containerRef = useRef(null)
   const sceneRef = useRef(null)
   const onSelectRef = useRef(onSelect)
@@ -114,14 +111,12 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const introDoneRef = useRef(false) // the view opens on the globe and dives, once; later switches of view do not replay it
   const pinsShownRef = useRef({ scene: null, json: null })
   const flightRef = useRef(false) // false until the first pose is set: no flight when the view opens
-  const { terrain, hillshade, photo, error } = useTerrain3d()
+  const { terrain, hillshade, photo, error } = terrainData
   const [exaggeration, setExaggeration] = useState(1)
   const [surfaceChoice, setSurfaceChoice] = useState('relief') // surface of the 2D map
   const [lift, setLift] = useState(0.3) // shadow lift (0 = as the data, 1 = shadows opened up)
   const [hover, setHover] = useState(null) // the finest cell under the pointer (hoverCell.js)
   const locateRef = useRef(() => null)
-  const [areas, setAreas] = useState(null) // best areas found for the period, null before the first search
-  const [searching, setSearching] = useState(false)
   const [mapWindow, setMapWindow] = useState(FULL_WINDOW) // the part of the map the grid and the detail are drawn for (follows the zoom)
   const tilesRef = useRef(null)
   const [viewInfo, setViewInfo] = useState(null) // where the camera looks and from how far (for the 500 m chunks)
@@ -144,7 +139,6 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     const swap = setTimeout(() => setMapReady(true), (sceneRef.current?.FLIGHT_MS ?? 1800) + 200)
     return () => clearTimeout(swap)
   }, [view, mapReady])
-  const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
   const { sample, samples, index, playing } = timeline
 
   // The site of scenario A: the lines, the score card and the site camera are about it.
@@ -201,17 +195,19 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     pickPointRef.current = pickPoint
   })
 
-  // Search the best landing areas of the period (a second or two: it judges thousands of cells), then mark them on the map.
-  const searchAreas = () => {
-    if (!terrain || !frames || !samples) return
-    setSearching(true)
-    setTimeout(() => {
-      const found = findBestAreas(terrain, frames, samples, requirements)
-      setAreas(found)
-      setSearching(false)
-      sceneRef.current?.setRankMarkers(found)
-    }, 30)
-  }
+  // The best areas found by the menu of the top bar (App.jsx) are marked on the map with numbered rings.
+  useEffect(() => {
+    sceneRef.current?.setRankMarkers(areas ?? [])
+  }, [terrain, hillshade, engine, areas])
+
+  // Picking an area in the menu flies the camera there (only a request made while this view is open: not on a later return to it).
+  const mountedAtRef = useRef(Infinity)
+  useEffect(() => {
+    mountedAtRef.current = Date.now()
+  }, [])
+  useEffect(() => {
+    if (flyTarget && flyTarget.n >= mountedAtRef.current) sceneRef.current?.flyTo(flyTarget.lat, flyTarget.lon)
+  }, [flyTarget])
 
   useEffect(() => {
     if (!terrain || !hillshade || !containerRef.current) return undefined
@@ -545,22 +541,6 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
           </Pop>
         </div>
 
-        {!standing && (
-          <BestAreas
-            areas={areas}
-            searching={searching}
-            ready={!!(terrain && frames && samples)}
-            onSearch={searchAreas}
-            onFly={(a) => {
-              sceneRef.current?.flyTo(a.lat, a.lon)
-              if (terrain) {
-                const area = pointSite(a.lat, a.lon, { terrain, fineChunks: fineRef.current })
-                if (area) onPickPointRef.current?.(area)
-              }
-            }}
-            sites={southPoleSites}
-          />
-        )}
         {probe && (
           <ProbeCard probe={probe} maxSlopeDeg={requirements.maxSlopeDeg} cell={shownHover} />
         )}

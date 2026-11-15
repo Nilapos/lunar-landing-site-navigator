@@ -1,4 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
+import BestAreas from './components/BestAreas.jsx'
+import Icon from './components/Icon.jsx'
 import ArtemisRegions from './components/ArtemisRegions.jsx'
 import ComparisonTable from './components/ComparisonTable.jsx'
 import MissionTab from './components/MissionTab.jsx'
@@ -12,10 +14,15 @@ import TimelineBar from './components/TimelineBar.jsx'
 import Why from './components/Why.jsx'
 import { southPoleSites } from './data/south-pole-sites.js'
 import { DEFAULT_MISSION_ID, landerById, missions, roverById, roversFor } from './data/vehicles.js'
+import { findBestAreas } from './lib/bestAreas.js'
 import { addDaysIso, showDateTime, todayUtc } from './lib/format.js'
+import { buildCellFrames } from './lib/illumination.js'
 import { requirementsFor } from './lib/missionRequirements.js'
 import { evaluateFromMoment } from './lib/momentScores.js'
+import { pointSite } from './lib/pointSite.js'
 import { compareScenarios } from './lib/scenario.js'
+import { nearestIndex } from './lib/timelineTools.js'
+import { useTerrain3d } from './lib/useTerrain3d.js'
 import { useScenario } from './lib/useScenario.js'
 import { useSitesOverview } from './lib/useSitesOverview.js'
 import { useTimeline } from './lib/useTimeline.js'
@@ -41,8 +48,9 @@ const TABS = [
   { key: 'mission', label: 'Mission', hint: 'The lander and rover that set the requirements' },
 ]
 const DRAWERS = [
-  { key: 'settings', label: 'Settings', hint: 'Site, landing date and rover requirements' },
-  { key: 'missions', label: 'Missions', hint: 'Missions to the south polar region' },
+  // No button in the rail: they open from the top bar (the coordinates chip and the Missions button).
+  { key: 'settings', label: 'Settings', hint: 'Site, landing date and rover requirements', rail: false },
+  { key: 'missions', label: 'Missions', hint: 'Missions to the south polar region', rail: false },
 ]
 
 function evaluate(result, requirements) {
@@ -84,6 +92,9 @@ export default function App() {
 
   const overview = useSitesOverview(a.start, a.days, requirements)
   const timeline = useTimeline(a.start, a.days)
+  // The relief data and the cell frames are loaded here, for the sky view and for the best landing areas (a menu of the top bar, in every tab).
+  const terrainData = useTerrain3d()
+  const frames = useMemo(() => (terrainData.terrain ? buildCellFrames(terrainData.terrain) : null), [terrainData.terrain])
 
   // Minimum elevations change what counts as "visible", so they feed the analysis itself.
   const resultA = useScenario(a, true, requirements, custom)
@@ -100,6 +111,32 @@ export default function App() {
   )
   const shownEval = momentEval ?? evalA
   const startMs = Date.parse(`${a.start}:00Z`)
+
+  // Best landing areas: found for the period and the requirements (a second or two), kept until one of them changes.
+  const areasKey = `${a.start}|${a.days}|${JSON.stringify(requirements)}`
+  const [found, setFound] = useState({ key: null, list: null })
+  const [searching, setSearching] = useState(false)
+  const [flyTarget, setFlyTarget] = useState(null) // { lat, lon, n }: a request to the sky view to fly the camera to an area
+  const areas = found.key === areasKey ? found.list : null
+  const searchAreas = () => {
+    if (!terrainData.terrain || !frames || !timeline.samples) return
+    setSearching(true)
+    setTimeout(() => {
+      setFound({ key: areasKey, list: findBestAreas(terrainData.terrain, frames, timeline.samples, requirements) })
+      setSearching(false)
+    }, 30)
+  }
+  // Picking an area selects that place and puts the timeline on its best landing moment, so the scores of the Sky card, the Analysis tab
+  // and the list are the same. The camera flies there when the sky view is open.
+  const pickArea = (area) => {
+    const point = pointSite(area.lat, area.lon, { terrain: terrainData.terrain })
+    if (point) {
+      setCustom(point)
+      setA((s) => ({ ...s, siteId: point.id }))
+    }
+    if (timeline.samples) timeline.setIndex(nearestIndex(timeline.samples, area.landingMs))
+    setFlyTarget({ lat: area.lat, lon: area.lon, n: Date.now() })
+  }
   const landAt = (ms) => {
     setA((s) => ({ ...s, start: isoMinutes(ms) }))
     timeline.setIndex(0)
@@ -136,6 +173,10 @@ export default function App() {
     content = (
       <Suspense fallback={<p className="notice">Loading the 3D view…</p>}>
         <PolarSky
+          terrainData={terrainData}
+          frames={frames}
+          areas={areas}
+          flyTarget={flyTarget}
           items={overview.items}
           selected={selected}
           onSelect={selectSite}
@@ -192,8 +233,27 @@ export default function App() {
           />
         )}
         <div className={compare ? 'compare-grid' : undefined}>
-          <ScenarioPanel title={compare ? 'Scenario A' : undefined} state={a} onChange={setA} result={resultA} evaluation={evalA} embedded={!compare} custom={custom} />
-          {compare && b && <ScenarioPanel title="Scenario B" state={b} onChange={setB} result={resultB} evaluation={evalB} />}
+          <ScenarioPanel
+            title={compare ? 'Scenario A' : undefined}
+            state={a}
+            onChange={setA}
+            result={resultA}
+            evaluation={compare ? evalA : shownEval}
+            momentMs={atMs}
+            landingNote={!compare && momentEval !== null}
+            embedded={!compare}
+            custom={custom}
+          />
+          {compare && b && (
+            <ScenarioPanel
+              title="Scenario B"
+              state={b}
+              onChange={setB}
+              result={resultB}
+              evaluation={evalB}
+              momentMs={atMs !== null ? Date.parse(`${b.start}:00Z`) + (atMs - startMs) : null}
+            />
+          )}
         </div>
       </div>
     )
@@ -263,12 +323,25 @@ export default function App() {
           <div className="brand">
             <img className="brand__logo" src="/moonwalk-logo.svg" alt="Moonwalk" />
           </div>
-          <button type="button" className="chip" onClick={() => setDrawer('settings')} title="Change the site, the date or the rover requirements">
+          <button type="button" className="chip" onClick={() => setDrawer(drawer === 'missions' ? null : 'missions')} title="Missions to the south polar region">
+            <Icon className="chip__icon" name="missions" />
+            <strong>Missions</strong>
+          </button>
+          <button type="button" className="chip" onClick={() => setDrawer(drawer === 'settings' ? null : 'settings')} title="Change the site, the date or the rover requirements">
+            <Icon className="chip__icon" name="gear" />
             <strong>{site.shortName}</strong>
             <span>
               {showDateTime(a.start)} UT · {a.days} days
             </span>
           </button>
+          <BestAreas
+            areas={areas}
+            searching={searching}
+            ready={!!(terrainData.terrain && frames && timeline.samples)}
+            onSearch={searchAreas}
+            onPick={pickArea}
+            sites={southPoleSites}
+          />
         </>
       }
       bottom={<TimelineBar timeline={timeline} />}

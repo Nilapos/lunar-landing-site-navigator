@@ -26,7 +26,7 @@ function RailButton({ item, active, onClick, role }) {
  * The frame of the dashboard (desktop browsers only): a slim top bar, a rail of icons, the stage, the shared timeline at
  * the bottom. The rail holds the views (tabs) and, at its foot, drawers (settings, missions) that open over the stage
  * instead of taking a column.
- *   tabs / drawers: [{ key, label, hint }] (the key also names the icon);  tab: active view;  drawer: open drawer or null.
+ *   tabs / drawers: [{ key, label, hint, rail? }] (the key also names the icon; rail: false = no button in the rail, the drawer is opened from elsewhere);  tab: active view;  drawer: open drawer or null.
  */
 export default function Shell({ top, tabs, tab, onTab, drawers, drawer, onDrawer, drawerContent, bottom, children }) {
   useEffect(() => {
@@ -36,6 +36,7 @@ export default function Shell({ top, tabs, tab, onTab, drawers, drawer, onDrawer
     return () => document.removeEventListener('keydown', onKey)
   }, [drawer, onDrawer])
   const open = drawers.find((d) => d.key === drawer)
+  const railDrawers = drawers.filter((d) => d.rail !== false)
 
   return (
     <div className="shell">
@@ -47,11 +48,13 @@ export default function Shell({ top, tabs, tab, onTab, drawers, drawer, onDrawer
               <RailButton key={t.key} role="tab" item={t} active={tab === t.key} onClick={() => onTab(t.key)} />
             ))}
           </div>
-          <div className="rail__group rail__group--foot">
-            {drawers.map((d) => (
-              <RailButton key={d.key} item={d} active={drawer === d.key} onClick={() => onDrawer(drawer === d.key ? null : d.key)} />
-            ))}
-          </div>
+          {railDrawers.length > 0 && (
+            <div className="rail__group rail__group--foot">
+              {railDrawers.map((d) => (
+                <RailButton key={d.key} item={d} active={drawer === d.key} onClick={() => onDrawer(drawer === d.key ? null : d.key)} />
+              ))}
+            </div>
+          )}
         </nav>
         <section className="stage" id="stage" role="tabpanel" aria-labelledby={`tab-${tab}`}>
           {children}

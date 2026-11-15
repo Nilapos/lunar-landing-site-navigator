@@ -2,22 +2,74 @@
 //
 // 1. For every cell, the share of the period during which it is "optimal" (slope under the rover's limit, Sun and Earth
 //    both above the local horizon): goFractions, the same test as the Optimal layer.
-// 2. The cells with the highest share are judged like a site (probeCell): same rules and /100 scores as verdict.js and
-//    scores.js, nothing new.
-// 3. The best cells are kept one by one, skipping those too close to a better one, so the list shows distinct areas.
-import { probeCell } from './cellProbe.js'
+// 2. The cells with the highest share are judged EXACTLY like a site that the user clicks (pointSite + evaluateFromMoment): the
+//    same four requirements (power, communication, landing window, terrain), the same /100 scores, measured from a landing
+//    moment. Each cell is judged at its own best landing moment: the period start or the start of one of its longest windows
+//    where the Sun and the Earth are both up. So the score of the list is the score the user then sees in the Sky card and
+//    in the Analysis tab after a click (which jumps the timeline to that moment).
+// 3. Areas are ranked by verdict (feasible first), then score; distinct areas are kept 15 km apart. An area that is never
+//    feasible, even at its best moment, stays in the list below the others, with the requirement that holds it back.
+import { cellSeries } from './cellProbe.js'
 import { cellLatLon, goFractions } from './illumination.js'
+import { evaluateFromMoment } from './momentScores.js'
+import { pointSite } from './pointSite.js'
 import { MAP_RADIUS_KM, polarRadiusKm } from './polarMap.js'
+import { analyzeScenario } from './scenario.js'
+
+const RANK = { ok: 0, warn: 1, fail: 2 }
+const LANDING_MARGIN_MS = 15 * 60000 // land a little after a window opens, not on its edge (same margin as "Move landing to the next window")
+
+/** The requirement that holds an evaluation back, in words (the informative energy item never does). */
+function reasonOf(evaluation) {
+  if (evaluation.overall === 'ok') return 'every requirement is met with margin'
+  const held = evaluation.items.filter((i) => !i.informative && i.level !== 'ok')
+  const worst = held.reduce((w, i) => (RANK[i.level] > RANK[w.level] || (i.level === w.level && i.ratio < w.ratio) ? i : w))
+  return `${worst.label}: ${worst.detail}`
+}
 
 /**
- * Best distinct areas, best first. Returns [{ cell, lat, lon, xKm, yKm, score, level, reason, goFraction, fractions,
- * slopeDeg }]; empty when no cell is ever optimal.
+ * One cell judged at its best landing moment: { evaluation, landingMs } or null (no data, or too little period left).
+ * The moments tried: the period start and the start of the `windowsTried` longest Sun + Earth windows (landed on a sample).
+ */
+export function judgeCell(terrain, frames, cell, samples, req, { windowsTried = 2 } = {}) {
+  const N = terrain.grid
+  const { lat, lon } = cellLatLon(N, cell % N, Math.floor(cell / N))
+  const site = pointSite(lat, lon, { terrain })
+  if (!site) return null
+  const series = cellSeries(frames, cell, samples)
+  const result = { data: { series }, profile: site.profile, terrain: site.terrainStats }
+  const times = series.map((p) => Date.parse(p.t))
+  const { both } = analyzeScenario(series, site.profile, { minSunDeg: req.minSunDeg, minEarthDeg: req.minEarthDeg })
+  const moments = [times[0]]
+  const longest = [...both.windows].sort((a, b) => b.end - b.start - (a.end - a.start)).slice(0, windowsTried)
+  for (const w of longest) {
+    const wanted = w.startsOpen ? times[0] : w.start + LANDING_MARGIN_MS
+    const t = times.find((x) => x >= wanted)
+    if (t !== undefined && !moments.includes(t)) moments.push(t)
+  }
+  let best = null
+  for (const landingMs of moments) {
+    const evaluation = evaluateFromMoment(result, req, landingMs)
+    if (!evaluation) continue
+    const better =
+      !best ||
+      RANK[evaluation.overall] < RANK[best.evaluation.overall] ||
+      (evaluation.overall === best.evaluation.overall && evaluation.scores.global > best.evaluation.scores.global)
+    if (better) best = { evaluation, landingMs }
+  }
+  return best
+}
+
+/**
+ * Best distinct areas, best first. Returns [{ cell, lat, lon, xKm, yKm, score, level, reason, landingMs, goFraction, slopeDeg }];
+ * empty when no cell is ever optimal.
  *   terrain, frames: loadTerrain3d and buildCellFrames;  samples: the sky samples of the period;
  *   req: the rover requirements;  options: { count, minSeparationKm, pool, southOfLatDeg }: pool = cells judged in detail;
  *   only cells south of `southOfLatDeg` (-83: where the Artemis III regions are) are proposed. Near the edge of the map the
  *   terrain horizon is cut short (the walk stops at the edge), so those cells look better than they are.
+ *   level: 'ok' | 'warn' | 'fail' (the verdict at landingMs, the worst requirement); score: the global score /100 at landingMs.
  */
-export function findBestAreas(terrain, frames, samples, req, { count = 5, minSeparationKm = 15, pool = 400, southOfLatDeg = -83 } = {}) {
+export function findBestAreas(terrain, frames, samples, req, { count = 8, minSeparationKm = 15, pool = 300, southOfLatDeg = -83 } = {}) {
   const N = terrain.grid
   const fractions = goFractions(terrain, frames, samples, { minSunDeg: req.minSunDeg, minEarthDeg: req.minEarthDeg, maxSlopeDeg: req.maxSlopeDeg })
   const maxRadiusKm = polarRadiusKm(southOfLatDeg)
@@ -32,8 +84,8 @@ export function findBestAreas(terrain, frames, samples, req, { count = 5, minSep
   const width = 2 * MAP_RADIUS_KM
   const judged = []
   for (const c of candidates.slice(0, pool)) {
-    const probe = probeCell(terrain, frames, c, samples, 0, req)
-    if (!probe) continue
+    const best = judgeCell(terrain, frames, c, samples, req)
+    if (!best) continue
     const gx = c % N
     const gy = Math.floor(c / N)
     const { lat, lon } = cellLatLon(N, gx, gy)
@@ -43,15 +95,15 @@ export function findBestAreas(terrain, frames, samples, req, { count = 5, minSep
       lon,
       xKm: ((gx + 0.5) / N - 0.5) * width,
       yKm: (0.5 - (gy + 0.5) / N) * width,
-      score: probe.score,
-      level: probe.level,
-      reason: probe.reason,
+      score: best.evaluation.scores.global,
+      level: best.evaluation.overall,
+      reason: reasonOf(best.evaluation),
+      landingMs: best.landingMs,
       goFraction: fractions[c],
-      fractions: probe.fractions,
-      slopeDeg: probe.slopeDeg,
+      slopeDeg: terrain.slope[c],
     })
   }
-  judged.sort((a, b) => b.score - a.score || b.goFraction - a.goFraction)
+  judged.sort((a, b) => RANK[a.level] - RANK[b.level] || b.score - a.score || b.goFraction - a.goFraction)
 
   const kept = []
   for (const area of judged) {

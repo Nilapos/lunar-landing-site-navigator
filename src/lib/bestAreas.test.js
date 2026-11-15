@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { findBestAreas, nearestSite } from './bestAreas.js'
+import { cellSeries } from './cellProbe.js'
+import { evaluateFromMoment } from './momentScores.js'
+import { pointSite } from './pointSite.js'
 import { AZIMUTHS, encodeHorizon } from './horizonGrid.js'
 import { buildCellFrames } from './illumination.js'
 import { DEFAULT_REQUIREMENTS } from './verdict.js'
@@ -10,7 +13,7 @@ function makeTerrain({ steepRows = [] } = {}) {
   const N = 32
   const slope = new Uint8Array(N * N).fill(4)
   for (const r of steepRows) for (let x = 0; x < N; x++) slope[r * N + x] = 30
-  return { grid: N, slope, horizon: new Uint8Array(N * N * AZIMUTHS).fill(encodeHorizon(-1)) }
+  return { grid: N, slope, heights: new Int16Array(N * N), horizon: new Uint8Array(N * N * AZIMUTHS).fill(encodeHorizon(-1)) }
 }
 
 // Two days of hourly samples: the Earth stays over lon 0, the Sun goes around the equator, so the cells on the lon 0 side
@@ -29,7 +32,11 @@ test('finds distinct areas, best first, kept apart', () => {
   const t = makeTerrain()
   const areas = findBestAreas(t, buildCellFrames(t), SAMPLES, REQ, { count: 4, minSeparationKm: 60 })
   assert.ok(areas.length > 1 && areas.length <= 4)
-  for (let i = 1; i < areas.length; i++) assert.ok(areas[i - 1].score >= areas[i].score, 'sorted by score')
+  const rank = { ok: 0, warn: 1, fail: 2 }
+  for (let i = 1; i < areas.length; i++) {
+    const [p, q] = [areas[i - 1], areas[i]]
+    assert.ok(rank[p.level] < rank[q.level] || (p.level === q.level && p.score >= q.score), 'feasible first, then by score')
+  }
   for (let i = 0; i < areas.length; i++) {
     for (let j = i + 1; j < areas.length; j++) assert.ok(Math.hypot(areas[i].xKm - areas[j].xKm, areas[i].yKm - areas[j].yKm) >= 60)
   }
@@ -37,6 +44,20 @@ test('finds distinct areas, best first, kept apart', () => {
   assert.ok(a.lat < -83 && a.lat > -90 && a.lon >= 0 && a.lon < 360, 'only south of 83 S')
   assert.ok(a.goFraction > 0 && a.goFraction <= 1)
   assert.ok(typeof a.reason === 'string' && a.reason.length > 0)
+})
+
+test('the score of an area is the score of that place analyzed at its landing moment (what a click then shows)', () => {
+  const t = makeTerrain()
+  const frames = buildCellFrames(t)
+  const areas = findBestAreas(t, frames, SAMPLES, REQ, { count: 3, minSeparationKm: 60 })
+  assert.ok(areas.length > 0)
+  for (const a of areas) {
+    assert.ok(SAMPLES.some((s) => Date.parse(s.t) === a.landingMs), 'the landing moment is a sample of the timeline')
+    const site = pointSite(a.lat, a.lon, { terrain: t })
+    const ev = evaluateFromMoment({ data: { series: cellSeries(frames, a.cell, SAMPLES) }, profile: site.profile, terrain: site.terrainStats }, REQ, a.landingMs)
+    assert.equal(ev.scores.global, a.score)
+    assert.equal(ev.overall, a.level)
+  }
 })
 
 test('steep cells are never proposed', () => {

@@ -28,6 +28,20 @@ function cellSky(terrain, frame, cell, sample, minSunDeg, minEarthDeg) {
 }
 
 /**
+ * The Sun and Earth az/el of a cell over the sky samples, in the shape of the series of a site (horizons.js): [{ t, sunAz, sunEl,
+ * earthAz, earthEl }]. Same numbers as the per-site Horizons series to a few thousandths of a degree (sky.js), so a cell can be
+ * judged with the full scenario rules (evaluateScenario) like a site.
+ */
+export function cellSeries(frames, cell, samples) {
+  const frame = cellFrame(frames, cell)
+  return samples.map((s) => {
+    const sun = azEl(frame, unitVector(s.sunLat, s.sunLon))
+    const earth = azEl(frame, earthDirection(frame.up, s.earthLat, s.earthLon, s.earthKm))
+    return { t: s.t, sunAz: sun.az, sunEl: sun.el, earthAz: earth.az, earthEl: earth.el }
+  })
+}
+
+/**
  * Everything the hover card shows for a cell, or null when the cell has no data (outside the 80 S circle).
  *   terrain: loadTerrain3d;  frames: buildCellFrames;  samples: /api/sky samples of the period;  index: the moment shown;
  *   req: the rover requirements (maxSlopeDeg, minSunDeg, minEarthDeg, batteryHours, linkMinPerHour, bandwidthKbps, antenna).

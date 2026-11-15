@@ -1,6 +1,6 @@
-import { useState } from 'react'
 import { southPoleSites } from '../data/south-pole-sites.js'
 import { addMinutesIso, formatDuration, formatPercent, formatUtc } from '../lib/format.js'
+import { nearestIndex } from '../lib/timelineTools.js'
 import { horizonAt, stateAt } from '../lib/visibility.js'
 import ElevationChart from './ElevationChart.jsx'
 import MetricCard from './MetricCard.jsx'
@@ -21,14 +21,12 @@ function countdown(state, subject) {
 
 // One scenario (site + landing date and time + period): controls, verdict, key figures, sky view, timelines.
 // `result` comes from useScenario, `evaluation` from evaluateScenario; `state` / `onChange` hold the controls.
-export default function ScenarioPanel({ title, state, onChange, result, evaluation, embedded = false, custom = null }) {
-  const [cursor, setCursor] = useState(0)
+// `momentMs`: the moment of the shared timeline (bottom bar) that the sky view shows, null until it is loaded.
+// `landingNote`: set when the scores are for a landing at that moment (they follow the timeline) instead of at the start of the period.
+export default function ScenarioPanel({ title, state, onChange, result, evaluation, momentMs = null, landingNote = false, embedded = false, custom = null }) {
   const { profile, data, error, loading, analysis } = result
 
-  const update = (patch) => {
-    onChange({ ...state, ...patch })
-    setCursor(0)
-  }
+  const update = (patch) => onChange({ ...state, ...patch })
 
   let body
   if (error) {
@@ -37,7 +35,7 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
     body = <p className="notice">Loading Sun and Earth positions from NASA JPL Horizons…</p>
   } else {
     const series = data.series
-    const index = Math.min(cursor, series.length - 1)
+    const index = momentMs === null ? 0 : nearestIndex(series, momentMs)
     const point = series[index]
     const atMs = Date.parse(point.t)
     const { sun, earth } = analysis
@@ -52,6 +50,9 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
 
     body = (
       <>
+        {landingNote && momentMs !== null && (
+          <p className="panel__detail">Scores if landing at {formatUtc(momentMs)} (the moment of the timeline at the bottom): measured over the period after it.</p>
+        )}
         <ScoreBar evaluation={evaluation} />
         {!embedded && (
           <Verdict
@@ -88,16 +89,7 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
         </section>
 
         <section className="panel" aria-label="Sky at a chosen moment">
-          <h3 className="panel__title">Sky at {formatUtc(atMs)}</h3>
-          <input
-            className="panel__slider"
-            type="range"
-            min="0"
-            max={series.length - 1}
-            value={index}
-            onChange={(e) => setCursor(Number(e.target.value))}
-            aria-label="Moment in the period"
-          />
+          <h3 className="panel__title">Sky at {formatUtc(atMs)} · follows the timeline at the bottom</h3>
           <SkyView
             profile={profile}
             sun={{ az: point.sunAz, el: point.sunEl }}

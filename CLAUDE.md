@@ -56,7 +56,7 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   two cameras: orbit, and standing on the site of scenario A with its real horizon profile as the skyline. Earth, Sun glare and
   ground textures are drawn by code (`src/lib/skyTextures.js`): stylized, no downloaded asset.
 - Dashboard shell (BRIEF-V2 phases B to E, then the minimal redesign of 2026-11-14): `App.jsx` composes `Shell` (slim top bar with a site chip, rail of tabs
-  Sky / On site / Why / Analysis / Sites, with Settings and Missions as drawers at the foot of the rail, `TimelineBar` at the bottom). Desktop browsers only, no phone layout. The sky and site tabs share one `PolarSky` element (the scene stays alive); the camera has three modes (`orbit`, `top`, `site`) and the orbit/top move is an animated flight (`setOrbitPose` in `polarSkyScene.js`). `ScoreCard` is the one card of the view (global score, four gauges, Sun and Earth in words, details). The "Why" tab
+  Sky / On site / Why / Analysis / Sites / Mission, with Settings and Missions as drawers opened from the top bar (`rail: false` in `DRAWERS`: the gear chip with the site and the date, and the Missions button), `TimelineBar` at the bottom). Desktop browsers only, no phone layout. The sky and site tabs share one `PolarSky` element (the scene stays alive); the camera has three modes (`orbit`, `top`, `site`) and the orbit/top move is an animated flight (`setOrbitPose` in `polarSkyScene.js`). `ScoreCard` is the one card of the view (global score, four gauges, Sun and Earth in words, details). The "Why" tab
   (`Why`, `SkyChart`, `CauseStrip`, `RayDiagram`) uses the pure `src/lib/cause.js`. "Scores follow the timeline" uses
   `src/lib/momentScores.js` (scores measured after the moment shown). The pitch demo button and its checked numbers are in `App.jsx`.
   `README.md` is the page for the jury and `SUBMISSION.md` the checklist of what the team still has to deliver.
@@ -67,10 +67,15 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   under it (`ground.setHole`). The "Zoom to site" button flies the camera down to it. `createDemAuto` (terrain.js) reads any LDEM_80S product (80, 40 or 20 m).
   The committed zones come from the 20 m map (`LOLA data/ldem_80s_20m/`, 1.85 GB, git-ignored, from NASA PDS Geosciences: 128 x 128 cells of 125 m per 16 km zone, built 2026-11-15
   with `node scripts/build-zones.mjs "LOLA data/ldem_80s_20m/ldem_80s_20m.img" --cell 125 --size 16`, about 2 minutes). The other scripts (compute-horizons, build-3d-data, build-horizon-grid, render-map) still assume the 80 m map.
-- Best landing areas (`src/lib/bestAreas.js`, tested; `BestAreas` card in the sky view): `findBestAreas` takes the share of the period each 2.4 km
-  cell is optimal (`goFractions`), judges the best ~400 cells like sites (`probeCell`, same rules and scores as verdict.js), keeps distinct areas
-  15 km apart, only south of 83 S (near the map edge the horizon walk is cut short). Clicking an area flies the camera there; the scene marks the
-  areas with numbered neon rings (`setRankMarkers`, `flyTo` in polarSkyScene.js).
+- Best landing areas (`src/lib/bestAreas.js`, tested; `BestAreas` is a menu of the top bar, so it works in every tab; the search lives in `App.jsx`, which also loads the terrain
+  data and the cell frames for the sky view): `findBestAreas` takes the share of the period each 2.4 km cell is optimal (`goFractions`), then judges the best ~300 cells EXACTLY like a clicked
+  place (`judgeCell`: `pointSite` + `cellSeries` (az/el of the cell from the sky samples, same shape as a Horizons series) + `evaluateFromMoment`: the four requirements, the same /100 scores), each at its own
+  best landing moment (the period start or the start of one of its two longest Sun + Earth windows, on a sample). Before 2026-11-15 the list judged each cell over the whole period with three items and no
+  landing window, while the card and the Analysis tab judge from a landing moment with four: the numbers differed and an area with a good score could never be feasible (the verdict is the worst requirement,
+  the score an average). Ranking: verdict (feasible first), then score; an area that is never feasible stays in the list with the requirement that holds it back. Picking an area (`pickArea` in App.jsx)
+  selects that place as the site (`pointSite`), puts the timeline on its landing moment and, when the sky view is open, flies the camera there (`flyTarget`); the numbered rings (`setRankMarkers`) show on the map.
+  The Analysis tab then shows the same evaluation as the Sky card ("scores follow the timeline"; in Compare mode the scenarios keep their period-start evaluation). Its "Sky at" view has no slider of its
+  own: it follows the timeline at the bottom (scenario B at the same offset from its own start).
 - 500 m grid (level between the 2.4 km overview and the site zones): `scripts/build-fine-grid.mjs <ldem_80s_*.img> [--cell 500]` writes
   `public/grid500/index.json` and one gzip file per 16 km chunk (heights, slope, delta-coded 72-azimuth horizon) for everything south of 83 S
   (about 600 chunks, 43 MB raw, 15-18 MB compressed). `src/lib/fineGrid.js` (tested) decodes a chunk as a "zone" (zones.js), `useFineChunks`
