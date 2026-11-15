@@ -33,6 +33,9 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   requirements typed in `RequirementsPanel`. One rule everywhere: ratio = offered / needed, score =
   100 x min(ratio, 2) (100 = just met, capped at 200 = `MAX_SCORE`), red below 100, orange to 120, green from 120 (ratio 1.2).
   The verdict of a site is its worst requirement, not the average. No home-made formulas.
+- The range of dates of the timeline is the period of the sky view (2026-11-15, `src/lib/rangeResult.js`, tested): `restrictToRange` cuts scenario A's series to the range and analyzes it again (`rangedA` in `App.jsx`), and the Sky card,
+  the Why tab, the "Feasible" step and the best landing areas (which search the range's samples) all measure "if we land at this moment" up to the END OF THE RANGE, not of the whole period loaded. Before, a narrowed range made the
+  list of best areas say "199, Feasible" and the card "156, Not feasible" for the same place. In Compare mode the Analysis tab and the comparison table keep whole periods (A and B are compared over the same kind of period).
 - Slopes: `slopeStats` in `terrain.js` (LOLA **20 m** since 2026-11-15, within 100 m of the site; the horizon profiles are still from the 80 m map), recomputed alone with
   `node scripts/compute-horizons.mjs "LOLA data/ldem_80s_20m/ldem_80s_20m.img" --slopes-only`; without the flag the script also recomputes the horizons (then give it the 80 m map), precomputed with the horizons
   into `src/data/site-terrain.json` by `scripts/compute-horizons.mjs` (rerun it when sites change).

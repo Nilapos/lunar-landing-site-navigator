@@ -20,6 +20,7 @@ import { buildCellFrames } from './lib/illumination.js'
 import { requirementsFor } from './lib/missionRequirements.js'
 import { evaluateFromMoment } from './lib/momentScores.js'
 import { pointSite } from './lib/pointSite.js'
+import { restrictToRange } from './lib/rangeResult.js'
 import { compareScenarios } from './lib/scenario.js'
 import { nearestIndex } from './lib/timelineTools.js'
 import { useTerrain3d } from './lib/useTerrain3d.js'
@@ -105,18 +106,24 @@ export default function App() {
   const evalA = useMemo(() => evaluate(resultA, requirements), [resultA, requirements])
   const evalB = useMemo(() => (compare ? evaluate(resultB, requirements) : null), [compare, resultB, requirements])
 
+  // The range of dates of the timeline is the period of the sky view: every "if we land at this moment" figure (the Sky card, Why, the
+  // Feasible step, the best landing areas) is measured to the end of the RANGE, not of the whole period loaded (rangeResult.js).
+  // In Compare mode the Analysis tab keeps whole periods, so that A and B are compared over the same kind of period.
+  const rangedA = useMemo(() => restrictToRange(resultA, requirements, timeline.samples), [resultA, requirements, timeline.samples])
+  const evalRangeA = useMemo(() => evaluate(rangedA, requirements), [rangedA, requirements])
+
   // "What if we land at this moment?": the scores of the sky view are measured from the moment of the timeline onward.
   const atMs = timeline.sample ? Date.parse(timeline.sample.t) : null
   const momentEval = useMemo(
-    () => (atMs !== null ? evaluateFromMoment(resultA, requirements, atMs) : null),
-    [atMs, resultA, requirements],
+    () => (atMs !== null ? evaluateFromMoment(rangedA, requirements, atMs) : null),
+    [atMs, rangedA, requirements],
   )
-  const shownEval = momentEval ?? evalA
+  const shownEval = momentEval ?? evalRangeA
 
   // "Feasible" step of the timeline: next / previous moment where landing at the site of scenario A is Feasible.
-  const feasibleSteps = useMemo(() => (resultA.analysis ? feasibleCache(resultA, requirements) : null), [resultA, requirements])
+  const feasibleSteps = useMemo(() => (rangedA.analysis ? feasibleCache(rangedA, requirements) : null), [rangedA, requirements])
   const feasibleStep = feasibleSteps
-    ? { site: resultA.site.shortName, find: (direction) => findFeasibleIndex(resultA, requirements, timeline.samples, timeline.index, direction, feasibleSteps) }
+    ? { site: rangedA.site.shortName, find: (direction) => findFeasibleIndex(rangedA, requirements, timeline.samples, timeline.index, direction, feasibleSteps) }
     : null
   const startMs = Date.parse(`${a.start}:00Z`)
 
@@ -204,7 +211,7 @@ export default function App() {
       </Suspense>
     )
   } else if (tab === 'why') {
-    content = <Why result={resultA} requirements={requirements} timeline={timeline} />
+    content = <Why result={rangedA} requirements={requirements} timeline={timeline} />
   } else if (tab === 'mission') {
     content = <MissionTab mission={mission} onMission={changeMission} requirements={requirements} overrides={overrides} onResetOverrides={() => setOverrides({})} />
   } else if (tab === 'sites') {
@@ -245,7 +252,7 @@ export default function App() {
             title={compare ? 'Scenario A' : undefined}
             state={a}
             onChange={setA}
-            result={resultA}
+            result={compare ? resultA : rangedA}
             evaluation={compare ? evalA : shownEval}
             momentMs={atMs}
             landingNote={!compare && momentEval !== null}
