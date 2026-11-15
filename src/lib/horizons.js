@@ -14,8 +14,9 @@ const MOON_CENTER = 'coord@301' // 301 = Moon, "coord@" = observer on a user-def
 
 const MONTHS = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 }
 
-// Limits protect our endpoint from being used as an open proxy.
-export const LIMITS = { maxRows: 3000, minStepMinutes: 10, maxStepMinutes: 1440, minYear: 1950, maxYear: 2100 }
+// Limits protect our endpoint from being used as an open proxy. maxRows lets a lunar year (346.6 days) through at one sample every 2 h
+// (4160 rows).
+export const LIMITS = { maxRows: 4500, minStepMinutes: 10, maxStepMinutes: 1440, minYear: 1950, maxYear: 2100 }
 
 /** Build the Horizons request URL for one body. `start`/`stop` are 'YYYY-MM-DD HH:MM' (UT). */
 export function buildHorizonsUrl({ body, lat, lon, altKm = 0, start, stop, stepMinutes }) {

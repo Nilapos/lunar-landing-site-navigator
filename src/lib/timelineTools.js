@@ -30,6 +30,23 @@ export function stepIndex(samples, index, stepMs, direction) {
   return moved
 }
 
+const DAY = 24 * HOUR
+
+/**
+ * The samples from day `from` 00:00 UT to the end of day `to` (both 'YYYY-MM-DD', inclusive). A missing bound is the start / end of the
+ * series. Fewer than two samples inside (or bounds the wrong way round) gives the whole series back: the views always need a period.
+ */
+export function sliceRange(samples, from, to) {
+  if (!samples || (!from && !to)) return samples
+  const fromMs = from ? Date.parse(`${from}T00:00:00Z`) : -Infinity
+  const toMs = to ? Date.parse(`${to}T00:00:00Z`) + DAY : Infinity
+  const inside = samples.filter((s) => {
+    const t = Date.parse(s.t)
+    return t >= fromMs && t < toMs
+  })
+  return inside.length >= 2 ? inside : samples
+}
+
 /** About `maxTicks` marks (the first sample of some UTC days) for the labels under the slider: [{ index, label }]. */
 export function dayTicks(samples, maxTicks = 8) {
   const starts = []

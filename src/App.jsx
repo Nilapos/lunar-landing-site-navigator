@@ -25,6 +25,7 @@ import { nearestIndex } from './lib/timelineTools.js'
 import { useTerrain3d } from './lib/useTerrain3d.js'
 import { useScenario } from './lib/useScenario.js'
 import { useSitesOverview } from './lib/useSitesOverview.js'
+import { LUNAR_YEAR_DAYS } from './lib/useEphemeris.js'
 import { useTimeline } from './lib/useTimeline.js'
 import { evaluateScenario } from './lib/verdict.js'
 
@@ -85,7 +86,7 @@ export default function App() {
     })
     setOverrides({}) // a new mission brings its own numbers
   }
-  const [a, setA] = useState({ siteId: southPoleSites[0].id, start: `${todayUtc()}T00:00`, days: 30 })
+  const [a, setA] = useState({ siteId: southPoleSites[0].id, start: `${todayUtc()}T00:00`, days: LUNAR_YEAR_DAYS })
   const [b, setB] = useState(null)
   const [custom, setCustom] = useState(null) // a point selected on the map, analyzed like a site (pointSite.js)
   const [mapTarget, setMapTarget] = useState('A') // which scenario a click on the map or the ranking sets
@@ -112,8 +113,8 @@ export default function App() {
   const shownEval = momentEval ?? evalA
   const startMs = Date.parse(`${a.start}:00Z`)
 
-  // Best landing areas: found for the period and the requirements (a second or two), kept until one of them changes.
-  const areasKey = `${a.start}|${a.days}|${JSON.stringify(requirements)}`
+  // Best landing areas: found for the range of the timeline and the requirements (a few seconds), kept until one of them changes.
+  const areasKey = `${a.start}|${a.days}|${timeline.rangeKey}|${JSON.stringify(requirements)}`
   const [found, setFound] = useState({ key: null, list: null })
   const [searching, setSearching] = useState(false)
   const [flyTarget, setFlyTarget] = useState(null) // { lat, lon, n }: a request to the sky view to fly the camera to an area

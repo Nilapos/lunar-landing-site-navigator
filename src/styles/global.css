@@ -194,6 +194,7 @@ a:hover { color: var(--color-accent-strong); }
 .timeline__play { min-width: 6rem; border-color: var(--color-accent); }
 .timeline__unit { display: flex; align-items: center; gap: var(--space-2); margin-left: var(--space-2); }
 .timeline__unit .controls__input { padding: 3px var(--space-2); }
+.timeline__range { flex-wrap: wrap; color: var(--color-text-faint); }
 .timeline__clock { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-sm); font-variant-numeric: tabular-nums; font-weight: 600; color: var(--color-text); }
 .timeline__track { position: relative; padding-bottom: 1.1rem; }
 .timeline__track .panel__slider { margin: var(--space-2) 0 0; }

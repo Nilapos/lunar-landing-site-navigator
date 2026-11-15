@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { dayTicks, nearestIndex, STEP_UNITS, stepIndex } from './timelineTools.js'
+import { dayTicks, nearestIndex, sliceRange, STEP_UNITS, stepIndex } from './timelineTools.js'
 
 // Three days of two-hourly samples.
 const SAMPLES = Array.from({ length: 36 }, (_, k) => ({ t: new Date(Date.UTC(2026, 10, 14, 2 * k)).toISOString() }))
@@ -30,4 +30,20 @@ test('day marks start at the first sample of a day and are thinned out', () => {
   assert.equal(ticks[0].label, 'Nov 14')
   const many = Array.from({ length: 24 * 20 }, (_, k) => ({ t: new Date(Date.UTC(2026, 10, 1, k)).toISOString() }))
   assert.ok(dayTicks(many, 8).length <= 8)
+})
+
+test('sliceRange keeps the samples of the chosen days (whole days, UT, both ends included)', () => {
+  const day2 = sliceRange(SAMPLES, '2026-11-15', '2026-11-15')
+  assert.equal(day2[0].t, '2026-11-15T00:00:00.000Z')
+  assert.equal(day2[day2.length - 1].t, '2026-11-15T22:00:00.000Z')
+  assert.equal(day2.length, 12)
+  assert.equal(sliceRange(SAMPLES, '2026-11-15', null).length, 24) // from day 2 to the end
+  assert.equal(sliceRange(SAMPLES, null, '2026-11-14').length, 12) // from the start to the end of day 1
+})
+
+test('sliceRange gives the whole series back when nothing is chosen or the range holds fewer than two samples', () => {
+  assert.equal(sliceRange(SAMPLES, null, null), SAMPLES)
+  assert.equal(sliceRange(SAMPLES, '2030-01-01', '2030-01-02'), SAMPLES)
+  assert.equal(sliceRange(SAMPLES, '2026-11-16', '2026-11-14'), SAMPLES)
+  assert.equal(sliceRange(null, '2026-11-15', null), null)
 })

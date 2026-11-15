@@ -1,6 +1,8 @@
 import { SITE_GROUPS } from '../data/south-pole-sites.js'
+import { LUNAR_YEAR_DAYS } from '../lib/useEphemeris.js'
 
-const DURATIONS = [7, 15, 30, 60]
+const DURATIONS = [7, 15, 30, 60, LUNAR_YEAR_DAYS]
+const durationLabel = (d) => (d === LUNAR_YEAR_DAYS ? `${d} days (lunar year)` : `${d} days`)
 
 // `custom`: a point the user selected on the map (pointSite.js), offered as an extra choice while it is selected.
 export default function SiteControls({ title, sites, state, onChange, custom = null }) {
@@ -41,7 +43,7 @@ export default function SiteControls({ title, sites, state, onChange, custom = n
         <select className="controls__input" value={state.days} onChange={(e) => onChange({ days: Number(e.target.value) })}>
           {DURATIONS.map((d) => (
             <option key={d} value={d}>
-              {d} days
+              {durationLabel(d)}
             </option>
           ))}
         </select>

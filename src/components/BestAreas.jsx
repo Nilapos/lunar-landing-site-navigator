@@ -28,7 +28,7 @@ export default function BestAreas({ areas, searching, ready, onSearch, onPick, s
         type="button"
         className="chip bestareas__toggle"
         aria-expanded={open}
-        title="Where should we land? The best areas of the period"
+        title="Where should we land? The best areas of the range of dates of the timeline"
         onClick={() => {
           setOpen((o) => !o)
           if (!open && areas === null && !searching) onSearch()
@@ -41,7 +41,7 @@ export default function BestAreas({ areas, searching, ready, onSearch, onPick, s
         <div className="bestareas__body">
           {searching && <p className="bestareas__note">Searching the whole region…</p>}
           {areas && areas.length === 0 && !searching && (
-            <p className="bestareas__note">No area is ever optimal in this period with these requirements: relax the slope limit or change the dates.</p>
+            <p className="bestareas__note">No area is ever optimal in this range of dates with these requirements: relax the slope limit or change the range.</p>
           )}
           {areas && areas.length > 0 && (
             <ol className="bestareas__list">
@@ -54,7 +54,7 @@ export default function BestAreas({ areas, searching, ready, onSearch, onPick, s
                       <span className="bestareas__what">
                         <strong>{near ? `Near ${near.site.shortName}` : place(a)}</strong>
                         <span>
-                          Land {formatUtc(a.landingMs)} · optimal {formatPercent(a.goFraction)} of the period · slope {a.slopeDeg}°
+                          Land {formatUtc(a.landingMs)} · optimal {formatPercent(a.goFraction)} of the range · slope {a.slopeDeg}°
                           {near ? ` · ${place(a)}` : ''}
                         </span>
                         {a.level !== 'ok' && <span className="bestareas__reason">{a.reason}</span>}
@@ -74,7 +74,7 @@ export default function BestAreas({ areas, searching, ready, onSearch, onPick, s
               Search again
             </button>
             <span className="bestareas__note">
-              South of 83°S, 2.4 km cells, over the period of scenario A with the mission requirements. Each area is judged at its own best
+              South of 83°S, 2.4 km cells, over the range of dates of the timeline (Range, next to Step) with the mission requirements. Each area is judged at its own best
               landing moment, like a place you click.
             </span>
           </div>

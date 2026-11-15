@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { addDaysIso } from './format.js'
-import { ISO_DATE } from './useEphemeris.js'
+import { ISO_DATE, stepMinutesFor } from './useEphemeris.js'
 
 /**
  * Loads the sky samples of a period from /api/sky: the point of the Moon under the Sun and under the Earth,
@@ -13,7 +13,7 @@ export function useSky(start, days, enabled = true) {
   useEffect(() => {
     if (!enabled || !ISO_DATE.test(start)) return undefined
     const controller = new AbortController()
-    const params = new URLSearchParams({ start, stop: addDaysIso(start, days), stepMinutes: days <= 30 ? 60 : 120 })
+    const params = new URLSearchParams({ start, stop: addDaysIso(start, days), stepMinutes: stepMinutesFor(days) })
     fetch(`/api/sky?${params}`, { signal: controller.signal })
       .then(async (res) => {
         const body = await res.json()

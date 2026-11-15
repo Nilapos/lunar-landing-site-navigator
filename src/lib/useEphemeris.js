@@ -3,6 +3,13 @@ import { addDaysIso } from './format.js'
 
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/ // a date, or a date and time (UT)
 
+// The period the timeline covers by default: 346.6 days, the eclipse (draconic) year, i.e. the time the Sun takes to come back to the same
+// node of the Moon's orbit. It holds a whole cycle of the polar lighting (the Sun's elevation at the pole follows it).
+export const LUNAR_YEAR_DAYS = 346.6
+
+/** Time between two samples (minutes): hourly up to 30 days, every 2 h beyond (a lunar year is then 4160 rows, see LIMITS.maxRows). */
+export const stepMinutesFor = (days) => (days <= 30 ? 60 : 120)
+
 /** Sun and Earth az/el for a site from our /api/horizons endpoint (the body of its JSON answer). */
 export async function fetchEphemeris(site, start, days, signal) {
   const params = new URLSearchParams({
@@ -10,7 +17,7 @@ export async function fetchEphemeris(site, start, days, signal) {
     lon: site.lon,
     start,
     stop: addDaysIso(start, days),
-    stepMinutes: days <= 30 ? 60 : 120,
+    stepMinutes: stepMinutesFor(days),
   })
   const res = await fetch(`/api/horizons?${params}`, { signal })
   const body = await res.json()
