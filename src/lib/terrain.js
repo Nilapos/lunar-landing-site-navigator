@@ -76,8 +76,8 @@ export const SLOPE_BINS = 46 // 1-degree bins from 0; the last one holds 45 degr
 /**
  * Terrain around a site: height, mean and maximum slope within `radiusM` (a lander's landing ellipse,
  * 100 m), and a slope histogram within `histogramRadiusM` (to tell how much of the surroundings is steeper
- * than a rover's limit). Slopes are computed at the map resolution (80 m), so they smooth out steeper
- * local features.
+ * than a rover's limit). Slopes are computed at the map resolution (80, 40 or 20 m), so they smooth out steeper
+ * local features (the finer the map, the steeper the slopes it shows).
  */
 export function slopeStats(dem, latDeg, lonDeg, { radiusM = 100, histogramRadiusM = 500 } = {}) {
   const [col, row] = toPixel(dem, latDeg, lonDeg)

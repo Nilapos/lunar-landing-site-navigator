@@ -63,7 +63,7 @@ export default function RequirementsPanel({ requirements, onChange, onReset }) {
           <li>Solar exposure: battery autonomy / longest darkness.</li>
           <li>Telecom: the lower of (Earth link time per hour / needed) and (antenna data rate / needed).</li>
           <li>Window duration: time Sun and Earth stay visible together after landing / landing sequence length.</li>
-          <li>Topography: landing slope limit / steepest slope within 100 m (LOLA map, 80 m resolution, so local steeper features are smoothed). With a rover, also its drive slope limit / the slope under which 90% of the ground within 500 m lies; the lower of the two counts.</li>
+          <li>Topography: landing slope limit / steepest slope within 100 m (LOLA map, 20 m resolution, so features smaller than that are smoothed). With a rover, also its drive slope limit / the slope under which 90% of the ground within 500 m lies; the lower of the two counts.</li>
         </ul>
       </details>
     </section>

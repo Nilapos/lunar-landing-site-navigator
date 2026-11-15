@@ -32,7 +32,8 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   Telecom, Window Duration, Topography, Global = average) by comparing measured values with the rover
   requirements typed in `RequirementsPanel`. One rule everywhere: ratio = offered / needed, score =
   100 x min(ratio / 2, 1) (50 = just met), green from ratio 1.2. No home-made formulas.
-- Slopes: `slopeStats` in `terrain.js` (LOLA 80 m, within 100 m of the site), precomputed with the horizons
+- Slopes: `slopeStats` in `terrain.js` (LOLA **20 m** since 2026-11-15, within 100 m of the site; the horizon profiles are still from the 80 m map), recomputed alone with
+  `node scripts/compute-horizons.mjs "LOLA data/ldem_80s_20m/ldem_80s_20m.img" --slopes-only`; without the flag the script also recomputes the horizons (then give it the 80 m map), precomputed with the horizons
   into `src/data/site-terrain.json` by `scripts/compute-horizons.mjs` (rerun it when sites change).
 - Map: `public/south-pole-hillshade.png` is a hillshade of the LOLA map made by `scripts/render-map.mjs`; `src/lib/polarMap.js`
   projects lat/lon on it (lon 0 up, 90 E right). `SitesOverview` (+ `PolarMap`) shows every site on the map and in a ranking by
