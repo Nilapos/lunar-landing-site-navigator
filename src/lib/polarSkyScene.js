@@ -5,7 +5,9 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { cssToken } from './cssTokens.js'
 import { createCapMaterial } from './capMaterial.js'
-import { ZONE_TEXTURE_SIZE } from './groundTexture.js'
+import { latLonOfMapPoint, overviewCell, reticleSideKm } from './hoverCell.js'
+import { FULL_WINDOW, sameWindow, windowFor } from './tileGrid.js'
+import { createZoneMaterial } from './zoneMaterial.js'
 import {
   capIndices,
   capPositions,
@@ -27,7 +29,7 @@ import {
 } from './polarSky.js'
 import { azEl, localFrame, unitVector } from './sky.js'
 import { zoneHeightAt, zoneIndices, zonePositions } from './zones.js'
-import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeReticleCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
+import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
 import { levelColor, makeLabel, selectionColor } from './terrainScene.js'
 
 const IDLE_RENDER_MS = 250 // a still scene is redrawn only this often (a safety net: every change asks for a frame by itself)
@@ -87,10 +89,12 @@ function fadedPolarCanvas(image) {
 }
 
 /**
- * Creates the scene inside `container`. Callbacks: onPick(siteId) for a click on a pin, onProbe(cell | null)
+ * Creates the scene inside `container`. Callbacks: onPick(siteId) for a click on a pin, onProbe(cell | null), where a cell is what
+ * locateCell(xKm, yKm, overviewIndex) returns for the pointer (the finest cell there is data for, see hoverCell.js; the 2.4 km cell when
+ * locateCell is not given): { key, cx, cy, sizeKm, ... }; the cursor frames it,
  * when the pointer moves over the ground, onPin(cell) for a click on the ground.
  */
-export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin, onNear, onView }) {
+export function createPolarSkyScene(container, terrain, { onPick, onProbe, locateCell, onPin, onNear, onView, onWindow }) {
   const N = terrain.grid
   let exaggeration = 1 // true scale
   let sites = []
@@ -219,15 +223,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   let zone = null
   let zoneShown = false
   let zoneMesh = null
-  const zoneCanvas = document.createElement('canvas')
-  zoneCanvas.width = ZONE_TEXTURE_SIZE
-  zoneCanvas.height = ZONE_TEXTURE_SIZE
-  const zoneTexture = canvasTexture(zoneCanvas)
-  zoneTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
-  zoneTexture.magFilter = THREE.NearestFilter // each cell stays a crisp square
-  zoneTexture.generateMipmaps = false // repainted at every step: no mipmaps to rebuild
-  zoneTexture.minFilter = THREE.LinearFilter
-  const zoneMaterial = new THREE.MeshBasicMaterial({ map: zoneTexture, side: THREE.DoubleSide })
+  const zoneGround = createZoneMaterial(renderer.capabilities.getMaxAnisotropy())
   function buildZoneMesh() {
     if (zoneMesh) {
       scene.remove(zoneMesh)
@@ -245,7 +241,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
     geometry.setIndex(new THREE.BufferAttribute(zoneIndices(n), 1))
     geometry.computeBoundingSphere()
-    zoneMesh = new THREE.Mesh(geometry, zoneMaterial)
+    zoneMesh = new THREE.Mesh(geometry, zoneGround.material)
     zoneMesh.frustumCulled = false
     scene.add(zoneMesh)
   }
@@ -506,15 +502,61 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   }
 
   // --- Hover probe: the grid cell under the pointer, marked by a reticle.
-  const reticle = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTexture(makeReticleCanvas()), depthTest: false, transparent: true }))
-  reticle.scale.setScalar(44)
-  reticle.renderOrder = 9
+  // The cursor: a square frame the size of the cell under the pointer, lying on the ground (never smaller than 22 pixels on the screen, so
+  // it can still be aimed at when the cell is tiny: it grows back to the true cell as the camera comes close), and a dot at its center.
+  const reticle = new THREE.Group()
+  {
+    const ring = (outer, inner) => {
+      const shape = new THREE.Shape()
+      shape.moveTo(-outer, -outer)
+      shape.lineTo(outer, -outer)
+      shape.lineTo(outer, outer)
+      shape.lineTo(-outer, outer)
+      shape.closePath()
+      const hole = new THREE.Path()
+      hole.moveTo(-inner, -inner)
+      hole.lineTo(-inner, inner)
+      hole.lineTo(inner, inner)
+      hole.lineTo(inner, -inner)
+      hole.closePath()
+      shape.holes.push(hole)
+      return new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2) // into the ground plane, normal up
+    }
+    const dot = (half) => new THREE.PlaneGeometry(2 * half, 2 * half).rotateX(-Math.PI / 2)
+    const draw = (geometry, color, order) => {
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, side: THREE.DoubleSide }))
+      mesh.renderOrder = order
+      reticle.add(mesh)
+    }
+    draw(ring(0.62, 0.5), 0x000000, 8) // dark halo around the frame, for contrast on bright ground
+    draw(ring(0.5, 0.43), 0xffffff, 9)
+    draw(dot(0.1), 0x000000, 8)
+    draw(dot(0.065), 0xffffff, 9)
+  }
   reticle.visible = false
   scene.add(reticle)
-  let reticleCell = null
+  let reticleInfo = null // the cell framed: { cx, cy, sizeKm } or null
+  const reticleBasis = new THREE.Matrix4()
+  const reticleX = new THREE.Vector3()
+  const reticleUp = new THREE.Vector3()
+  const reticleZ = new THREE.Vector3()
   function placeReticle() {
-    reticle.visible = reticleCell !== null && view === null
-    if (reticleCell !== null) reticle.position.fromArray(positions, reticleCell * 3).multiplyScalar(1 + 1 / MOON_RADIUS_KM)
+    reticle.visible = reticleInfo !== null && view === null
+    if (reticleInfo === null) return
+    const { lat, lon } = latLonOfMapPoint(reticleInfo.cx, reticleInfo.cy)
+    reticleUp.fromArray(sitePosition(lat, lon, reticleInfo.sizeKm * 0.03))
+    reticle.position.copy(reticleUp)
+    reticleUp.normalize()
+    // The frame follows the axes of the map (x east of the pole, y toward longitude 0: scene +y and +x), flattened on the ground there.
+    reticleX.set(0, 1, 0).addScaledVector(reticleUp, -reticleUp.y).normalize()
+    reticleZ.crossVectors(reticleX, reticleUp)
+    reticle.quaternion.setFromRotationMatrix(reticleBasis.makeBasis(reticleX, reticleUp, reticleZ))
+    updateReticleSize()
+  }
+  function updateReticleSize() {
+    if (reticleInfo === null) return
+    const side = reticleSideKm(reticleInfo.sizeKm, camera.position.distanceTo(reticle.position), camera.fov, container.clientHeight)
+    reticle.scale.setScalar(side)
   }
 
   // --- Site view: the observer stands on the site and turns their head. The ground rises to the site's real
@@ -645,7 +687,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   let downAt = null
   let dragging = false
   let hoverEvent = null // the last pointer move, handled once per frame
-  let hoverCell = null
+  let hoverInfo = null // the cell under the pointer (see locateCell)
   const onDown = (e) => {
     invalidate()
     downAt = { x: e.clientX, y: e.clientY }
@@ -684,8 +726,10 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     controls.enableZoom = false
     dragging = false
     hoverEvent = null
-    if (hoverCell !== null) {
-      hoverCell = null
+    if (hoverInfo !== null) {
+      hoverInfo = null
+      reticleInfo = null
+      placeReticle()
       onProbe(null)
     }
   }
@@ -743,18 +787,47 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       frameAverage = 16.7
     }
   }
+  // The window of the map the grid and the detail are drawn for follows the camera (see tileGrid.js windowFor). It is reported once the
+  // camera has kept the same window for a moment and no flight is running, so a flight does not load tiles it will not need.
+  let pendingWindow = null
+  let pendingSince = 0
+  let reportedWindow = null
+  function followWindow(now) {
+    const distance = camera.position.distanceTo(controls.target)
+    let wanted = FULL_WINDOW
+    if (distance <= FAR_KM) {
+      const { x, y } = mapXY(controls.target.toArray())
+      wanted = windowFor(x, y, distance, camera.fov)
+    }
+    if (!sameWindow(wanted, pendingWindow)) {
+      pendingWindow = wanted
+      pendingSince = now
+    }
+    if (!tween && !sameWindow(pendingWindow, reportedWindow) && now - pendingSince > 250) {
+      reportedWindow = pendingWindow
+      onWindow(reportedWindow)
+    }
+  }
   renderer.setAnimationLoop(() => {
     const frameStart = performance.now()
     stepTween(frameStart)
     if (tween) dirty = true
+    if (view === null && onWindow) followWindow(frameStart)
     if (!view) controls.update()
     if (hoverEvent) {
       pointerRay(hoverEvent)
       hoverEvent = null
-      const cell = cellUnderPointer()
-      if (cell !== hoverCell) {
-        hoverCell = cell
-        onProbe(cell)
+      const index = cellUnderPointer()
+      let info = null
+      if (index !== null) {
+        const { x, y } = mapXY(lastHit)
+        info = locateCell ? locateCell(x, y, index) : { key: String(index), index, ...overviewCell(N, index) }
+      }
+      if ((info?.key ?? null) !== (hoverInfo?.key ?? null)) {
+        hoverInfo = info
+        reticleInfo = info
+        placeReticle()
+        onProbe(info)
       }
     }
     skyDome.position.copy(camera.position)
@@ -795,6 +868,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     adaptResolution(frameStart)
     lastRenderAt = frameStart
     updateSky()
+    if (reticle.visible) updateReticleSize()
     renderer.render(scene, camera)
   })
 
@@ -837,20 +911,12 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       focus = value
       updateFocus()
     },
-    /** Cell marked by the reticle (or null). */
-    setReticle(cell) {
-      reticleCell = cell
-      placeReticle()
-    },
     /**
      * Camera: null = orbit above the cap; { lat, lon, profile } = standing on that site, with its terrain horizon
      * (360 values, one per degree of azimuth) as the skyline.
      */
-    /** The canvas behind the fine zone's texture (paintZone), then refreshZoneTexture(). */
-    zoneCanvas,
-    refreshZoneTexture() {
-      zoneTexture.needsUpdate = true
-    },
+    /** The ground of the fine zone (zoneMaterial.js): its canvases are drawn by tileWindow.js and mapGrid.js, its layer is set here. */
+    zoneGround,
     /** The fine zone to draw (see zones.js) or null, and whether it is shown (the camera is close to it). */
     setZone(value, shown) {
       const changed = value !== zone
@@ -965,8 +1031,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       clearMarkers()
       disposeTree(scene)
       ground.dispose()
-      zoneTexture.dispose()
-      zoneMaterial.dispose()
+      zoneGround.dispose()
       moonTexture.dispose()
       disposed = true
       for (const photo of moonPhotos) photo.dispose()

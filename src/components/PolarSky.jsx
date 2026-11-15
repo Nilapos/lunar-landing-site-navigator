@@ -4,14 +4,18 @@ import { southPoleSites } from '../data/south-pole-sites.js'
 import { findBestAreas } from '../lib/bestAreas.js'
 import { pointSite } from '../lib/pointSite.js'
 import { probeCell } from '../lib/cellProbe.js'
-import { groundOverlayColors } from '../lib/cssTokens.js'
+import { cellLabel, finestCell } from '../lib/hoverCell.js'
+import { cssToken, groundOverlayColors } from '../lib/cssTokens.js'
 import { formatPercent } from '../lib/format.js'
-import { groundLook, layerPlan, paintBase, paintFine, paintOverlay, paintZone, staticLayers } from '../lib/groundTexture.js'
+import { groundLook, layerPlan, paintBase, paintFine, staticLayers, zoneLayer } from '../lib/groundTexture.js'
 import { buildCellFrames } from '../lib/illumination.js'
+import { paintWindowGrid } from '../lib/mapGrid.js'
 import { latLonOf, siteBodyStates } from '../lib/polarSky.js'
 import { createPolarSkyScene } from '../lib/polarSkyScene.js'
 import { candidateRegions, sitePins, useTerrain3d } from '../lib/useTerrain3d.js'
 import { unitVector } from '../lib/sky.js'
+import { FULL_WINDOW, TILE_LAYERS } from '../lib/tileGrid.js'
+import { TileWindow } from '../lib/tileWindow.js'
 import { useFeasibility } from '../lib/useFeasibility.js'
 import { useFineChunks } from '../lib/useFineGrid.js'
 import { useZone } from '../lib/useZone.js'
@@ -29,6 +33,18 @@ const signed = (deg) => `${deg >= 0 ? '+' : '−'}${Math.abs(deg).toFixed(1)}°`
 
 const MIN_PAINT_MS = 66 // the layers on the ground are redrawn at most about 15 times a second
 
+// What the detail canvas is made of, bottom first (tileWindow.js): the imagery gets sharper with the zoom (LRO WAC, then the LRO NAC
+// mosaic of the south pole where it exists), then the layers of Moon Trek that the user switched on.
+const IMAGERY = [
+  { layer: TILE_LAYERS.wac, minLevel: 3, style: 'image' },
+  { layer: TILE_LAYERS.nac, minLevel: 6, style: 'image' },
+]
+const imagerySources = (layers) => [
+  ...IMAGERY,
+  ...(layers.rock ? [{ layer: TILE_LAYERS.rock, minLevel: 3, style: 'rock', opacity: 0.6 }] : []),
+  ...(layers.psr ? [{ layer: TILE_LAYERS.psr, minLevel: 3, style: 'psr', opacity: 1 }] : []),
+]
+
 const VIEWS = [
   { key: 'globe', label: 'Globe' },
   { key: 'orbit', label: 'Orbit' },
@@ -36,7 +52,7 @@ const VIEWS = [
 ]
 
 // The hover card: "is this cell a good landing zone?"
-function ProbeCard({ probe, maxSlopeDeg }) {
+function ProbeCard({ probe, maxSlopeDeg, cell }) {
   const now = (label, s) => `${label} ${s.margin > 0 ? 'visible' : 'hidden'} now (${signed(s.el)}, horizon ${signed(s.horizon)})`
   return (
     <div className="skycard skycard--probe">
@@ -58,7 +74,10 @@ function ProbeCard({ probe, maxSlopeDeg }) {
           {formatPercent(probe.fractions.both)}
         </li>
       </ul>
-      <p className="skycard__hint">2.4 km cell: an overview that can differ from the site analysis on summits and slopes.</p>
+      <p className="skycard__hint">
+        {cellLabel(cell.sizeKm)}
+        {cell.level === 'overview' ? ': an overview that can differ from the site analysis on summits and slopes. Zoom in for finer cells.' : ' (zoomed in: finer data than the overview).'}
+      </p>
     </div>
   )
 }
@@ -82,9 +101,12 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const flightRef = useRef(false) // false until the first pose is set: no flight when the view opens
   const { terrain, hillshade, photo, error } = useTerrain3d()
   const [exaggeration, setExaggeration] = useState(1)
-  const [hoverCell, setHoverCell] = useState(null)
+  const [hover, setHover] = useState(null) // the finest cell under the pointer (hoverCell.js)
+  const locateRef = useRef(() => null)
   const [areas, setAreas] = useState(null) // best areas found for the period, null before the first search
   const [searching, setSearching] = useState(false)
+  const [mapWindow, setMapWindow] = useState(FULL_WINDOW) // the part of the map the grid and the detail are drawn for (follows the zoom)
+  const tilesRef = useRef(null)
   const [viewInfo, setViewInfo] = useState(null) // where the camera looks and from how far (for the 500 m chunks)
   const fineChunks = useFineChunks(viewInfo)
   const [near, setNear] = useState(false) // the camera is close to the selected site: its fine zone replaces the overview
@@ -108,10 +130,21 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   // The Feasible layer: the verdict of every 2.4 km cell over the period, computed in slices.
   const feasible = useFeasibility(terrain, frames, samples, requirements, !!layers.feasible)
 
-  const shownCell = standing ? null : hoverCell
+  // The cell under the pointer is found at the finest resolution there is: the shown fine zone, a loaded 500 m chunk, the overview.
+  useEffect(() => {
+    locateRef.current = (x, y, overviewIndex) =>
+      terrain && frames
+        ? finestCell(x, y, {
+            overview: { terrain, frames, grid: terrain.grid, index: overviewIndex },
+            zone: zoneShown ? { zone: zoneData.zone, frames: zoneGrid } : null,
+            chunks: fineChunks,
+          })
+        : null
+  })
+  const shownHover = standing ? null : hover
   const probe = useMemo(
-    () => (shownCell !== null && terrain && frames && samples ? probeCell(terrain, frames, shownCell, samples, index, requirements) : null),
-    [shownCell, terrain, frames, samples, index, requirements],
+    () => (shownHover && samples && shownHover.frames?.valid[shownHover.index] ? probeCell(shownHover.terrain, shownHover.frames, shownHover.index, samples, index, requirements) : null),
+    [shownHover, samples, index, requirements],
   )
 
   useEffect(() => {
@@ -151,15 +184,27 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (!terrain || !hillshade || !containerRef.current) return undefined
     const scene = createPolarSkyScene(containerRef.current, terrain, {
       onPick: (id) => onSelectRef.current(id),
-      onProbe: setHoverCell,
+      onProbe: setHover,
+      locateCell: (x, y, overviewIndex) => locateRef.current(x, y, overviewIndex),
       onPin: (cell, point) => pickPointRef.current(point),
       onNear: setNear,
       onView: setViewInfo,
+      onWindow: setMapWindow,
     })
     sceneRef.current = scene
+    const tiles = new TileWindow({
+      canvas: scene.ground.detailCanvas,
+      sources: [],
+      tint: cssToken('--color-layer-psr'),
+      onPainted: () => scene.ground.refreshDetail(),
+    })
+    tilesRef.current = tiles
+    if (import.meta.env.DEV) window.__tiles = tiles // inspection from the console: __tiles.win, __tiles.sources
     if (import.meta.env.DEV) window.__polarSky = scene // profiling from the console: __polarSky.benchmark()
     flightRef.current = false
     return () => {
+      tiles.dispose()
+      tilesRef.current = null
       scene.dispose()
       sceneRef.current = null
     }
@@ -171,10 +216,23 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (!scene || !terrain || !hillshade) return
     paintBase(scene.ground.baseCanvas, { hillshade, photo })
     scene.ground.refreshBase()
-    paintOverlay(scene.ground.overlayCanvas, { regions: REGIONS, colors: groundOverlayColors() })
-    scene.ground.refreshOverlay()
     scene.ground.setLook(groundLook(photo))
   }, [terrain, hillshade, photo])
+
+  // The window of the map (it follows the zoom): the grid with its values, and the detail (sharper imagery, PSR, rock abundance) drawn
+  // for it. What the tiles that have not arrived yet will add is drawn as they come.
+  const psrOn = !!layers.psr
+  const rockOn = !!layers.rock
+  useEffect(() => {
+    const scene = sceneRef.current
+    const tiles = tilesRef.current
+    if (!scene || !tiles) return
+    paintWindowGrid(scene.ground.overlayCanvas, mapWindow, { regions: REGIONS, colors: groundOverlayColors() })
+    scene.ground.refreshOverlay()
+    tiles.configure(imagerySources({ psr: psrOn, rock: rockOn }))
+    tiles.setWindow(mapWindow)
+    scene.ground.setWindow(mapWindow)
+  }, [terrain, hillshade, mapWindow, psrOn, rockOn])
 
   // The fine zone replaces the overview under it: a hole in the cap.
   useEffect(() => {
@@ -233,12 +291,32 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     sceneRef.current?.setZone(zoneData.zone, zoneShown)
   }, [terrain, hillshade, zoneData.zone, zoneShown])
 
+  // The layers on the cells of the zone, for the moment shown.
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene || !zoneShown) return
-    paintZone(scene.zoneCanvas, { hillshade: zoneData.image, zone: zoneData.zone, frames: zoneGrid, sample, samples, layers, requirements })
-    scene.refreshZoneTexture()
-  }, [zoneShown, zoneData, zoneGrid, sample, samples, layers, requirements])
+    scene.zoneGround.setLook(groundLook(photo).layerAlpha)
+    scene.zoneGround.setLayer(zoneLayer({ zone: zoneData.zone, frames: zoneGrid, sample, samples, layers, requirements }), zoneData.zone.grid)
+  }, [zoneShown, zoneData, zoneGrid, sample, samples, layers, requirements, photo])
+
+  // The imagery of the zone (sharpened with the tiles of Moon Trek, the zone's own hillshade until they have come) and its graticule.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene || !zoneShown || !zoneData.zone) return undefined
+    const { zone } = zoneData
+    const win = { cx: zone.centerXKm, cy: zone.centerYKm, span: zone.sizeKm }
+    const tiles = new TileWindow({
+      canvas: scene.zoneGround.imageryCanvas,
+      sources: imagerySources({ psr: psrOn, rock: rockOn }),
+      underlay: zoneData.image,
+      tint: cssToken('--color-layer-psr'),
+      onPainted: () => scene.zoneGround.refreshImagery(),
+    })
+    paintWindowGrid(scene.zoneGround.gridCanvas, win, { regions: REGIONS, colors: groundOverlayColors() })
+    scene.zoneGround.refreshGrid()
+    tiles.setWindow(win)
+    return () => tiles.dispose()
+  }, [zoneShown, zoneData, psrOn, rockOn])
 
   useEffect(() => {
     sceneRef.current?.setExaggeration(exaggeration)
@@ -290,10 +368,6 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     flightRef.current = true
     return () => clearTimeout(dive)
   }, [terrain, hillshade, standing, view, site])
-
-  useEffect(() => {
-    sceneRef.current?.setReticle(probe ? shownCell : null)
-  }, [terrain, hillshade, probe, shownCell])
 
   if (error) return <p className="notice notice--error">{error}</p>
   return (
@@ -358,7 +432,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
           <Pop icon="info" label="About this view">
             <p className="pop__text">
               Sun and Earth: true direction and true angular size (the Sun is 0.53° wide, the Earth 1.9°), from JPL Horizons; surface:
-              LOLA map on the real sphere; textures and the Sun&apos;s glare are stylized, but the Moon and the cap itself are real LRO WAC mosaics (NASA/GSFC/Arizona State University, via NASA Moon Trek). Drag to rotate, right-drag to move; click the
+              LOLA map on the real sphere; textures and the Sun&apos;s glare are stylized, but the Moon and the cap itself are real LRO WAC mosaics (NASA/GSFC/Arizona State University, via NASA Moon Trek). Zooming in sharpens the imagery with Moon Trek tiles: the LRO WAC mosaic, then the LRO NAC mosaic of the south pole (down to about 4 m per pixel, poleward of 85.5 S). The PSR layer is the LROC NAC mosaic of the permanently shadowed regions, the Rocks layer the LRO Diviner rock abundance (no data within about 280 km of the pole). Drag to rotate, right-drag to move; click the
               view, then scroll to zoom. Lines go from the site to the Sun (yellow) and the Earth (blue), faint when the terrain hides
               the body. Move over the ground to judge a 2.4 km cell, click to pin its card; click a pin to analyze that site. Cells are an
               overview: on summits and slopes near the pole they can differ from the precise site analysis, which is the one to use for
@@ -385,7 +459,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
           />
         )}
         {probe && (
-          <ProbeCard probe={probe} maxSlopeDeg={requirements.maxSlopeDeg} />
+          <ProbeCard probe={probe} maxSlopeDeg={requirements.maxSlopeDeg} cell={shownHover} />
         )}
       </div>
     </div>

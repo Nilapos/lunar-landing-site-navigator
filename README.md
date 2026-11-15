@@ -32,7 +32,7 @@ One rule everywhere: `ratio = what the site offers / what the rover needs`, `sco
 
 - **Sun and Earth positions**: NASA JPL Horizons (queried server-side by `/api/horizons` and `/api/sky`).
 - **Terrain, slopes, horizon**: LOLA elevation map of the south pole (NASA PDS): 20 m per pixel for the slopes and the fine grids, 80 m for the site horizon profiles. The source maps (115 MB and 1.85 GB) are not in the repository; the derived data are.
-- **Moon imagery, the polar cap included**: LRO WAC global and south polar mosaics (NASA/GSFC/Arizona State University), served by NASA Moon Trek; the cap is a photograph under the layers, and the Moon is lit by the real Sun.
+- **Moon imagery, the polar cap included**: LRO WAC global and south polar mosaics (NASA/GSFC/Arizona State University), served by NASA Moon Trek; the cap is a photograph under the layers, and the Moon is lit by the real Sun. Zooming in loads sharper tiles from Moon Trek (LRO WAC, then the LRO NAC mosaic of the south pole, about 4 m per pixel); two Moon Trek layers can be switched on: the permanently shadowed regions (LROC NAC PSR mosaic) and the rock abundance (LRO Diviner).
 - **Sites and missions**: every coordinate has a source next to it in `src/data/`. NASA's official Artemis III region centers are not in the sources we could open, so those entries are representative points, flagged as approximate.
 
 ## Limits (said honestly)

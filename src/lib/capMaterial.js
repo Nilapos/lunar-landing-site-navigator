@@ -10,7 +10,9 @@
 //            the moment: "Optimal over the period", "Feasible" and the forbidden zones (slope);
 //   fine     (2048 canvas, only drawn while 500 m chunks are loaded): the same layers at the chunks' own resolution. Inside a chunk
 //            its alpha is 0.5 + layer alpha / 2, and 0 elsewhere, so the alpha also tells where the chunk replaces the overview layer;
-//   overlay  (2048 canvas, painted once): the graticule and the candidate region squares.
+//   window   (two 2048 canvases, redrawn when the camera moves enough): a square window of the map that follows the zoom, drawn at the
+//            resolution of the screen: `detail` (the Moon Trek imagery sharpened for that window, and the PSR / rock abundance layers) over
+//            the photo, and `grid` (the latitude / longitude graticule with its labels and the candidate regions), see tileWindow.js.
 // The rim of the cap fades to transparent (a function of the distance to the pole), and a "hole" can be cut where a fine zone
 // takes over. All colors are the raw sRGB values of the pictures (no color-space conversion on either side).
 import * as THREE from 'three'
@@ -122,11 +124,15 @@ void main() {
 const CAP_FRAGMENT = `
 precision highp float;
 uniform sampler2D uBase;
-uniform sampler2D uOverlay;
+uniform sampler2D uOverlay;   // the grid of the window (graticule, labels, regions)
+uniform sampler2D uDetail;    // the detail of the window (imagery sharpened for the zoom, PSR, rock abundance)
 uniform sampler2D uFine;
 uniform sampler2D uLive;      // the baked live layers (premultiplied), see BAKE_FRAGMENT
 uniform sampler2D uMain;      // premultiplied RGBA: Optimal over the period, or Feasible
 uniform sampler2D uSlopeLayer;// premultiplied RGBA: forbidden zones
+uniform float uDetailOn;
+uniform vec3 uWindow;         // cx, cy, span (km, map plane) of the window the two canvases above are drawn for
+uniform float uMapKm;         // side of the whole map (km)
 uniform float uLiveOn;
 uniform float uMainOn;
 uniform float uSlopeOn;
@@ -147,6 +153,14 @@ void main() {
   if (uHole.w > 0.5 && img.x >= uHole.x && img.x <= uHole.x + uHole.z && img.y >= uHole.y && img.y <= uHole.y + uHole.z) a = 0.0;
   if (a < 0.02) discard;
   vec3 col = base.rgb;
+  // The window: where this pixel is in it, if it is.
+  vec2 w = ((vUv - 0.5) * uMapKm - uWindow.xy) / uWindow.z + 0.5;
+  bool inWindow = w.x >= 0.0 && w.x <= 1.0 && w.y >= 0.0 && w.y <= 1.0;
+  if (uDetailOn > 0.5 && inWindow) {
+    vec4 detail = texture2D(uDetail, w);
+    float feather = smoothstep(0.0, 0.02, min(min(w.x, 1.0 - w.x), min(w.y, 1.0 - w.y)));
+    col = mix(col, detail.rgb, detail.a * feather);
+  }
 
   vec4 layer = vec4(0.0); // premultiplied
   if (uMainOn > 0.5) layer = texture2D(uMain, img);
@@ -161,8 +175,10 @@ void main() {
     }
   }
   col = col * (1.0 - layer.a * uLayerAlpha) + layer.rgb * uLayerAlpha;
-  vec4 overlay = texture2D(uOverlay, vUv);
-  col = mix(col, overlay.rgb, overlay.a);
+  if (inWindow) {
+    vec4 grid = texture2D(uOverlay, w);
+    col = mix(col, grid.rgb, grid.a);
+  }
   gl_FragColor = vec4(col, a);
 }`
 
@@ -238,10 +254,12 @@ void main() {
 export function createCapMaterial(renderer, terrain, anisotropy) {
   const N = terrain.grid
   const baseCanvas = newCanvas()
-  const overlayCanvas = newCanvas()
+  const overlayCanvas = newCanvas() // the grid of the window
+  const detailCanvas = newCanvas() // the detail of the window
   const fineCanvas = newCanvas()
   const base = paintedTexture(baseCanvas, { mipmaps: true, anisotropy })
   const overlay = paintedTexture(overlayCanvas, { mipmaps: true, anisotropy })
+  const detail = paintedTexture(detailCanvas, { mipmaps: true, anisotropy })
   const fine = paintedTexture(fineCanvas, { mipmaps: false, anisotropy: 1 }) // repainted often: no mipmaps to rebuild
   const { atlas, width, height } = horizonAtlas(terrain)
   const horizon = byteTexture(atlas, width, height)
@@ -299,6 +317,10 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
     uniforms: {
       uBase: { value: base },
       uOverlay: { value: overlay },
+      uDetail: { value: detail },
+      uDetailOn: { value: 0 },
+      uWindow: { value: new THREE.Vector3(0, 0, 2 * MAP_RADIUS_KM) },
+      uMapKm: { value: 2 * MAP_RADIUS_KM },
       uFine: { value: fine },
       uLive: { value: target.texture },
       uMain: { value: main.texture },
@@ -317,12 +339,22 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
     material,
     baseCanvas,
     overlayCanvas,
+    detailCanvas,
     fineCanvas,
     refreshBase() {
       base.needsUpdate = true
     },
     refreshOverlay() {
       overlay.needsUpdate = true
+    },
+    /** The detail canvas has been (re)drawn. */
+    refreshDetail(on = true) {
+      u.uDetailOn.value = on ? 1 : 0
+      if (on) detail.needsUpdate = true
+    },
+    /** The window of the map ({ cx, cy, span }, km) the grid and detail canvases are drawn for. */
+    setWindow({ cx, cy, span }) {
+      u.uWindow.value.set(cx, cy, span)
     },
     /** Opacity of the layers over the ground (the photograph shows through) and the width of the fade at the rim (fraction of the radius). */
     setLook({ layerAlpha, edgeFade }) {
@@ -371,7 +403,7 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
       u.uHole.value.set(rect ? rect.x : 0, rect ? rect.y : 0, rect ? rect.side : 0, rect ? 1 : 0)
     },
     dispose() {
-      for (const t of [base, overlay, fine, horizon, slopeDeg, main.texture, slopeLayer.texture]) t.dispose()
+      for (const t of [base, overlay, detail, fine, horizon, slopeDeg, main.texture, slopeLayer.texture]) t.dispose()
       target.dispose()
       bakeQuad.geometry.dispose()
       bakeMaterial.dispose()
