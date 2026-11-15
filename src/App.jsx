@@ -261,10 +261,7 @@ export default function App() {
       top={
         <>
           <div className="brand">
-            <span className="brand__name">
-              <span className="brand__mark" aria-hidden="true" />
-              MOONWALK
-            </span>
+            <img className="brand__logo" src="/moonwalk-logo.svg" alt="Moonwalk" />
           </div>
           <button type="button" className="chip" onClick={() => setDrawer('settings')} title="Change the site, the date or the rover requirements">
             <strong>{site.shortName}</strong>

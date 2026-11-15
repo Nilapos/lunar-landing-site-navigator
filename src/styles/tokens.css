@@ -91,5 +91,6 @@
   --shadow-panel: 0 1px 0 var(--color-hairline) inset, 0 10px 30px rgb(0 0 0 / 0.5);
   --shadow-card: 0 16px 40px rgb(0 0 0 / 0.6);
   --blur-glass: 12px;
+  --logo-height: 20px; /* the MOONWALK wordmark in the top bar (public/moonwalk-logo.svg, 8:1) */
   --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 }
