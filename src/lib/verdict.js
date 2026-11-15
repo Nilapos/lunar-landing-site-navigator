@@ -68,9 +68,9 @@ function windowItem(both, req, landingMs) {
 const formatWh = (wh) => (wh >= 1000 ? `${(wh / 1000).toFixed(2)} kWh` : `${Math.round(wh)} Wh`)
 
 /**
- * Energy balance of the vehicles that have power specs (see energy.js): per day of the period, the energy that reaches the battery
- * against the energy needed. The worst vehicle counts. Null when no vehicle has specs, or the series lacks the Sun's distance.
- * Returns { ratio, detail, parts: [{ vehicle, balance }] }.
+ * Energy balance of the mission (see energy.js): the energy collected per day by all the vehicles that have power specs, against the
+ * total energy they need per day. ratio = total collected per day / total needed per day. Null when no vehicle has specs, or the series
+ * lacks the Sun's distance. Returns { ratio, detail, collectedWhPerDay, neededWhPerDay, parts: [{ vehicle, balance }] }.
  */
 export function energyItem(inputs, req) {
   if (!req.energy) return null
@@ -78,19 +78,11 @@ export function energyItem(inputs, req) {
     .map((vehicle) => ({ vehicle, balance: energyBalance(inputs, req.energy[vehicle]) }))
     .filter((p) => p.balance)
   if (parts.length === 0) return null
-  const days = parts[0].balance.days
-  const detail = parts
-    .map(({ vehicle, balance: b }) => {
-      const battery = b.battery
-        ? ` Battery: lowest ${formatWh(b.battery.minWh)}, empty with the load unmet ${(b.battery.blackoutFraction * 100).toFixed(0)}% of the period.`
-        : ''
-      return (
-        `${vehicle}: ${formatWh(b.storedWhPerDay)} stored per day vs ${formatWh(b.neededWhPerDay)} needed (${formatWh(b.incidentWh)} on the panels over ${days.toFixed(1)} days).` +
-        battery
-      )
-    })
-    .join(' ')
-  return { ratio: Math.min(...parts.map((p) => p.balance.ratio)), detail, parts }
+  const collected = parts.reduce((sum, p) => sum + p.balance.storedWhPerDay, 0)
+  const needed = parts.reduce((sum, p) => sum + p.balance.neededWhPerDay, 0)
+  const split = parts.length > 1 ? ` (${parts.map((p) => `${p.vehicle} ${formatWh(p.balance.storedWhPerDay)}`).join(' + ')})` : ''
+  const detail = `${formatWh(collected)} collected per day${split} vs ${formatWh(needed)} needed per day.`
+  return { ratio: needed > 0 ? collected / needed : Infinity, detail, collectedWhPerDay: collected, neededWhPerDay: needed, parts }
 }
 
 function terrainItem(terrain, req) {
@@ -116,17 +108,17 @@ function terrainItem(terrain, req) {
  */
 export function evaluateScenario(analysis, req, landingMs, terrain) {
   const raw = [
-    { key: 'power', label: 'Power', ...powerItem(analysis.sun, req) },
+    { key: 'power', label: 'Night endurance', ...powerItem(analysis.sun, req) },
     { key: 'comms', label: 'Communication', ...commsItem(analysis.earth, req) },
     { key: 'window', label: 'Landing window', ...windowItem(analysis.both, req, landingMs) },
     { key: 'terrain', label: 'Terrain', ...terrainItem(terrain, req) },
   ]
-  // The energy balance only exists when the vehicles have power specs: it can block a site (the verdict is the worst item) but it is
-  // not in the global score, which stays the average of the four above.
+  // The energy balance only exists when the vehicles have power specs. It is for information only: it never blocks a site (it is not in
+  // the verdict, nor in the blockers) and it is not in the global score, which stays the average of the four above.
   const energy = energyItem(analysis.inputs, req)
-  if (energy) raw.push({ key: 'energy', label: 'Energy', ...energy })
+  if (energy) raw.push({ key: 'energy', label: 'Energy collected / Day', informative: true, ...energy })
   const items = raw.map((i) => ({ ...i, score: marginScore(i.ratio), level: levelFromRatio(i.ratio) }))
-  const overall = items.reduce((worst, i) => (ORDER[i.level] > ORDER[worst] ? i.level : worst), 'ok')
+  const overall = items.filter((i) => !i.informative).reduce((worst, i) => (ORDER[i.level] > ORDER[worst] ? i.level : worst), 'ok')
   const [solar, telecom, window, topography] = items.map((i) => i.score)
   const global = Math.round((solar + telecom + window + topography) / 4)
   const energyScore = items.find((i) => i.key === 'energy')?.score

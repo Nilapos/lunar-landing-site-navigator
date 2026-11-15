@@ -9,7 +9,7 @@ const GAUGES = [
   { key: 'telecom', label: 'Telecom' },
   { key: 'window', label: 'Window' },
   { key: 'topography', label: 'Terrain' },
-  { key: 'energy', label: 'Energy' }, // only when the vehicles have power specs (scores.energy)
+  { key: 'energy', label: 'Energy collected / Day' }, // only when the vehicles have power specs (scores.energy)
 ]
 const ITEM_OF_GAUGE = { solar: 'power', telecom: 'comms', window: 'window', topography: 'terrain', energy: 'energy' }
 
@@ -25,7 +25,8 @@ function BodyLine({ name, state }) {
 // What holds the site back, in words: every requirement under its threshold, with how much of the need the site offers.
 // (The global score is an average; the verdict is the worst requirement, so a good-looking score can still be "not feasible".)
 function Blockers({ evaluation }) {
-  const held = evaluation.items.filter((i) => i.level !== 'ok').sort((a, b) => a.ratio - b.ratio)
+  // Informative items (the energy balance) never hold a site back, so they are not listed here.
+  const held = evaluation.items.filter((i) => i.level !== 'ok' && !i.informative).sort((a, b) => a.ratio - b.ratio)
   if (held.length === 0) return <p className="scorecard__met">Every requirement is met with margin.</p>
   return (
     <div className="scorecard__blockers">
@@ -117,7 +118,7 @@ export default function ScoreCard({ site, atMs, startMs, evaluation, states, onL
             <li key={item.key}>
               <span className={`dot dot--${item.level}`} aria-hidden="true" />
               <span>
-                <strong>{item.label}:</strong> {item.detail}{' '}
+                <strong>{item.label}{item.informative ? ' (for information, does not affect feasibility)' : ''}:</strong> {item.detail}{' '}
                 {item.shiftMs != null && (
                   <button type="button" className="button button--small" onClick={() => onShiftLanding(item.shiftMs)}>
                     Move landing to the next window

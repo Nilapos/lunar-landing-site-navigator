@@ -19,7 +19,7 @@ const levelOf = (evaluation, key) =>
 
 const VERDICT_ROWS = [
   ['overall', 'Overall'],
-  ['power', 'Power'],
+  ['power', 'Night endurance'],
   ['comms', 'Communication'],
   ['window', 'Landing window'],
   ['terrain', 'Terrain'],

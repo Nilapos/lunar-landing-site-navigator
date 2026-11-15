@@ -54,7 +54,19 @@ export const landers = [
     massKg: null,
     payloadCapacityKg: 0,
     landing: { maxSlopeDeg: 15, ellipseM: null, sequenceMinutes: 10 },
-    power: { survivalHours: 240, minSunDeg: 0 },
+    power: {
+      survivalHours: 240,
+      minSunDeg: 0,
+      // HYPOTHESIS (illustrative numbers): a lander smaller than the heavy one, to show the energy balance. To be replaced by sourced values.
+      energy: {
+        panelAreaM2: 2,
+        panelEfficiency: 0.28,
+        chargeEfficiency: 0.9,
+        batteryWh: 4000,
+        consumption: { operatingW: 200, survivalW: 30, operatingHoursPerDay: 8 },
+        panel: { mode: 'vertical-tracking' },
+      },
+    },
     comms: { antenna: 'mga', dataRateNeededKbps: 256, linkMinPerHour: 30, minEarthDeg: 0 },
   },
   {

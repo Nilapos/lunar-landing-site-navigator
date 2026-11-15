@@ -51,10 +51,13 @@ test('catalog: a rover is carried by existing landers only, and missions pair co
   assert.deepEqual(roversFor('generic-lander'), []) // a lander that carries nothing offers no rover
 })
 
-test('the generic mission reproduces the default requirements exactly, so nothing changes until the catalog is filled', () => {
+test('the generic mission reproduces the default requirements, plus its (informative) energy specs', () => {
   const generic = missions.find((m) => m.id === DEFAULT_MISSION_ID)
   const { requirements, status } = requirementsFor(landerById(generic.landerId), null)
-  assert.deepEqual(requirements, DEFAULT_REQUIREMENTS)
+  const { energy, ...rest } = requirements
+  const { energy: _none, ...defaults } = DEFAULT_REQUIREMENTS
+  assert.deepEqual(rest, defaults)
+  assert.ok(energy.lander.panelAreaM2 > 0)
   assert.equal(status, 'hypothesis')
 })
 
@@ -117,9 +120,10 @@ test('the terrain verdict looks at the ground the rover must drive only when the
   assert.equal(terrainItem({ ...DEFAULT_REQUIREMENTS, driveSlopeDeg: 35 }, terrain).level, 'ok')
 })
 
-test('energy specs: none for the generic mission, each vehicle its own for a lander with a rover', () => {
+test('energy specs: the lander alone for the generic mission, each vehicle its own for a lander with a rover', () => {
   const generic = requirementsFor(landerById('generic-lander'), null).requirements
-  assert.equal(generic.energy, null)
+  assert.equal(generic.energy.lander, landerById('generic-lander').power.energy)
+  assert.equal(generic.energy.rover, null)
   const pair = requirementsFor(landerById('generic-heavy-lander'), roverById('generic-small-rover')).requirements
   assert.equal(pair.energy.lander, landerById('generic-heavy-lander').power.energy)
   assert.equal(pair.energy.rover, roverById('generic-small-rover').power.energy)

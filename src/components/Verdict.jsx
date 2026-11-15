@@ -18,7 +18,7 @@ export default function Verdict({ evaluation, onShiftLanding }) {
           <li key={item.key} className="verdict__item">
             <span className={`dot dot--${item.level}`} aria-hidden="true" />
             <span>
-              <strong>{item.label}:</strong> {item.detail}{' '}
+              <strong>{item.label}{item.informative ? ' (for information, does not affect feasibility)' : ''}:</strong> {item.detail}{' '}
               {item.shiftMs != null && onShiftLanding && (
                 <button type="button" className="button button--small" onClick={() => onShiftLanding(item.shiftMs)}>
                   Move landing to the next window

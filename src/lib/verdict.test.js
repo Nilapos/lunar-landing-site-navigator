@@ -158,18 +158,30 @@ test('with power specs: an energy item and score, the global score stays the ave
   assert.equal(item.level, 'ok')
   assert.equal(ev.scores.energy, item.score)
   assert.equal(ev.scores.global, plain.scores.global)
-  assert.match(item.detail, /lander: .* stored per day vs .* needed/)
+  assert.match(item.detail, /collected per day vs .* needed per day/)
 })
 
-test('a vehicle that cannot feed itself makes the energy item fail, and the worst of two vehicles counts', () => {
+test('two vehicles: the ratio is the total collected per day over the total needed per day', () => {
   const s = withSun(series(48, () => 10, () => 10))
+  const small = { ...ENERGY_SPECS, panelAreaM2: 0.5 }
+  const ev = evaluate(s, { energy: { lander: ENERGY_SPECS, rover: small } })
+  const item = ev.items.find((i) => i.key === 'energy')
+  const [lander, rover] = item.parts.map((p) => p.balance)
+  const expected = (lander.storedWhPerDay + rover.storedWhPerDay) / (lander.neededWhPerDay + rover.neededWhPerDay)
+  assert.ok(Math.abs(item.ratio - expected) < 1e-9)
+  assert.ok(item.ratio > rover.ratio && item.ratio < lander.ratio) // between the two: the total, not the worst vehicle
+  assert.match(item.detail, /lander .* \+ rover /)
+})
+
+test('the energy item is for information only: even when it fails, it does not change the verdict', () => {
+  const s = withSun(series(48, () => 10, () => 10))
+  const plain = evaluate(s)
   const starving = { ...ENERGY_SPECS, panelAreaM2: 0.01 }
-  const ev = evaluate(s, { energy: { lander: ENERGY_SPECS, rover: starving } })
+  const ev = evaluate(s, { energy: { lander: starving, rover: starving } })
   assert.equal(level(ev, 'energy'), 'fail')
-  assert.equal(ev.overall, 'fail') // it blocks the site even though the global score is untouched
-  const detail = ev.items.find((i) => i.key === 'energy').detail
-  assert.match(detail, /lander: /)
-  assert.match(detail, /rover: /)
+  assert.equal(ev.items.find((i) => i.key === 'energy').informative, true)
+  assert.equal(ev.overall, plain.overall)
+  assert.equal(ev.scores.global, plain.scores.global)
 })
 
 test('a series without the Sun distance gives no energy item rather than an invented one', () => {

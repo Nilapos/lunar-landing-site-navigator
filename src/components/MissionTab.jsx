@@ -1,4 +1,5 @@
 import { landerById, landers, missions, roverById, roversFor } from '../data/vehicles.js'
+import { neededWhPerDay } from '../lib/energy.js'
 import { requirementsFor } from '../lib/missionRequirements.js'
 import { ANTENNAS } from '../lib/scores.js'
 
@@ -16,6 +17,19 @@ const ROWS = [
 ]
 const ORIGIN = { lander: 'lander', rover: 'rover', both: 'lander and rover' }
 
+// Energy the mission must collect per day of 24 h (see neededWhPerDay in energy.js): the total of the vehicles with power specs, in kWh.
+// Null when no vehicle has power specs.
+function energyTotal(energy) {
+  const parts = ['lander', 'rover']
+    .filter((vehicle) => energy?.[vehicle])
+    .map((vehicle) => ({ vehicle, kWh: neededWhPerDay(energy[vehicle].consumption) / 1000 }))
+  if (parts.length === 0) return null
+  return {
+    kWh: parts.reduce((sum, p) => sum + p.kWh, 0),
+    how: parts.map((p) => `${p.vehicle} ${p.kWh.toFixed(2)} kWh`).join(' + '),
+  }
+}
+
 /**
  * The mission: a lander, with a rover or not (a rover only goes with a lander that can carry it). The requirements of the
  * analysis come from it (requirementsFor); the panel of the requirements (Settings) can still override single values.
@@ -28,6 +42,7 @@ export default function MissionTab({ mission, onMission, requirements, overrides
   const { requirements: own, origin, status } = requirementsFor(lander, rover)
   const carried = roversFor(mission.landerId)
   const overridden = Object.keys(overrides)
+  const energy = energyTotal(requirements.energy)
 
   return (
     <div className="stage__scroll mission">
@@ -95,7 +110,7 @@ export default function MissionTab({ mission, onMission, requirements, overrides
             <tr>
               <th scope="col">Requirement</th>
               <th scope="col">Value</th>
-              <th scope="col">Comes from</th>
+              <th scope="col">System</th>
             </tr>
           </thead>
           <tbody>
@@ -113,6 +128,13 @@ export default function MissionTab({ mission, onMission, requirements, overrides
                 </tr>
               )
             })}
+            {energy && (
+              <tr>
+                <th scope="row">Energy to collect per day</th>
+                <td title={energy.how}>{energy.kWh.toFixed(2)} kWh</td>
+                <td>battery</td>
+              </tr>
+            )}
           </tbody>
         </table>
         {overridden.length > 0 && (
