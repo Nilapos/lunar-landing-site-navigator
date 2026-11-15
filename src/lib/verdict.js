@@ -1,6 +1,7 @@
 // Verdicts and scores for one scenario, from the mission requirements (the rover's needs).
 // Each item compares a measured value with a limit the user typed in (see scores.js for the rule):
 //   ok = met with margin    warn = met but within 20% of the limit    fail = not met
+import { energyBalance } from './energy.js'
 import { formatDuration } from './format.js'
 import { ANTENNAS, fractionSteeperThan, levelFromRatio, marginScore, ratio, slopePercentile } from './scores.js'
 import { stateAt } from './visibility.js'
@@ -15,6 +16,7 @@ export const DEFAULT_REQUIREMENTS = {
   landingMinutes: 10, // Sun and Earth both needed for the landing sequence
   maxSlopeDeg: 15, // steepest slope the lander can land on (within about 100 m of the landing point)
   driveSlopeDeg: null, // steepest slope the rover can drive (null: no rover)
+  energy: null, // { lander, rover }: each vehicle's power.energy specs (see vehicles.js), or null: no energy balance
 }
 
 export const LEVEL_LABEL = { ok: 'Feasible', warn: 'Marginal', fail: 'Not feasible' }
@@ -63,6 +65,34 @@ function windowItem(both, req, landingMs) {
   }
 }
 
+const formatWh = (wh) => (wh >= 1000 ? `${(wh / 1000).toFixed(2)} kWh` : `${Math.round(wh)} Wh`)
+
+/**
+ * Energy balance of the vehicles that have power specs (see energy.js): per day of the period, the energy that reaches the battery
+ * against the energy needed. The worst vehicle counts. Null when no vehicle has specs, or the series lacks the Sun's distance.
+ * Returns { ratio, detail, parts: [{ vehicle, balance }] }.
+ */
+export function energyItem(inputs, req) {
+  if (!req.energy) return null
+  const parts = ['lander', 'rover']
+    .map((vehicle) => ({ vehicle, balance: energyBalance(inputs, req.energy[vehicle]) }))
+    .filter((p) => p.balance)
+  if (parts.length === 0) return null
+  const days = parts[0].balance.days
+  const detail = parts
+    .map(({ vehicle, balance: b }) => {
+      const battery = b.battery
+        ? ` Battery: lowest ${formatWh(b.battery.minWh)}, empty with the load unmet ${(b.battery.blackoutFraction * 100).toFixed(0)}% of the period.`
+        : ''
+      return (
+        `${vehicle}: ${formatWh(b.storedWhPerDay)} stored per day vs ${formatWh(b.neededWhPerDay)} needed (${formatWh(b.incidentWh)} on the panels over ${days.toFixed(1)} days).` +
+        battery
+      )
+    })
+    .join(' ')
+  return { ratio: Math.min(...parts.map((p) => p.balance.ratio)), detail, parts }
+}
+
 function terrainItem(terrain, req) {
   const steeper = Math.round(100 * fractionSteeperThan(terrain.histogram500, req.maxSlopeDeg))
   const landing = ratio(req.maxSlopeDeg, terrain.slopeMaxDeg)
@@ -81,7 +111,8 @@ function terrainItem(terrain, req) {
 /**
  * { items: [{ key, label, ratio, score, level, detail }], overall, scores }.
  * `analysis` from analyzeScenario, `landingMs` the landing instant, `terrain` the site's slope statistics.
- * scores = { solar, telecom, window, topography, global } (global = average of the four, as in the mockup).
+ * scores = { solar, telecom, window, topography, global } (global = average of the four, as in the mockup), plus energy when the
+ * vehicles have power specs (a fifth gauge, not part of the global).
  */
 export function evaluateScenario(analysis, req, landingMs, terrain) {
   const raw = [
@@ -90,9 +121,14 @@ export function evaluateScenario(analysis, req, landingMs, terrain) {
     { key: 'window', label: 'Landing window', ...windowItem(analysis.both, req, landingMs) },
     { key: 'terrain', label: 'Terrain', ...terrainItem(terrain, req) },
   ]
+  // The energy balance only exists when the vehicles have power specs: it can block a site (the verdict is the worst item) but it is
+  // not in the global score, which stays the average of the four above.
+  const energy = energyItem(analysis.inputs, req)
+  if (energy) raw.push({ key: 'energy', label: 'Energy', ...energy })
   const items = raw.map((i) => ({ ...i, score: marginScore(i.ratio), level: levelFromRatio(i.ratio) }))
   const overall = items.reduce((worst, i) => (ORDER[i.level] > ORDER[worst] ? i.level : worst), 'ok')
   const [solar, telecom, window, topography] = items.map((i) => i.score)
   const global = Math.round((solar + telecom + window + topography) / 4)
-  return { items, overall, scores: { solar, telecom, window, topography, global } }
+  const energyScore = items.find((i) => i.key === 'energy')?.score
+  return { items, overall, scores: { solar, telecom, window, topography, global, ...(energyScore !== undefined && { energy: energyScore }) } }
 }

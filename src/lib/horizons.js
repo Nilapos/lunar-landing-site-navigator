@@ -32,14 +32,19 @@ export function buildHorizonsUrl({ body, lat, lon, altKm = 0, start, stop, stepM
     START_TIME: `'${start}'`,
     STOP_TIME: `'${stop}'`,
     STEP_SIZE: `'${stepMinutes}m'`,
-    QUANTITIES: "'4'", // 4 = apparent azimuth and elevation
+    // 4 = apparent azimuth and elevation. For the Sun also 13 = apparent angular diameter (arcsec) and 20 = distance to the observer
+    // (delta, AU) and its rate: the irradiance is 1361 / delta^2 and the size of the disc sets the share of it behind the terrain.
+    QUANTITIES: body === 'sun' ? "'4,13,20'" : "'4'",
     CSV_FORMAT: "'YES'",
     ANG_FORMAT: "'DEG'",
   })
   return `${HORIZONS_URL}?${params}`
 }
 
-/** Parse the text of a Horizons response into [{ t, az, el }] (t = ISO string, UT). */
+/**
+ * Parse the text of a Horizons response into [{ t, az, el }] (t = ISO string, UT). When the answer also holds the angular diameter
+ * and the distance (the Sun request, columns 13 and 20), rows carry angDiamArcsec and deltaAu too.
+ */
 export function parseHorizonsResult(text) {
   const a = text.indexOf('$$SOE')
   const b = text.indexOf('$$EOE')
@@ -57,11 +62,14 @@ export function parseHorizonsResult(text) {
       const m = /^(\d{4})-([A-Za-z]{3})-(\d{2}) (\d{2}):(\d{2})/.exec(cols[0])
       const az = Number(cols[3])
       const el = Number(cols[4])
+      const extra = (value) => (value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : undefined)
+      const angDiamArcsec = extra(cols[5])
+      const deltaAu = extra(cols[6])
       if (!m || !(m[2] in MONTHS) || Number.isNaN(az) || Number.isNaN(el)) {
         throw new Error(`Unreadable Horizons row: ${line}`)
       }
       const t = new Date(Date.UTC(+m[1], MONTHS[m[2]], +m[3], +m[4], +m[5])).toISOString()
-      return { t, az, el }
+      return deltaAu === undefined || angDiamArcsec === undefined ? { t, az, el } : { t, az, el, angDiamArcsec, deltaAu }
     })
 }
 
@@ -186,7 +194,15 @@ export async function fetchSiteEphemeris(params, fetchImpl = fetch, options = {}
     start,
     stop,
     stepMinutes,
-    series: sun.map((s, i) => ({ t: s.t, sunAz: s.az, sunEl: s.el, earthAz: earth[i].az, earthEl: earth[i].el })),
+    // sunDeltaAu (Sun-site distance, AU) and sunAngDiamArcsec (apparent diameter of the Sun) are there when Horizons gave them.
+    series: sun.map((s, i) => ({
+      t: s.t,
+      sunAz: s.az,
+      sunEl: s.el,
+      earthAz: earth[i].az,
+      earthEl: earth[i].el,
+      ...(s.deltaAu !== undefined && { sunDeltaAu: s.deltaAu, sunAngDiamArcsec: s.angDiamArcsec }),
+    })),
   }
 }
 

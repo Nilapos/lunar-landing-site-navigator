@@ -17,7 +17,8 @@
 //     id, name, agency, status: 'sourced' | 'hypothesis', note, sources: [{ label, url }],
 //     massKg, payloadCapacityKg,                    // mass at landing, and what it can carry (a rover included)
 //     landing: { maxSlopeDeg, ellipseM, sequenceMinutes },   // steepest slope it lands on, landing ellipse, Sun AND Earth needed this long
-//     power: { survivalHours, minSunDeg },          // longest darkness it survives; Sun at least this high over the horizon to charge
+//     power: { survivalHours, minSunDeg, energy },  // longest darkness it survives; Sun at least this high over the horizon to charge;
+//                                                   // energy: null (no energy balance), or the power specs below
 //     comms: { antenna, dataRateNeededKbps, linkMinPerHour, minEarthDeg },  // antenna class (see ANTENNAS in scores.js), data it must send,
 //                                                   // Earth link needed per hour, Earth at least this high (antenna pointing)
 //   }
@@ -27,6 +28,16 @@
 //     mobility: { maxDriveSlopeDeg },               // steepest slope it can drive
 //     power: { survivalHours, minSunDeg },          // same meaning as for the lander
 //   }
+//   power.energy = {                                // the energy balance, see src/lib/energy.js (each vehicle has its own)
+//     panelAreaM2,                                  // area of the solar panels (m2)
+//     panelEfficiency,                              // 0..1, sunlight -> electricity (cells, with the losses you want counted: dust, temperature)
+//     chargeEfficiency,                             // 0..1, electricity -> battery (regulation and charging)
+//     batteryWh,                                    // capacity of the battery (Wh), or null when unknown (no battery simulation)
+//     consumption: { operatingW, survivalW, operatingHoursPerDay },   // power when working / when surviving, hours of work per 24 h
+//     panel: { mode, tiltDeg, azimuthDeg },         // mode: 'vertical-tracking' (vertical, facing the Sun), 'horizontal', or 'fixed' (tiltDeg
+//                                                   // from the horizontal, azimuthDeg from north); tilt and azimuth only for 'fixed'
+//   }
+//   Every number of an energy spec follows the same rule as the others: sourced, or the entry says `hypothesis`.
 //   mission = { id, name, landerId, roverId | null, note }
 import { ANTENNAS } from '../lib/scores.js'
 
@@ -56,7 +67,19 @@ export const landers = [
     massKg: null,
     payloadCapacityKg: 500,
     landing: { maxSlopeDeg: 10, ellipseM: null, sequenceMinutes: 15 },
-    power: { survivalHours: 336, minSunDeg: 1 },
+    power: {
+      survivalHours: 336,
+      minSunDeg: 1,
+      // HYPOTHESIS (illustrative numbers, like the rest of this entry): to show the energy balance, to be replaced by sourced values.
+      energy: {
+        panelAreaM2: 3,
+        panelEfficiency: 0.28,
+        chargeEfficiency: 0.9,
+        batteryWh: 6000,
+        consumption: { operatingW: 250, survivalW: 40, operatingHoursPerDay: 10 },
+        panel: { mode: 'vertical-tracking' },
+      },
+    },
     comms: { antenna: 'hga', dataRateNeededKbps: 512, linkMinPerHour: 30, minEarthDeg: 2 },
   },
 ]
@@ -72,7 +95,19 @@ export const rovers = [
     massKg: null,
     carriedBy: ['generic-heavy-lander'],
     mobility: { maxDriveSlopeDeg: 15 },
-    power: { survivalHours: 120, minSunDeg: 2 },
+    power: {
+      survivalHours: 120,
+      minSunDeg: 2,
+      // HYPOTHESIS (illustrative numbers): to be replaced by sourced values.
+      energy: {
+        panelAreaM2: 1.5,
+        panelEfficiency: 0.28,
+        chargeEfficiency: 0.9,
+        batteryWh: 2000,
+        consumption: { operatingW: 150, survivalW: 25, operatingHoursPerDay: 8 },
+        panel: { mode: 'vertical-tracking' },
+      },
+    },
   },
 ]
 

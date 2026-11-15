@@ -116,3 +116,12 @@ test('the terrain verdict looks at the ground the rover must drive only when the
   // A rover that drives steeper slopes passes.
   assert.equal(terrainItem({ ...DEFAULT_REQUIREMENTS, driveSlopeDeg: 35 }, terrain).level, 'ok')
 })
+
+test('energy specs: none for the generic mission, each vehicle its own for a lander with a rover', () => {
+  const generic = requirementsFor(landerById('generic-lander'), null).requirements
+  assert.equal(generic.energy, null)
+  const pair = requirementsFor(landerById('generic-heavy-lander'), roverById('generic-small-rover')).requirements
+  assert.equal(pair.energy.lander, landerById('generic-heavy-lander').power.energy)
+  assert.equal(pair.energy.rover, roverById('generic-small-rover').power.energy)
+  assert.ok(pair.energy.lander.panelAreaM2 > 0 && pair.energy.rover.panelAreaM2 > 0)
+})

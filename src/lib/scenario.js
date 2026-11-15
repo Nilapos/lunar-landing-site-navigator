@@ -16,7 +16,8 @@ export function analyzeScenario(series, profile, { minSunDeg = 0, minEarthDeg = 
   const earth = marginSeries(series, 'earth', profile, minEarthDeg)
   // Both visible at once <=> the smaller of the two margins is above zero.
   const both = sun.map((s, i) => ({ t: s.t, margin: Math.min(s.margin, earth[i].margin) }))
-  return { sun: analyzeMargins(sun), earth: analyzeMargins(earth), both: analyzeMargins(both) }
+  // `inputs` keeps what the energy balance needs (energy.js): it depends on each vehicle's panels, so it is computed with the verdict.
+  return { sun: analyzeMargins(sun), earth: analyzeMargins(earth), both: analyzeMargins(both), inputs: { series, profile, minSunDeg } }
 }
 
 // kind: how to format ('percent' = fraction 0..1, 'duration' = ms). higherIsBetter: direction of "good".

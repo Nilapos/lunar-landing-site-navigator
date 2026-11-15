@@ -129,3 +129,50 @@ test('date helpers keep the input shape', () => {
   assert.equal(addDaysIso('2026-11-14', 2), '2026-11-16')
   assert.equal(showDateTime('2026-11-14T08:30'), '2026-11-14 08:30')
 })
+
+// --- Energy balance (energy.js): a fifth gauge when the vehicles have power specs, never part of the global score ---
+
+const ENERGY_SPECS = {
+  panelAreaM2: 2,
+  panelEfficiency: 0.3,
+  chargeEfficiency: 0.9,
+  batteryWh: 2000,
+  consumption: { operatingW: 100, survivalW: 20, operatingHoursPerDay: 6 },
+  panel: { mode: 'vertical-tracking' },
+}
+const withSun = (s) => s.map((p) => ({ ...p, sunDeltaAu: 1, sunAngDiamArcsec: 1920 }))
+
+test('without power specs there is no energy item, and the scores are what they were', () => {
+  const s = withSun(series(48, () => 10, () => 10))
+  const ev = evaluate(s)
+  assert.equal(ev.items.some((i) => i.key === 'energy'), false)
+  assert.equal(ev.scores.energy, undefined)
+})
+
+test('with power specs: an energy item and score, the global score stays the average of the four others', () => {
+  const s = withSun(series(48, () => 10, () => 10))
+  const plain = evaluate(s)
+  const ev = evaluate(s, { energy: { lander: ENERGY_SPECS, rover: null } })
+  const item = ev.items.find((i) => i.key === 'energy')
+  assert.ok(item.ratio > 1.2, `ratio ${item.ratio}`)
+  assert.equal(item.level, 'ok')
+  assert.equal(ev.scores.energy, item.score)
+  assert.equal(ev.scores.global, plain.scores.global)
+  assert.match(item.detail, /lander: .* stored per day vs .* needed/)
+})
+
+test('a vehicle that cannot feed itself makes the energy item fail, and the worst of two vehicles counts', () => {
+  const s = withSun(series(48, () => 10, () => 10))
+  const starving = { ...ENERGY_SPECS, panelAreaM2: 0.01 }
+  const ev = evaluate(s, { energy: { lander: ENERGY_SPECS, rover: starving } })
+  assert.equal(level(ev, 'energy'), 'fail')
+  assert.equal(ev.overall, 'fail') // it blocks the site even though the global score is untouched
+  const detail = ev.items.find((i) => i.key === 'energy').detail
+  assert.match(detail, /lander: /)
+  assert.match(detail, /rover: /)
+})
+
+test('a series without the Sun distance gives no energy item rather than an invented one', () => {
+  const ev = evaluate(series(48, () => 10, () => 10), { energy: { lander: ENERGY_SPECS, rover: null } })
+  assert.equal(ev.items.some((i) => i.key === 'energy'), false)
+})

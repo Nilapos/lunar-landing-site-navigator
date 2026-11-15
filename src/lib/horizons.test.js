@@ -149,3 +149,41 @@ test('identical requests are served from the cache', async () => {
   await handleRequest(q, counting, { retryDelayMs: 0 })
   assert.equal(calls, 2) // Sun + Earth once each, the second request is cached
 })
+
+// A real answer (Sun seen from a site at 85.5 S, 15 Nov 2026) with the angular diameter (13) and the distance (20) asked for.
+const SUN_TEXT = `header
+$$SOE
+ 2026-Nov-15 00:00, ,i, 114.476032,    -0.307248,  1941.612,  0.98807714453606,  0.3957994,
+ 2026-Nov-15 01:00, ,i, 113.969879,    -0.270959,  1941.593,  0.98808671206640,  0.3993492,
+$$EOE`
+
+test('the Sun request also asks for the angular diameter and the distance, the Earth request does not', () => {
+  const params = { lat: -85.5, lon: 0, start: '2026-11-15 00:00', stop: '2026-11-15 03:00', stepMinutes: 60 }
+  assert.equal(new URL(buildHorizonsUrl({ body: 'sun', ...params })).searchParams.get('QUANTITIES'), "'4,13,20'")
+  assert.equal(new URL(buildHorizonsUrl({ body: 'earth', ...params })).searchParams.get('QUANTITIES'), "'4'")
+})
+
+test('parseHorizonsResult reads the angular diameter (arcsec) and the distance (au) when they are there', () => {
+  const rows = parseHorizonsResult(SUN_TEXT)
+  assert.deepEqual(rows[0], { t: '2026-11-15T00:00:00.000Z', az: 114.476032, el: -0.307248, angDiamArcsec: 1941.612, deltaAu: 0.98807714453606 })
+  // Without them (the Earth request, a trailing comma) the row keeps its old shape.
+  assert.deepEqual(parseHorizonsResult(SAMPLE)[0], { t: '2026-11-14T00:00:00.000Z', az: 228.998501, el: -4.713855 })
+})
+
+test('handleRequest carries the Sun distance and diameter into the series when Horizons gives them', async () => {
+  const fakeFetch = async (url) => {
+    const isSun = new URL(url).searchParams.get('COMMAND') === "'10'"
+    const row = isSun ? ' 2026-Nov-14 00:00,*, , 10.0, 1.0, 1941.6, 0.988, 0.4,' : ' 2026-Nov-14 00:00,*, , 10.0, 2.0,'
+    return { ok: true, json: async () => ({ result: `$$SOE\n${row}\n$$EOE` }) }
+  }
+  const out = await handleRequest({ lat: '-89.9', lon: '0', start: '2026-11-14', stop: '2026-11-14 00:30', stepMinutes: '10' }, fakeFetch, NO_WAIT)
+  assert.deepEqual(out.body.series[0], {
+    t: '2026-11-14T00:00:00.000Z',
+    sunAz: 10,
+    sunEl: 1,
+    earthAz: 10,
+    earthEl: 2,
+    sunDeltaAu: 0.988,
+    sunAngDiamArcsec: 1941.6,
+  })
+})

@@ -9,7 +9,9 @@ const GAUGES = [
   { key: 'telecom', label: 'Telecom' },
   { key: 'window', label: 'Window' },
   { key: 'topography', label: 'Terrain' },
+  { key: 'energy', label: 'Energy' }, // only when the vehicles have power specs (scores.energy)
 ]
+const ITEM_OF_GAUGE = { solar: 'power', telecom: 'comms', window: 'window', topography: 'terrain', energy: 'energy' }
 
 function BodyLine({ name, state }) {
   return (
@@ -77,8 +79,8 @@ export default function ScoreCard({ site, atMs, startMs, evaluation, states, onL
 
       {evaluation && (
         <ul className="gauges">
-          {GAUGES.map((g) => (
-            <li key={g.key} className="gauges__row" title={evaluation.items.find((i) => i.key === { solar: 'power', telecom: 'comms', window: 'window', topography: 'terrain' }[g.key])?.detail}>
+          {GAUGES.filter((g) => evaluation.scores[g.key] !== undefined).map((g) => (
+            <li key={g.key} className="gauges__row" title={evaluation.items.find((i) => i.key === ITEM_OF_GAUGE[g.key])?.detail}>
               <span className="gauges__label">{g.label}</span>
               <span className="gauges__bar">
                 <span className={`gauges__fill gauges__fill--${scoreLevel(evaluation.scores[g.key])}`} style={{ width: `${evaluation.scores[g.key]}%` }} />

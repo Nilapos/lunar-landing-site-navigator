@@ -123,6 +123,18 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   the pixel ratio (down to 0.75) when continuous frames come slower than about 40 per second, and raises it again slowly, never above the level that was too slow. The cards over the 3D view
   (`.skycard`, `.scorecard`, `.bestareas`) have no `backdrop-filter` any more (the browser re-blurred the area behind them every time the canvas changed) and use the opaque-enough
   `--color-surface-card`. The sky sphere is drawn after the Moon and the cap so its pixels hidden by them are rejected by the depth test. Do not put a `backdrop-filter` back on something over the canvas.
+- Energy balance (2026-11-15, `src/lib/energy.js`, tested): for the selected site over the period T (= the analysis period, 30 days by default, about one lunar day-night cycle of 29.5 days;
+  a 24 h window means nothing on the Moon). The Sun request of `horizons.js` now also asks Horizons for the apparent angular diameter (quantity 13) and the distance delta in au (quantity 20): the series
+  carry `sunDeltaAu` and `sunAngDiamArcsec`. Chain: irradiance I = 1361 / delta^2 (IAU 2015 nominal TSI at 1 au) x `sunDiscFraction` (visible share of the Sun's disc above the terrain horizon, circular
+  segment, disc radius from Horizons; I is already the power of the whole disc, so no solid angle in steradians is multiplied) x `panelCosine` (incidence: 'vertical-tracking' by default = cos(elevation), 'horizontal' =
+  sin(elevation), or 'fixed' with tilt and azimuth; this choice changes the result by a factor of about 29 near the pole) -> W/m2 on the panel; x panel area, x cell efficiency, x charge efficiency -> battery;
+  trapezoids over T -> Wh; `simulateBattery` (starts full, constant mean load, capacity bound) gives the lowest charge and the share of the period without power. Specs live in `power.energy` of each vehicle in
+  `src/data/vehicles.js` (schema at the top: area, efficiencies, battery Wh, consumption operating / survival / hours of work per day, panel orientation); each vehicle has its own balance and the worst counts
+  (`energyItem` in verdict.js). `power.energy: null` (the default mission) means no energy item, so nothing changes. The item is "Energy" (ratio = stored per day / needed per day, same score rule as everywhere):
+  it can block a site (verdict = worst item) and shows as a fifth gauge, but it is NOT in the global score (still the average of four). The numbers of the two generic vehicles are hypotheses. Not modeled: light
+  reflected by terrain, shadow of the vehicle on its panels, temperature and dust (put them in the efficiency), the horizon's variation across the Sun's disc, a load that changes between day and night.
+  Limit to remember: the energy ratio is an average over T; the battery lines of the detail (lowest charge, share of the period without power) show when the day/night mismatch empties the battery even if the ratio is high.
+  Maps and the Feasible layer do not use it yet (the grid samples from /api/sky have no Sun distance).
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

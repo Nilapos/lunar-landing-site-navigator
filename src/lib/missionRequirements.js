@@ -3,6 +3,7 @@
 // Who sets what:
 //   landing slope, landing sequence, antenna, data rate, link time, Earth elevation  -> the lander;
 //   drive slope                                                                      -> the rover (none without a rover);
+//   energy balance (panels, efficiency, battery, consumption)                        -> each vehicle for itself;
 //   survival through the darkness, Sun elevation to charge -> both, and the weakest link counts: the mission lives as long as
 //   its least enduring vehicle, and needs the highest Sun it asks for. The rover reaches Earth through the lander, so its
 //   own link is not modeled.
@@ -48,6 +49,8 @@ export function requirementsFor(lander, rover = null) {
       landingMinutes: lander.landing.sequenceMinutes,
       maxSlopeDeg: lander.landing.maxSlopeDeg,
       driveSlopeDeg: rover ? rover.mobility.maxDriveSlopeDeg : null,
+      // Each vehicle has its own panels, battery and consumption: its own energy balance (the worst counts, see verdict.js).
+      energy: lander.power.energy || rover?.power.energy ? { lander: lander.power.energy ?? null, rover: rover?.power.energy ?? null } : null,
     },
     origin,
     status: lander.status === 'sourced' && (!rover || rover.status === 'sourced') ? 'sourced' : 'hypothesis',
