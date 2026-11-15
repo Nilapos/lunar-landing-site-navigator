@@ -150,6 +150,7 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   dependency of the effects). The map: orthographic camera straight above (lon 0 up), the cap material on a flat square, the fine zone a flat square over it, no sphere, stars or relief mesh; zoom (wheel, double click, +/- buttons,
   "Zoom to site") and pan only, smoothed (time constant 0.1 s), inside the map; pins and the cursor keep a constant size on the screen; the graticule is drawn on a canvas over the view at screen pixels (`paintScreenGrid`: 1 px lines,
   11 px values, nothing deformed, nothing uploaded while zooming; `scene.screenGrid` tells PolarSky to leave the ground's grid texture empty). The 3D views keep the texture grid, thinner and smaller than before.
+  The **relief setting** (x1 to x4, "View settings") exists in both views: in 3D it raises the relief of the mesh; on the flat map it strengthens the **relief shading** (the LOLA hillshade is now laid over the photo by the shader, `uShade`, overlay blend, 0.3 at x1 up to 1.0 at x4, and over the sharp imagery and the fine zone from x2 on: `setRelief` in capMaterial.js and zoneMaterial.js). `paintBase` draws the photo only.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

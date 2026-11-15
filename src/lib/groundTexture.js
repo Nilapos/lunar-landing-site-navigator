@@ -9,11 +9,12 @@ import { slopeOverlayRgba } from './terrain3d.js'
 import { zoneRect } from './zones.js'
 
 export const TEXTURE_SIZE = 2048
-const RELIEF_SHADING = 0.3 // strength of the hillshade laid over the photograph
-
-/** How the layers sit on the ground: see-through over the photograph, and the rim of the cap fades into the Moon around it. */
+/**
+ * How the layers sit on the ground: see-through over the photograph, the rim of the cap fades into the Moon around it, and the hillshade
+ * is laid over the photograph as a light relief shading (its strength is that of reliefShading; the relief setting of the 2D map multiplies it).
+ */
 export function groundLook(photo) {
-  return photo ? { layerAlpha: 0.55, edgeFade: 0.05 } : { layerAlpha: 1, edgeFade: 0.0001 }
+  return photo ? { layerAlpha: 0.55, edgeFade: 0.05, reliefShading: 0.3 } : { layerAlpha: 1, edgeFade: 0.0001, reliefShading: 0 }
 }
 
 // The share-of-period map does not depend on the moment shown: keep it per terrain instead of recomputing at every step.
@@ -70,8 +71,7 @@ function layerPixels({ terrain, frames, sample, samples, layers, requirements, f
 }
 
 /**
- * Paints the base of the whole map (TEXTURE_SIZE square canvas): the photograph with the hillshade as a light relief shading, or,
- * without the photograph, the hillshade alone. Done once (and again if the pictures arrive later), not at every step.
+ * Paints the base of the whole map (TEXTURE_SIZE square canvas): the photograph, or, without it, the hillshade alone. Done once (and again if the pictures arrive later), not at every step.
  */
 export function paintBase(canvas, { hillshade, photo }) {
   const ctx = canvas.getContext('2d')
@@ -80,12 +80,7 @@ export function paintBase(canvas, { hillshade, photo }) {
     ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
     return
   }
-  ctx.drawImage(photo, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  ctx.save()
-  ctx.globalCompositeOperation = 'overlay'
-  ctx.globalAlpha = RELIEF_SHADING
-  ctx.drawImage(hillshade, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
-  ctx.restore()
+  ctx.drawImage(photo, 0, 0, TEXTURE_SIZE, TEXTURE_SIZE) // the hillshade is laid over it by the cap's shader, so its strength can change
 }
 
 // Straight (not premultiplied) RGBA of several layers laid one over the other, bottom first.

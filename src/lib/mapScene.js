@@ -437,7 +437,11 @@ export function createMapScene(container, terrain, { onPick, onProbe, locateCell
     screenGrid: true,
     ground,
     zoneGround,
-    setExaggeration() {},
+    /** The relief setting (1 to 4): on a flat map it strengthens the relief shading (capMaterial.js setRelief). */
+    setExaggeration(value) {
+      ground.setRelief(value)
+      zoneGround.setRelief(value)
+    },
     setSample() {},
     setView() {}, // no standing on a site here: that is a 3D view
     lookAt() {},

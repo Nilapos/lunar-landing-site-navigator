@@ -223,6 +223,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (!scene || !terrain || !hillshade) return
     paintBase(scene.ground.baseCanvas, { hillshade, photo })
     scene.ground.refreshBase()
+    scene.ground.setHillshade(hillshade)
     scene.ground.setLook(groundLook(photo))
   }, [terrain, hillshade, engine, photo])
 
@@ -313,6 +314,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (!scene || !zoneShown || !zoneData.zone) return undefined
     const { zone } = zoneData
     const win = { cx: zone.centerXKm, cy: zone.centerYKm, span: zone.sizeKm }
+    scene.zoneGround.setHillshade(zoneData.image)
     const tiles = new TileWindow({
       canvas: scene.zoneGround.imageryCanvas,
       sources: imagerySources({ psr: psrOn, rock: rockOn }),
@@ -442,9 +444,9 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
           )}
           <LayerToggles layers={layers} onChange={onLayers} maxSlopeDeg={requirements.maxSlopeDeg} />
           <Pop icon="tune" label="View settings">
-            {!standing && engine === '3d' && (
-              <label className="pop__field">
-                <span className="controls__label">Relief x{exaggeration}</span>
+            {!standing && (
+              <label className="pop__field" title={engine === 'map' ? 'The map is flat: the relief setting strengthens the relief shading (hillshade of the LOLA map)' : undefined}>
+                <span className="controls__label">{engine === 'map' ? 'Relief shading' : 'Relief'} x{exaggeration}</span>
                 <input type="range" min="1" max="4" step="1" value={exaggeration} onChange={(e) => setExaggeration(Number(e.target.value))} />
               </label>
             )}

@@ -126,6 +126,9 @@ precision highp float;
 uniform sampler2D uBase;
 uniform sampler2D uOverlay;   // the grid of the window (graticule, labels, regions)
 uniform sampler2D uDetail;    // the detail of the window (imagery sharpened for the zoom, PSR, rock abundance)
+uniform sampler2D uHillshade; // the relief picture, laid over the photograph (uShade) and over the detail (uShadeDetail)
+uniform float uShade;
+uniform float uShadeDetail;
 uniform sampler2D uFine;
 uniform sampler2D uLive;      // the baked live layers (premultiplied), see BAKE_FRAGMENT
 uniform sampler2D uMain;      // premultiplied RGBA: Optimal over the period, or Feasible
@@ -142,24 +145,29 @@ uniform float uEdgeFade;
 uniform vec4 uHole; // x, y, side (fractions of the map, y from the top), on
 varying vec2 vUv;
 
+// The "overlay" blend of the relief shading over a color (what the canvas did once): dark and light of the hillshade add relief.
+vec3 overlayBlend(vec3 b, float s) { return mix(2.0 * b * s, 1.0 - 2.0 * (1.0 - b) * (1.0 - s), step(0.5, b)); }
+
 vec4 over(vec4 top, vec4 bottom) { return top + bottom * (1.0 - top.a); } // premultiplied
 
 void main() {
   vec2 img = vec2(vUv.x, 1.0 - vUv.y); // the map as an image: y from the top
+  float shade = texture2D(uHillshade, vUv).r;
   float r = length(vUv - 0.5) * 2.0;
   float fade = clamp((0.9995 - r) / uEdgeFade, 0.0, 1.0);
   vec4 base = texture2D(uBase, vUv);
   float a = base.a * fade;
   if (uHole.w > 0.5 && img.x >= uHole.x && img.x <= uHole.x + uHole.z && img.y >= uHole.y && img.y <= uHole.y + uHole.z) a = 0.0;
   if (a < 0.02) discard;
-  vec3 col = base.rgb;
+  vec3 col = mix(base.rgb, overlayBlend(base.rgb, shade), uShade);
   // The window: where this pixel is in it, if it is.
   vec2 w = ((vUv - 0.5) * uMapKm - uWindow.xy) / uWindow.z + 0.5;
   bool inWindow = w.x >= 0.0 && w.x <= 1.0 && w.y >= 0.0 && w.y <= 1.0;
   if (uDetailOn > 0.5 && inWindow) {
     vec4 detail = texture2D(uDetail, w);
     float feather = smoothstep(0.0, 0.02, min(min(w.x, 1.0 - w.x), min(w.y, 1.0 - w.y)));
-    col = mix(col, detail.rgb, detail.a * feather);
+    vec3 sharp = mix(detail.rgb, overlayBlend(detail.rgb, shade), uShadeDetail);
+    col = mix(col, sharp, detail.a * feather);
   }
 
   vec4 layer = vec4(0.0); // premultiplied
@@ -181,6 +189,16 @@ void main() {
   }
   gl_FragColor = vec4(col, a);
 }`
+
+// A neutral 1 x 1 picture until the real hillshade comes (no shading).
+function grayPixel() {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 1
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#808080'
+  ctx.fillRect(0, 0, 1, 1)
+  return canvas
+}
 
 function paintedTexture(canvas, { mipmaps, anisotropy }) {
   const texture = new THREE.CanvasTexture(canvas)
@@ -260,6 +278,13 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
   const base = paintedTexture(baseCanvas, { mipmaps: true, anisotropy })
   const overlay = paintedTexture(overlayCanvas, { mipmaps: true, anisotropy })
   const detail = paintedTexture(detailCanvas, { mipmaps: true, anisotropy })
+  const hillshadeTexture = new THREE.CanvasTexture(grayPixel())
+  hillshadeTexture.colorSpace = THREE.NoColorSpace
+  hillshadeTexture.generateMipmaps = true
+  hillshadeTexture.minFilter = THREE.LinearMipmapLinearFilter
+  hillshadeTexture.anisotropy = anisotropy
+  let shadeBase = 0 // strength of the shading over the photograph (groundLook.reliefShading), times the relief setting below
+  let relief = 1
   const fine = paintedTexture(fineCanvas, { mipmaps: false, anisotropy: 1 }) // repainted often: no mipmaps to rebuild
   const { atlas, width, height } = horizonAtlas(terrain)
   const horizon = byteTexture(atlas, width, height)
@@ -318,6 +343,9 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
       uBase: { value: base },
       uOverlay: { value: overlay },
       uDetail: { value: detail },
+      uHillshade: { value: hillshadeTexture },
+      uShade: { value: 0 },
+      uShadeDetail: { value: 0 },
       uDetailOn: { value: 0 },
       uWindow: { value: new THREE.Vector3(0, 0, 2 * MAP_RADIUS_KM) },
       uMapKm: { value: 2 * MAP_RADIUS_KM },
@@ -335,6 +363,10 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
     },
   })
   const u = material.uniforms
+  function applyRelief() {
+    u.uShade.value = Math.min(1, shadeBase * relief)
+    u.uShadeDetail.value = shadeBase > 0 ? Math.min(0.9, 0.3 * (relief - 1)) : 0 // none at x1: the sharp imagery has its own shading
+  }
   return {
     material,
     baseCanvas,
@@ -357,9 +389,21 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
       u.uWindow.value.set(cx, cy, span)
     },
     /** Opacity of the layers over the ground (the photograph shows through) and the width of the fade at the rim (fraction of the radius). */
-    setLook({ layerAlpha, edgeFade }) {
+    setLook({ layerAlpha, edgeFade, reliefShading = 0 }) {
       u.uLayerAlpha.value = layerAlpha
       u.uEdgeFade.value = Math.max(edgeFade, 1e-4)
+      shadeBase = reliefShading
+      applyRelief()
+    },
+    /** The relief picture (hillshade of the LOLA map), laid over the photograph by the shader. */
+    setHillshade(image) {
+      hillshadeTexture.image = image
+      hillshadeTexture.needsUpdate = true
+    },
+    /** The relief setting (1 to 4) of the 2D map, where the relief cannot be raised: it strengthens the shading (x1 is the default look). */
+    setRelief(value) {
+      relief = value
+      applyRelief()
     },
     /**
      * The layers computed on the GPU for the moment shown: { sun, earth, go } (which ones), the unit vector toward the Sun, the
@@ -403,6 +447,7 @@ export function createCapMaterial(renderer, terrain, anisotropy) {
       u.uHole.value.set(rect ? rect.x : 0, rect ? rect.y : 0, rect ? rect.side : 0, rect ? 1 : 0)
     },
     dispose() {
+      hillshadeTexture.dispose()
       for (const t of [base, overlay, detail, fine, horizon, slopeDeg, main.texture, slopeLayer.texture]) t.dispose()
       target.dispose()
       bakeQuad.geometry.dispose()
