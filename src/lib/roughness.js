@@ -74,15 +74,17 @@ export function roughnessAt(r, xKm, yKm) {
 }
 
 // How the layer looks. The Sunlight, Earth and Slope layers are translucent color fills, so a strong fourth fill would turn into a muddle.
-// The roughness is a faint veil of one hue family (deep purple, magenta, pale pink) under the other layers, that only starts above
+// The roughness is a faint veil of earthy browns (dark brown, khaki, pale sand: dull colors, unlike the neon fills of the other layers and
+// far from the magenta of Optimal, the green of Feasible, the violet of the shadowed regions and the teal of the regions) under the other layers, that only starts above
 // ROUGH_FILL_FROM_M: after smoothing, the median of the region is 0.79 m, the 75th percentile 1.0 m, the 90th 1.25 m, the 99th 1.85 m
 // (measured 2026-11-15), so the smooth plains stay clear and the veil marks the broken ground. (Two other looks were tried and dropped:
 // the RMS about the plane of a 500 m cell, which mostly measures the relief of craters and varies little, and iso-lines, which threaded
 // the noise of the data instead of outlining regions.)
-// Keep --color-layer-rough-* in tokens.css in sync with ROUGH_COLORS.
+// Keep --color-layer-rough-* in tokens.css in sync with ROUGH_RGB (a test checks it).
 export const ROUGH_FILL_FROM_M = 0.95 // about the 70th percentile
 export const ROUGH_FILL_TO_M = 1.85 // the ramp ends here (about the 99th percentile of the region)
-export const ROUGH_COLORS = { low: [0.38, 0.19, 0.66], mid: [0.89, 0.25, 0.75], high: [1, 0.84, 0.94] }
+export const ROUGH_RGB = { low: [84, 56, 36], mid: [150, 112, 72], high: [245, 212, 158] } // keep in sync with --color-layer-rough-* in tokens.css
+export const ROUGH_COLORS = Object.fromEntries(Object.entries(ROUGH_RGB).map(([k, rgb]) => [k, rgb.map((v) => v / 255)]))
 export const ROUGH_FILL_MAX_ALPHA = 0.6
 
 /** GLSL for the cap and the fine zone: uniforms uRough (R = RMS deviation / uRoughScale), uRoughLow / Mid / High, and roughFill. */

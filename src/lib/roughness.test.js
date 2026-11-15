@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import {
   ROUGH_COLORS,
+  ROUGH_RGB,
   ROUGH_FILL_FROM_M,
   ROUGH_FILL_MAX_ALPHA,
   ROUGH_FILL_TO_M,
@@ -68,4 +69,21 @@ test('the committed file is a plausible roughness map of the region', () => {
   assert.equal(r.cellM, 500)
   assert.ok(roughnessAt(r, 0, 0) !== null)
   assert.equal(roughnessAt(r, 400, 0), null)
+})
+
+test('the roughness ramp of the interface (tokens.css) is the one the shader draws, and it keeps away from the other layers', () => {
+  const tokens = readFileSync(new URL('../styles/tokens.css', import.meta.url), 'utf8')
+  for (const key of ['low', 'mid', 'high']) {
+    const m = new RegExp(`--color-layer-rough-${key}:\\s*rgb\\((\\d+) (\\d+) (\\d+)\\)`).exec(tokens)
+    assert.ok(m, `--color-layer-rough-${key} is in tokens.css`)
+    assert.deepEqual(m.slice(1).map(Number), ROUGH_RGB[key], `${key} agrees with roughness.js`)
+  }
+  // Other layers' colors (tokens.css): the ramp must not look like Optimal (magenta), Feasible (green) or the data layers.
+  const others = { optimal: [255, 43, 214], feasible: [57, 255, 20], psr: [168, 130, 255], earth: [90, 110, 255], slope: [255, 40, 40] }
+  for (const [name, rgb] of Object.entries(others)) {
+    for (const key of ['low', 'mid', 'high']) {
+      const d = Math.hypot(...rgb.map((v, i) => v - ROUGH_RGB[key][i]))
+      assert.ok(d > 120, `roughness ${key} is too close to ${name} (${d.toFixed(0)})`)
+    }
+  }
 })

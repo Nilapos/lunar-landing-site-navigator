@@ -11,7 +11,7 @@ const LAYERS = [
 // Layers from NASA Moon Trek tiles, shown on the photo whatever the mode (they are data of the place, not of the moment).
 const DATA_LAYERS = [
   { key: 'psr', label: 'PSR', swatch: 'psr', title: 'Permanently shadowed regions (LROC NAC mosaic of the south pole, via NASA Moon Trek): the footprint of the regions that never see the Sun, with the images of their floors' },
-  { key: 'rough', label: 'Roughness', swatch: 'rough', title: 'Surface roughness: RMS height deviation (m) of the LOLA 20 m map from the mean of the 100 m around each pixel, over 500 m cells (our own metric): a faint purple-to-pink veil from 0.95 m up to 1.85 m and more, nothing on smoother ground' },
+  { key: 'rough', label: 'Roughness', swatch: 'rough', title: 'Surface roughness: RMS height deviation (m) of the LOLA 20 m map from the mean of the 100 m around each pixel, over 500 m cells (our own metric): a faint brown-to-sand veil from 0.95 m up to 1.85 m and more, nothing on smoother ground' },
 ]
 const BASE = { sun: true, earth: true, slope: true }
 const NO_MODE = { go: false, feasible: false }

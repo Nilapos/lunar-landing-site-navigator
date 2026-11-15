@@ -95,9 +95,9 @@
   --shadow-panel: 0 1px 0 var(--color-hairline) inset, 0 10px 30px rgb(0 0 0 / 0.5);
   --shadow-card: 0 16px 40px rgb(0 0 0 / 0.6);
   --color-layer-psr: rgb(168 130 255); /* permanently shadowed regions: footprint and outline over the photo */
-  --color-layer-rough-low: rgb(96 48 168); /* the roughness ramp, low to high: keep in sync with roughness.js */
-  --color-layer-rough-mid: rgb(226 64 190);
-  --color-layer-rough-high: rgb(255 214 240);
+  --color-layer-rough-low: rgb(84 56 36); /* the roughness ramp, low to high (earthy browns): keep in sync with ROUGH_RGB in roughness.js */
+  --color-layer-rough-mid: rgb(150 112 72);
+  --color-layer-rough-high: rgb(245 212 158);
   --blur-glass: 12px;
   --logo-height: 20px; /* the MOONWALK wordmark in the top bar (public/moonwalk-logo.svg, 8:1) */
   --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
