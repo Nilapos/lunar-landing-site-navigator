@@ -244,7 +244,8 @@ export function createMapScene(container, terrain, { onPick, onProbe, locateCell
   let hoverInfo = null
   const pointer = (e) => {
     const rect = el.getBoundingClientRect()
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    const zoom = rect.width / Math.max(el.clientWidth, 1) // the interface can be drawn with a CSS zoom (tokens.css): the rect is in screen pixels, the scene in layout pixels
+    return { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom }
   }
   function zoomAt(px, py, factor) {
     const before = screenToMap(px, py, target)

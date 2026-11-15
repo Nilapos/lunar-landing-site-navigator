@@ -3,6 +3,8 @@
    candidate regions as translucent teal squares with a bright cyan edge and a white bold name, and a thin
    lavender-blue polar graticule. Colors below were sampled from those videos. */
 :root {
+  /* The interface is drawn as it looks at a browser zoom of 80% on screens narrower than 1700 px (more of the dashboard fits, nothing overlaps). */
+  --ui-zoom: 1;
   /* Space and regolith: neutral greys, no blue tint */
   --color-black: #000;
   --color-white: #fff;
@@ -98,4 +100,11 @@
   --blur-glass: 12px;
   --logo-height: 20px; /* the MOONWALK wordmark in the top bar (public/moonwalk-logo.svg, 8:1) */
   --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
+}
+
+/* On screens narrower than 1700 px the whole interface is scaled to 80% (CSS zoom on #root: layout, text and canvases together). */
+@media (max-width: 1700px) {
+  :root {
+    --ui-zoom: 0.8;
+  }
 }

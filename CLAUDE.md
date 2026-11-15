@@ -168,6 +168,9 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   picture (`scene.snapshot(canvas)`, rendered synchronously because the drawing buffer is cleared after display) to the `view3d__ghost` canvas, which stays over the new scene while it compiles and fills its textures, then fades out (450 ms wait, 700 ms fade).
   The **graticule** of the 2D map is a hairline in the bluish `--color-grid-map` over a dark casing (`LOOK_2D` in mapGrid.js), 10 px values.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
+- UI scale (2026-11-15): below 1700 px of window width the whole interface is drawn at 80% (`--ui-zoom` in tokens.css, `#root { zoom }` in global.css), the look of a browser zoom of 80%: more fits, nothing overlaps. CSS zoom
+  keeps `clientWidth` in layout pixels but `getBoundingClientRect` in screen pixels, so pointer code divides by `rect.width / clientWidth` (`pointer()` in mapScene.js; the 3D scene uses ratios already); heights in `vh` are divided by
+  `--ui-zoom` (`.shell`, `.bestareas__body`). Checked in the browser pane: clicks on the 2D map pick the right site. Set `--ui-zoom: 1` to turn it off.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).
 - Artemis III identity (2026-11-14, Teo): the art direction follows NASA's Artemis III landing region videos (SVS 5013): candidate
