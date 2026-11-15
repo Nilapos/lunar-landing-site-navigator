@@ -213,7 +213,16 @@ export default function App() {
   } else if (tab === 'why') {
     content = <Why result={rangedA} requirements={requirements} timeline={timeline} />
   } else if (tab === 'mission') {
-    content = <MissionTab mission={mission} onMission={changeMission} requirements={requirements} overrides={overrides} onResetOverrides={() => setOverrides({})} />
+    content = (
+      <MissionTab
+        mission={mission}
+        onMission={changeMission}
+        requirements={requirements}
+        overrides={overrides}
+        onOverride={(patch) => setOverrides((o) => ({ ...o, ...patch }))}
+        onResetOverrides={() => setOverrides({})}
+      />
+    )
   } else if (tab === 'sites') {
     content = (
       <div className="stage__scroll">

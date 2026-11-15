@@ -99,6 +99,13 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   sources) or `hypothesis` (flagged in the Mission tab); the two generic entries reproduce `DEFAULT_REQUIREMENTS` exactly. `App.jsx` keeps
   `mission` and `overrides` (values typed in Settings) and derives `requirements`. The terrain verdict adds a rover term: 90% of the ground
   within 500 m must be under the drive slope. Teo fills the catalog and styles the Mission tab (`MissionTab.jsx`).
+  Real catalog (2026-11-15, Teo): landers Griffin, Blue Moon MK1, Nova-C, Blue Ghost, Starship HLS; rovers VIPER, FLIP, CLV-1, Pegasus; the generic lander stays the
+  default mission (base reference, pitch demo unchanged). Makers publish only part of the numbers, so each real vehicle says where each number comes from
+  (`values`, read with `valueOrigin`): `published`, `estimate` (worked out from a documented figure, the text says how) or `reference` (nothing documented: the value
+  of `src/data/vehicleReferences.js`, one place for every default and its source). Energy of a real vehicle = three numbers (panel area, efficiency, energy to collect
+  per day), turned into the `energy.js` spec by `solarSpec` (charge efficiency 0.9 and vertical panels facing the Sun fixed); Blue Moon MK1 (fuel cell) and Starship
+  HLS (nothing published) have `energy: null` and an `energyNote`. Every number of the Mission tab can be typed in (same `overrides` as Settings; the energy numbers
+  override `energy` as a whole) and shows its origin (`OriginMark`). The research notes behind the catalog are in `research/catalogue-final.json`.
 - Feasible layer (`src/lib/feasibility.js`, `useFeasibility.js`, tested): a fourth mode next to Optimal. A cell is feasible when it meets the power
   (battery / longest darkness), link (time and antenna rate) and terrain (landing slope, plus the rover drive slope) requirements over the whole
   period, with the verdict rules of verdict.js (worst ratio: ok from 1.2, marginal from 1, fail below). The period is sampled (90 samples), the

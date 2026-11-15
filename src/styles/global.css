@@ -570,8 +570,32 @@ a:hover { color: var(--color-accent-strong); }
 .mission__choice { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .mission__presets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .mission__table th, .mission__table td { padding: var(--space-1) var(--space-2); }
-.mission__changed { color: var(--color-warn); font-size: var(--text-xs); }
-.mission__vehicles { display: grid; gap: var(--space-3); }
+.mission__table tbody th { width: 40%; }
+.mission__value { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.mission__input { width: 7.5em; padding-top: 2px; padding-bottom: 2px; font-variant-numeric: tabular-nums; }
+select.mission__input { width: auto; }
+.mission__unit { color: var(--color-text-muted); font-size: var(--text-xs); min-width: 2.5em; }
+.mission__count { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
+.mission__count strong { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; margin-right: var(--space-1); }
+.mission__count-item--published strong { color: var(--color-text); }
+.mission__count-item--estimate strong, .mission__count-item--reference strong { color: var(--color-warn); }
+.mission__vehicles { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-3); }
+.mission__vehicle-title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.mission__agency { color: var(--color-text-muted); font-weight: 500; }
+.mission__subtitle { margin: var(--space-3) 0 var(--space-2); font-size: var(--text-2xs); font-weight: 600; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-text-faint); }
+.mission__facts { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 0; }
+.mission__fact { display: grid; gap: 2px; }
+.mission__fact dt { font-size: var(--text-2xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-text-faint); }
+.mission__fact dd { margin: 0; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.mission__energy { display: grid; gap: var(--space-2); }
+.mission__energy-field { display: grid; gap: 4px; }
+.mission__sources { font-size: var(--text-xs); }
+
+/* Where a number comes from (OriginMark): estimate and reference in orange, a number typed by the user in the accent color. */
+.origin { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-2xs); font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; cursor: help; }
+.origin--estimate, .origin--reference { color: var(--color-warn); }
+.origin--edited { color: var(--color-accent); }
+.origin__why { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .button--active { border-color: var(--color-accent); }
 
 /* What holds a site back (score card) and the Feasible layer */

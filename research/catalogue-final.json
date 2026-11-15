@@ -1,0 +1,879 @@
+{
+  "_about": "Real lander/rover catalog for the Mission tab (checked 2026-11-15). Every value is { value, isReference, origin, from }: origin 'published' = official spec (source in the vehicle's sources); 'estimate' = not published, derived from a documented figure (the 'from' text says which and how); 'reference' = nothing documented, default value of the app or of a comparable vehicle ('from' says which). isReference is true for 'estimate' and 'reference': the interface flags them. Every value is editable.",
+  "energyModel": {
+    "userInputs": {
+      "panelAreaM2": "solar panel area (m2)",
+      "panelEfficiencyPct": "panel efficiency (%)",
+      "dailyNeedKWh": "energy to collect per day (kWh/day), same as the Mission tab row 'Energy to collect per day'"
+    },
+    "mappingToEnergyJs": {
+      "panelAreaM2": "panelAreaM2",
+      "panelEfficiency": "panelEfficiencyPct / 100",
+      "consumption": "{ operatingW: dailyNeedKWh * 1000 / 24, survivalW: 0, operatingHoursPerDay: 24 }  -> neededWhPerDay = dailyNeedKWh * 1000",
+      "chargeEfficiency": "0.9 (fixed, not shown)",
+      "panel": "{ mode: 'vertical-tracking' } (fixed, not shown)",
+      "batteryWh": "the vehicle's batteryWh when official, else null"
+    },
+    "derivingAreaFromWatts": "when a maker publishes peak panel power P (W): panelAreaM2 = P / (1361 * efficiency), with 1361 W/m2 the solar constant already used in energy.js"
+  },
+  "references": {
+    "_why": "Values used when no official spec exists (isReference=true).",
+    "panelEfficiencyPct": {
+      "value": 28,
+      "source": "Spectrolab XTJ Prime datasheet: 30.7% at beginning of life, 26.7% at end of life; 28 is also the Generic lander's value",
+      "url": "https://www.spectrolab.com/photovoltaics/XTJ-Prime_Data_Sheet%20_07.27.22.pdf"
+    },
+    "panelAreaM2": {
+      "value": 2,
+      "source": "Generic lander of the app (hypothesis)"
+    },
+    "dailyNeedKWhLander": {
+      "value": 2.08,
+      "source": "Generic lander of the app: 200 W x 8 h + 30 W x 16 h"
+    },
+    "dailyNeedKWhRover": {
+      "value": 2.6,
+      "source": "VIPER hibernation floor: 5,420 Wh / 50 h = 108 W, x 24 h (NASA, Feb 2025)"
+    },
+    "landingSlopeMaxDeg": {
+      "value": 15,
+      "source": "app default (DEFAULT_REQUIREMENTS)"
+    },
+    "landingSequenceMin": {
+      "value": 10,
+      "source": "app default"
+    },
+    "survivalHours": {
+      "value": 240,
+      "source": "app default"
+    },
+    "minSunDeg": {
+      "value": 0,
+      "source": "app default"
+    },
+    "antenna": {
+      "value": "mga",
+      "source": "app default"
+    },
+    "dataRateNeededKbps": {
+      "value": 256,
+      "source": "app default"
+    },
+    "linkMinPerHour": {
+      "value": 30,
+      "source": "app default"
+    },
+    "minEarthDeg": {
+      "value": 0,
+      "source": "app default"
+    },
+    "driveSlopeMaxDeg": {
+      "value": 15,
+      "source": "VIPER nominal drive slope (NASA), used for rovers without a published value"
+    }
+  },
+  "landers": [
+    {
+      "id": "griffin",
+      "name": "Griffin",
+      "agency": "Astrobotic",
+      "payloadCapacityKg": {
+        "value": 625,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "landingSlopeMaxDeg": {
+        "value": 10,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "landingAccuracyM": {
+        "value": 100,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "landingSequenceMin": {
+        "value": 10,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (10 min)"
+      },
+      "survivalHours": {
+        "value": 240,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (240 h)"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "antenna": {
+        "value": "hga",
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "dataRateNeededKbps": {
+        "value": 256,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (256 kbps)"
+      },
+      "linkMinPerHour": {
+        "value": 30,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (30 min/h)"
+      },
+      "minEarthDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": {
+        "panelAreaM2": {
+          "value": 2,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Generic lander of the app (2 m2)"
+        },
+        "panelEfficiencyPct": {
+          "value": 28,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Space solar cells, Spectrolab XTJ Prime data sheet: 30.7% new, 26.7% end of life"
+        },
+        "dailyNeedKWh": {
+          "value": 2.08,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Generic lander of the app: 200 W x 8 h + 30 W x 16 h = 2.08 kWh"
+        },
+        "batteryWh": null
+      },
+      "notes": [
+        "Landing sites are selected with an effective slope of 10 deg or less; landing ellipse 100 m x 100 m; direct-to-Earth X-band link (Astrobotic user guide).",
+        "Energy: Astrobotic gives 1 W per kg of payload (625 W for a full load), so the array is at least 625 / (1361 x 0.28) = 1.64 m2; the reference 2 m2 is consistent with that.",
+        "Landing sequence: the guide mentions a 2 h powered descent; kept at the app default until the team decides.",
+        "Not used as estimates (kept at the reference), see the guide: payload data 10 kbps per kg (6,250 kbps for 625 kg, more than the app's X-band class and only while payloads are attached); data service about 7 h per 8 h cycle on the surface (ground station switching, not a need); the thermal range excludes the lunar night (Griffin is not designed to survive it, no figure)."
+      ],
+      "sources": [
+        {
+          "label": "Astrobotic, Lunar Landers Payload User's Guide v5.0 (Aug 2021)",
+          "url": "https://science.nasa.gov/wp-content/uploads/2023/11/astrobotic-lunar-landers-pug.pdf"
+        },
+        {
+          "label": "Astrobotic, Griffin lander",
+          "url": "https://www.astrobotic.com/lunar-delivery/landers/griffin-lander/"
+        }
+      ]
+    },
+    {
+      "id": "blue-moon-mk1",
+      "name": "Blue Moon MK1",
+      "agency": "Blue Origin",
+      "payloadCapacityKg": {
+        "value": 3000,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "landingSlopeMaxDeg": {
+        "value": 15,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (15 deg)"
+      },
+      "landingAccuracyM": {
+        "value": 100,
+        "isReference": true,
+        "origin": "estimate",
+        "from": "Blue Origin's goal for the MK1 pathfinder: precision landing within 100 m"
+      },
+      "landingSequenceMin": {
+        "value": 10,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (10 min)"
+      },
+      "survivalHours": {
+        "value": 240,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (240 h)"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "antenna": {
+        "value": "mga",
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (medium-gain)"
+      },
+      "dataRateNeededKbps": {
+        "value": 256,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (256 kbps)"
+      },
+      "linkMinPerHour": {
+        "value": 30,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (30 min/h)"
+      },
+      "minEarthDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": null,
+      "notes": [
+        "Payload up to 3 metric tons (Blue Origin).",
+        "energy = null on purpose: MK1 runs on an oxygen/hydrogen fuel cell (plus Power Towers > 10 kW), which the solar model cannot represent. The interface should say 'not solar: not modeled' instead of prefilling.",
+        "Carries VIPER (MK1-102) and the two Lunar Terrain Vehicles (MK1-103, MK1-104)."
+      ],
+      "sources": [
+        {
+          "label": "Blue Origin, Blue Moon Mark 1",
+          "url": "https://www.blueorigin.com/blue-moon/mark-1"
+        }
+      ]
+    },
+    {
+      "id": "nova-c",
+      "name": "Nova-C",
+      "agency": "Intuitive Machines",
+      "payloadCapacityKg": {
+        "value": 130,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "landingSlopeMaxDeg": {
+        "value": 10,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "landingAccuracyM": {
+        "value": null,
+        "isReference": true,
+        "origin": "reference",
+        "from": "Not published"
+      },
+      "landingSequenceMin": {
+        "value": 10,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (10 min)"
+      },
+      "survivalHours": {
+        "value": 10,
+        "isReference": true,
+        "origin": "estimate",
+        "from": "IM-1 (Odysseus): IM engineers expected 10 to 20 h of link after sunset on the battery; low end kept (Wikipedia, Nova-C)"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "antenna": {
+        "value": "mga",
+        "isReference": true,
+        "origin": "estimate",
+        "from": "S-band link to Intuitive Machines' Lunar Data Network (intuitivemachines.com/im-2): medium-gain class"
+      },
+      "dataRateNeededKbps": {
+        "value": 256,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (256 kbps)"
+      },
+      "linkMinPerHour": {
+        "value": 30,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (30 min/h)"
+      },
+      "minEarthDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": {
+        "panelAreaM2": {
+          "value": 0.52,
+          "isReference": true,
+          "origin": "estimate",
+          "from": "200 W peak from 3 panels (Wikipedia, Nova-C): 200 / (1361 x 0.28) = 0.52 m2"
+        },
+        "panelEfficiencyPct": {
+          "value": 28,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Space solar cells, Spectrolab XTJ Prime data sheet: 30.7% new, 26.7% end of life"
+        },
+        "dailyNeedKWh": {
+          "value": 2.08,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Generic lander of the app: 200 W x 8 h + 30 W x 16 h = 2.08 kWh"
+        },
+        "batteryWh": null
+      },
+      "notes": [
+        "Payload > 130 kg and landing on slopes up to 10 deg (Intuitive Machines, LPSC 2024).",
+        "Energy estimate from an unofficial source (Wikipedia): 200 W peak from 3 panels, so area = 200 / (1361 x 0.28) = 0.52 m2. Survival estimate: 10 h, low end of the 10-20 h of link after sunset IM expected for IM-1."
+      ],
+      "sources": [
+        {
+          "label": "Intuitive Machines, LPSC 2024 abstract 1931",
+          "url": "https://www.hou.usra.edu/meetings/lpsc2024/pdf/1931.pdf"
+        },
+        {
+          "label": "Wikipedia, Nova-C (unofficial, energy estimate only)",
+          "url": "https://en.wikipedia.org/wiki/Intuitive_Machines_Nova-C"
+        },
+        {
+          "label": "Intuitive Machines, IM-2 (communications)",
+          "url": "https://www.intuitivemachines.com/im-2"
+        }
+      ]
+    },
+    {
+      "id": "blue-ghost",
+      "name": "Blue Ghost",
+      "agency": "Firefly Aerospace",
+      "payloadCapacityKg": {
+        "value": 240,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "landingSlopeMaxDeg": {
+        "value": 15,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (15 deg)"
+      },
+      "landingAccuracyM": {
+        "value": null,
+        "isReference": true,
+        "origin": "reference",
+        "from": "Not published"
+      },
+      "landingSequenceMin": {
+        "value": 10,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (10 min)"
+      },
+      "survivalHours": {
+        "value": 5,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "antenna": {
+        "value": "hga",
+        "isReference": true,
+        "origin": "estimate",
+        "from": "One X-band antenna and three S-band antennas on Blue Ghost Mission 1 (Vulcan Wireless, supplier, via SatNews): high-gain X-band class"
+      },
+      "dataRateNeededKbps": {
+        "value": 256,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (256 kbps)"
+      },
+      "linkMinPerHour": {
+        "value": 30,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (30 min/h)"
+      },
+      "minEarthDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": {
+        "panelAreaM2": {
+          "value": 1.05,
+          "isReference": true,
+          "origin": "estimate",
+          "from": "400 W peak from 3 panels (Firefly): 400 / (1361 x 0.28) = 1.05 m2"
+        },
+        "panelEfficiencyPct": {
+          "value": 28,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Space solar cells, Spectrolab XTJ Prime data sheet: 30.7% new, 26.7% end of life"
+        },
+        "dailyNeedKWh": {
+          "value": 2.08,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Generic lander of the app: 200 W x 8 h + 30 W x 16 h = 2.08 kWh"
+        },
+        "batteryWh": null
+      },
+      "notes": [
+        "Payload up to 240 kg; link direct-to-Earth or through a relay (Firefly).",
+        "Survival: just over 5 hours of operations into the lunar night (Mission 1, Firefly).",
+        "Energy: 400 W peak from 3 panels (Firefly), so area = 400 / (1361 x 0.28) = 1.05 m2 (estimate, isReference)."
+      ],
+      "sources": [
+        {
+          "label": "Firefly, Blue Ghost",
+          "url": "https://fireflyspace.com/blue-ghost/"
+        },
+        {
+          "label": "Firefly, Blue Ghost Mission 1",
+          "url": "https://fireflyspace.com/missions/blue-ghost-mission-1/"
+        },
+        {
+          "label": "SatNews, Vulcan Wireless on Blue Ghost Mission 1 communications (Mar 2025)",
+          "url": "https://satnews.com/2025/03/03/vulcan-wireless-assists-u-s-return-to-the-moon-after-52-years-with-record-breaking-lunar-communications-on-blue-ghost-mission-1/"
+        }
+      ]
+    },
+    {
+      "id": "starship-hls",
+      "name": "Starship HLS",
+      "agency": "SpaceX",
+      "payloadCapacityKg": {
+        "value": null,
+        "isReference": true,
+        "origin": "reference",
+        "from": "Not published"
+      },
+      "landingSlopeMaxDeg": {
+        "value": 10,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "landingAccuracyM": {
+        "value": null,
+        "isReference": true,
+        "origin": "reference",
+        "from": "Not published"
+      },
+      "landingSequenceMin": {
+        "value": 10,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (10 min)"
+      },
+      "survivalHours": {
+        "value": 240,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (240 h)"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "antenna": {
+        "value": "mga",
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (medium-gain)"
+      },
+      "dataRateNeededKbps": {
+        "value": 256,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (256 kbps)"
+      },
+      "linkMinPerHour": {
+        "value": 30,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (30 min/h)"
+      },
+      "minEarthDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": null,
+      "notes": [
+        "Slope: NASA requirement, landing surface slope under 10 deg over 100 m; direct-with-Earth link, no relay assumed (NASA HLS update 2024).",
+        "energy = null on purpose: no official power figures, and the reference values (2 m2, 2 kWh/day) would be meaningless for a 50 m crewed ship. The interface should say 'not published'."
+      ],
+      "sources": [
+        {
+          "label": "NASA, Artemis HLS Update 2024",
+          "url": "https://ntrs.nasa.gov/api/citations/20240009596/downloads/ArtemisHLSUpdate_2024.pdf"
+        }
+      ]
+    }
+  ],
+  "rovers": [
+    {
+      "id": "viper",
+      "name": "VIPER",
+      "agency": "NASA",
+      "massKg": {
+        "value": 450,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "carriedBy": [
+        "blue-moon-mk1"
+      ],
+      "driveSlopeMaxDeg": {
+        "value": 15,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "survivalHours": {
+        "value": 96,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": {
+        "panelAreaM2": {
+          "value": 1.18,
+          "isReference": true,
+          "origin": "estimate",
+          "from": "450 W from the corner-facing array (NASA, Feb 2025): 450 / (1361 x 0.28) = 1.18 m2"
+        },
+        "panelEfficiencyPct": {
+          "value": 28,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Space solar cells, Spectrolab XTJ Prime data sheet: 30.7% new, 26.7% end of life"
+        },
+        "dailyNeedKWh": {
+          "value": 2.6,
+          "isReference": true,
+          "origin": "estimate",
+          "from": "VIPER hibernation floor (NASA, Feb 2025): 5,420 Wh battery / 50 h = 108 W, x 24 h = 2.6 kWh; the need while driving is higher"
+        },
+        "batteryWh": 5420
+      },
+      "notes": [
+        "Mass 450 kg; X-band direct-to-Earth over the Deep Space Network; drive slope up to 15 deg normally, 25-30 deg when necessary (NASA).",
+        "Energy, official: 450 W from a corner-facing array (320 W per array), battery 5,420 Wh, 9 h of shadowed operations or 50 h of hibernation on the battery (NASA, Feb 2025).",
+        "Energy, estimates: area = 450 / (1361 x 0.28) = 1.18 m2; daily need 2.6 kWh = hibernation floor (108 W x 24 h), the real need while driving is higher.",
+        "Survival: 96 h, the mission limit of NASA's lunar operations page (darkness longer than four Earth days ends the mission). The Feb 2025 briefing gives 50 h of hibernation on the battery; the team chose the mission limit."
+      ],
+      "sources": [
+        {
+          "label": "NASA, VIPER in depth",
+          "url": "https://science.nasa.gov/mission/viper/in-depth/"
+        },
+        {
+          "label": "NASA, VIPER lunar operations",
+          "url": "https://science.nasa.gov/mission/viper/lunar-operations/"
+        },
+        {
+          "label": "NASA, VIPER Industry Day technical briefing (Feb 2025)",
+          "url": "https://assets.science.nasa.gov/content/dam/science/psd/lunar-science/documents/2025-02-13_VIPER_Updated_Technical_Briefing_Presentation-Shared.pdf"
+        },
+        {
+          "label": "NASA, Blue Origin to deliver VIPER",
+          "url": "https://www.nasa.gov/news-release/nasa-selects-blue-origin-to-deliver-viper-rover-to-moons-south-pole/"
+        }
+      ]
+    },
+    {
+      "id": "flip",
+      "name": "FLIP",
+      "agency": "Astrolab",
+      "massKg": {
+        "value": 500,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "carriedBy": [
+        "griffin"
+      ],
+      "driveSlopeMaxDeg": {
+        "value": 15,
+        "isReference": true,
+        "origin": "reference",
+        "from": "VIPER's published drive slope (15 deg), used for rovers without a figure"
+      },
+      "survivalHours": {
+        "value": 100,
+        "isReference": true,
+        "origin": "estimate",
+        "from": "Designed to survive 100 hours of lunar night conditions (Spaceflight Now, Jun 2026)"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": {
+        "panelAreaM2": {
+          "value": 2,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Generic lander of the app (2 m2)"
+        },
+        "panelEfficiencyPct": {
+          "value": 28,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Space solar cells, Spectrolab XTJ Prime data sheet: 30.7% new, 26.7% end of life"
+        },
+        "dailyNeedKWh": {
+          "value": 2.6,
+          "isReference": true,
+          "origin": "reference",
+          "from": "VIPER's hibernation floor (2.6 kWh/day), used for rovers without a figure"
+        },
+        "batteryWh": null
+      },
+      "notes": [
+        "Mass nearly half a metric ton, payload 30 kg (Astrolab); carried by Griffin (NASA Moon Base II).",
+        "Survival: designed to survive 100 hours of lunar night (Spaceflight Now, Jun 2026), used as an estimate. One vertical deployable solar panel, battery sized for the night, no figures."
+      ],
+      "sources": [
+        {
+          "label": "Astrolab, FLIP joins Griffin-1 (Feb 2025)",
+          "url": "https://www.astrolab.space/2025/02/05/astrolabs-flip-rover-joins-astrobotics-griffin-1-to-the-moon/"
+        },
+        {
+          "label": "NASA, Moon Base update",
+          "url": "https://www.nasa.gov/news-release/nasa-provides-update-on-moon-base-rovers-landers-missions/"
+        },
+        {
+          "label": "Spaceflight Now, next-gen astronaut Moon rovers (Jun 2026)",
+          "url": "https://spaceflightnow.com/2026/06/26/next-gen-astronaut-moon-rovers-aim-for-deployment-ahead-of-artemis-4-crew-arrival/"
+        }
+      ]
+    },
+    {
+      "id": "clv-1",
+      "name": "CLV-1",
+      "agency": "Astrolab",
+      "massKg": {
+        "value": 950,
+        "isReference": false,
+        "origin": "published",
+        "from": "Published: see the vehicle's sources"
+      },
+      "carriedBy": [
+        "blue-moon-mk1"
+      ],
+      "driveSlopeMaxDeg": {
+        "value": 20,
+        "isReference": true,
+        "origin": "estimate",
+        "from": "NASA requirement for the first-phase Lunar Terrain Vehicles: slopes up to 20 degrees (NASA Moon Base)"
+      },
+      "survivalHours": {
+        "value": 150,
+        "isReference": true,
+        "origin": "estimate",
+        "from": "NASA requirement for the first-phase Lunar Terrain Vehicles: survive up to 150 hours in shadow (NASA Moon Base)"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": {
+        "panelAreaM2": {
+          "value": 2,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Generic lander of the app (2 m2)"
+        },
+        "panelEfficiencyPct": {
+          "value": 28,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Space solar cells, Spectrolab XTJ Prime data sheet: 30.7% new, 26.7% end of life"
+        },
+        "dailyNeedKWh": {
+          "value": 2.6,
+          "isReference": true,
+          "origin": "reference",
+          "from": "VIPER's hibernation floor (2.6 kWh/day), used for rovers without a figure"
+        },
+        "batteryWh": null
+      },
+      "notes": [
+        "Mass max 950 kg, 10 km/h on level ground (Astrolab); NASA gives about 2,000 lb (907 kg). Delivered by Blue Moon MK1 (MK1-103/104).",
+        "Not official: slopes up to 20 deg (press). Energy fully at reference values: a crewed rover twice VIPER's mass likely needs more.",
+        "Survival 150 h and drive slope 20 deg: NASA's requirements for the first-phase LTVs (NASA Moon Base), used as estimates until the maker publishes its own."
+      ],
+      "sources": [
+        {
+          "label": "Astrolab, NASA selects Astrolab (May 2026)",
+          "url": "https://www.astrolab.space/2026/05/26/nasa-selects-astrolab-to-provide-lunar-rover-for-artemis-astronauts-return-to-the-moon/"
+        },
+        {
+          "label": "Blue Origin, Blue Moon Mark 1",
+          "url": "https://www.blueorigin.com/blue-moon/mark-1"
+        },
+        {
+          "label": "NASA, Moon Base systems (LTV requirements)",
+          "url": "https://www.nasa.gov/moonbase-systems/"
+        }
+      ]
+    },
+    {
+      "id": "pegasus",
+      "name": "Pegasus",
+      "agency": "Lunar Outpost",
+      "massKg": {
+        "value": null,
+        "isReference": true,
+        "origin": "reference",
+        "from": "Not published"
+      },
+      "carriedBy": [
+        "blue-moon-mk1"
+      ],
+      "driveSlopeMaxDeg": {
+        "value": 20,
+        "isReference": true,
+        "origin": "estimate",
+        "from": "NASA requirement for the first-phase Lunar Terrain Vehicles: slopes up to 20 degrees (NASA Moon Base)"
+      },
+      "survivalHours": {
+        "value": 150,
+        "isReference": true,
+        "origin": "estimate",
+        "from": "NASA requirement for the first-phase Lunar Terrain Vehicles: survive up to 150 hours in shadow (NASA Moon Base)"
+      },
+      "minSunDeg": {
+        "value": 0,
+        "isReference": true,
+        "origin": "reference",
+        "from": "App default (0 deg)"
+      },
+      "energy": {
+        "panelAreaM2": {
+          "value": 2,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Generic lander of the app (2 m2)"
+        },
+        "panelEfficiencyPct": {
+          "value": 28,
+          "isReference": true,
+          "origin": "reference",
+          "from": "Space solar cells, Spectrolab XTJ Prime data sheet: 30.7% new, 26.7% end of life"
+        },
+        "dailyNeedKWh": {
+          "value": 2.6,
+          "isReference": true,
+          "origin": "reference",
+          "from": "VIPER's hibernation floor (2.6 kWh/day), used for rovers without a figure"
+        },
+        "batteryWh": null
+      },
+      "notes": [
+        "Operational for up to a year (NASA); batteries by GM, no figures. Delivered by Blue Moon MK1 (MK1-103/104).",
+        "Energy fully at reference values.",
+        "Survival 150 h and drive slope 20 deg: NASA's requirements for the first-phase LTVs (NASA Moon Base), used as estimates until the maker publishes its own."
+      ],
+      "sources": [
+        {
+          "label": "NASA, Moon Base update",
+          "url": "https://www.nasa.gov/news-release/nasa-provides-update-on-moon-base-rovers-landers-missions/"
+        },
+        {
+          "label": "Blue Origin, Blue Moon Mark 1",
+          "url": "https://www.blueorigin.com/blue-moon/mark-1"
+        },
+        {
+          "label": "NASA, Moon Base systems (LTV requirements)",
+          "url": "https://www.nasa.gov/moonbase-systems/"
+        }
+      ]
+    }
+  ],
+  "missions": [
+    {
+      "id": "griffin-flip",
+      "name": "Griffin + FLIP (Moon Base II)",
+      "landerId": "griffin",
+      "roverId": "flip"
+    },
+    {
+      "id": "mk1-viper",
+      "name": "Blue Moon MK1 + VIPER (MK1-102)",
+      "landerId": "blue-moon-mk1",
+      "roverId": "viper"
+    },
+    {
+      "id": "mk1-clv1",
+      "name": "Blue Moon MK1 + CLV-1 (LTV)",
+      "landerId": "blue-moon-mk1",
+      "roverId": "clv-1"
+    },
+    {
+      "id": "mk1-pegasus",
+      "name": "Blue Moon MK1 + Pegasus (LTV)",
+      "landerId": "blue-moon-mk1",
+      "roverId": "pegasus"
+    },
+    {
+      "id": "nova-c",
+      "name": "Nova-C, no rover",
+      "landerId": "nova-c",
+      "roverId": null
+    },
+    {
+      "id": "blue-ghost",
+      "name": "Blue Ghost, no rover",
+      "landerId": "blue-ghost",
+      "roverId": null
+    },
+    {
+      "id": "starship-hls",
+      "name": "Starship HLS, no rover",
+      "landerId": "starship-hls",
+      "roverId": null
+    }
+  ]
+}
