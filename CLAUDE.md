@@ -116,6 +116,12 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   but the hover test on the 130 000-triangle cap mesh (three's raycaster) cost 13 ms at every pointer move: replaced by `pickCap` (polarSky.js, tested), a march through the thin shell of the
   height field (0.01 to 0.1 ms). Every step of the timeline re-renders the whole app: `evaluate` is memoized, the day marks of `TimelineBar` too, and the pins are only rebuilt when what they
   show changes (`pinsShownRef`). The global Moon picture is 2048 x 1024 (0.8 MB) instead of 4096 x 2048 (3 MB, 43 MB of GPU memory with mipmaps). If you change the sun / Earth / Optimal rules in `illumination.js`, change `capMaterial.js` too.
+  Third pass (2026-11-15): the live layers are baked once per step of the timeline into a 256 x 256 render target (`BAKE_FRAGMENT`), so the cap's shader, run for every pixel of every
+  frame, only reads textures. Frames are drawn **on demand** (`dirty` / `invalidate` in polarSkyScene.js: camera change, flight, any call from outside the scene, which are all wrapped at the end of
+  `createPolarSkyScene`; a still scene is redrawn every 250 ms as a safety net): if you add a way to change what is drawn that does not go through the returned API, call `invalidate()`. `adaptResolution` lowers
+  the pixel ratio (down to 0.75) when continuous frames come slower than about 40 per second, and raises it again slowly, never above the level that was too slow. The cards over the 3D view
+  (`.skycard`, `.scorecard`, `.bestareas`) have no `backdrop-filter` any more (the browser re-blurred the area behind them every time the canvas changed) and use the opaque-enough
+  `--color-surface-card`. The sky sphere is drawn after the Moon and the cap so its pixels hidden by them are rejected by the depth test. Do not put a `backdrop-filter` back on something over the canvas.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
   x1 or x2, plus `ComparisonTable` (A vs B, better value highlighted).

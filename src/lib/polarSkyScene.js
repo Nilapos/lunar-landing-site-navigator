@@ -30,6 +30,8 @@ import { zoneHeightAt, zoneIndices, zonePositions } from './zones.js'
 import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeReticleCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
 import { levelColor, makeLabel, selectionColor } from './terrainScene.js'
 
+const IDLE_RENDER_MS = 250 // a still scene is redrawn only this often (a safety net: every change asks for a frame by itself)
+const MIN_PIXEL_RATIO = 0.75
 const FAR_KM = 3000 // beyond this distance from its target the camera sees the Moon as a globe: no fine data to load
 const SEAM_DEG = 33 // the two Moon photos meet 33 degrees from the south pole (latitude -57)
 const RAD = Math.PI / 180
@@ -97,6 +99,14 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   let savedOrbit = null
   let focus = null // { lat, lon, sunVisible, earthVisible }: the site the lines start from
 
+  // Frames are drawn on demand: while the camera moves, a flight runs or something changed (every call from outside, see the end of
+  // this function), not 60 times a second for a still picture. A canvas that does not change also lets the browser keep the blurred
+  // or translucent panels laid over it as they are.
+  let dirty = true
+  let lastRenderAt = 0
+  const invalidate = () => {
+    dirty = true
+  }
   const renderer = new THREE.WebGLRenderer({ antialias: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)) // beyond that the fill rate costs more than the sharpness shows
   container.appendChild(renderer.domElement)
@@ -110,6 +120,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   controls.minDistance = 10
   controls.maxDistance = 9000
   controls.maxPolarAngle = Math.PI * 0.47
+  controls.addEventListener('change', invalidate) // any move of the camera, damping included
 
   // Camera poses around the pole, as spherical coordinates around a target: radius, polar angle from the vertical of the
   // pole (0 = straight above), azimuth. "orbit" looks over the pole toward lon 0 where the Earth hangs; "top" looks straight
@@ -184,7 +195,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   scene.add(new THREE.AmbientLight(0xffffff, 0.1)) // a little earthshine: the night side is dark, not invisible
 
   // --- Ground: the cap (its pictures are combined by the GPU, see capMaterial.js) and the smooth sphere around it.
-  const ground = createCapMaterial(terrain, renderer.capabilities.getMaxAnisotropy())
+  const ground = createCapMaterial(renderer, terrain, renderer.capabilities.getMaxAnisotropy())
 
   const positions = capPositions(terrain, exaggeration)
   let capBounds = capRadii(positions, N) // for pickCap: where a ray meets the cap
@@ -316,6 +327,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     moon.visible = false
     orbitParts.splice(orbitParts.indexOf(moon), 1)
     orbitParts.push(...moonPhotoMeshes)
+    invalidate()
   })
 
   // Sky: a faint Milky Way and three layers of stars (many faint, some medium, a few bright and glowing), all at the
@@ -325,7 +337,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     new THREE.SphereGeometry(98000, 48, 24),
     new THREE.MeshBasicMaterial({ map: canvasTexture(makeMilkyWayCanvas()), side: THREE.BackSide, depthWrite: false }),
   )
-  milkyWay.renderOrder = -3
+  milkyWay.renderOrder = 5 // after the Moon and the cap: its pixels behind them are rejected by the depth test, not shaded
   skyDome.add(milkyWay)
   const starSprite = canvasTexture(makeStarSpriteCanvas())
   const STAR_SIZES = [3, 4.4, 9]
@@ -635,12 +647,14 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   let hoverEvent = null // the last pointer move, handled once per frame
   let hoverCell = null
   const onDown = (e) => {
+    invalidate()
     downAt = { x: e.clientX, y: e.clientY }
     dragging = true
     controls.enableZoom = true // the wheel only zooms after a click, so scrolling the page does not move the camera
   }
   const onMove = (e) => {
     if (view) {
+      invalidate()
       // Site view: dragging turns the head (the sky follows the pointer).
       if (!dragging) return
       const degPerPixel = camera.fov / el.clientHeight
@@ -652,6 +666,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
   // Site view: the wheel changes the field of view (after a click, like the orbit zoom).
   const onWheel = (e) => {
     if (!view || !controls.enableZoom) return
+    invalidate()
     e.preventDefault()
     camera.fov = Math.min(Math.max(camera.fov * Math.exp(e.deltaY * 0.001), 6), 80)
     camera.updateProjectionMatrix()
@@ -689,13 +704,49 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
     el.style.height = '100%'
     camera.aspect = w / h
     camera.updateProjectionMatrix()
+    invalidate()
   }
   const observer = new ResizeObserver(resize)
   observer.observe(container)
   resize()
 
+  // Adaptive resolution: while the picture is redrawn continuously (a drag, a flight, a play), if frames come slower than about
+  // 40 per second the pixel ratio is lowered step by step (never back above the level that was too slow), and raised again slowly
+  // when frames come fast. A weak graphics card then gets a slightly softer picture instead of a jerky one.
+  let pixelRatio = renderer.getPixelRatio()
+  let ceilingRatio = pixelRatio
+  let frameAverage = 16.7
+  let fastFrames = 0
+  let lockUntil = 0
+  function adaptResolution(now) {
+    const dt = now - lastRenderAt
+    if (dt > 60) return // a first frame after a pause says nothing about the speed
+    frameAverage = frameAverage * 0.9 + dt * 0.1
+    if (now < lockUntil) return
+    let next = pixelRatio
+    if (frameAverage > 26 && pixelRatio > MIN_PIXEL_RATIO) {
+      ceilingRatio = Math.min(ceilingRatio, pixelRatio * 0.92)
+      next = Math.max(MIN_PIXEL_RATIO, pixelRatio * 0.8)
+      fastFrames = 0
+      lockUntil = now + 800
+    } else if (frameAverage < 17.5 && pixelRatio < ceilingRatio) {
+      if (++fastFrames >= 120) {
+        next = Math.min(ceilingRatio, pixelRatio * 1.1)
+        fastFrames = 0
+        lockUntil = now + 3000
+      }
+    } else fastFrames = 0
+    if (next !== pixelRatio) {
+      pixelRatio = next
+      renderer.setPixelRatio(pixelRatio)
+      resize()
+      frameAverage = 16.7
+    }
+  }
   renderer.setAnimationLoop(() => {
-    stepTween(performance.now())
+    const frameStart = performance.now()
+    stepTween(frameStart)
+    if (tween) dirty = true
     if (!view) controls.update()
     if (hoverEvent) {
       pointerRay(hoverEvent)
@@ -739,11 +790,15 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
         onNear?.(near)
       }
     }
+    if (!dirty && frameStart - lastRenderAt < IDLE_RENDER_MS) return
+    dirty = false
+    adaptResolution(frameStart)
+    lastRenderAt = frameStart
     updateSky()
     renderer.render(scene, camera)
   })
 
-  return {
+  const api = {
     /** The ground of the cap (capMaterial.js): its canvases are painted by groundTexture.js, its layer and hole are set here. */
     ground,
     setExaggeration(value) {
@@ -859,7 +914,10 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
      * Profiling aid (works while the page is hidden, where the animation loop is paused): renders `frames` frames synchronously,
      * waiting for the GPU each time, and returns the average ms per frame for the whole scene and with one part left out at a time.
      */
-    benchmark(frames = 20) {
+    benchmark(frames = 20, pixelRatio = renderer.getPixelRatio()) {
+      const originalRatio = renderer.getPixelRatio()
+      renderer.setPixelRatio(pixelRatio)
+      renderer.setSize(container.clientWidth, container.clientHeight, false)
       const gl = renderer.getContext()
       const px = new Uint8Array(4)
       const measure = () => {
@@ -881,11 +939,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
         if (name === 'moon') moonPhotoMeshes.forEach((m, i) => (m.visible = was[i]))
         else part.visible = was
       }
-      const ratio = renderer.getPixelRatio()
-      renderer.setPixelRatio(1)
-      renderer.setSize(container.clientWidth, container.clientHeight, false)
-      result.pixelRatio1 = measure()
-      renderer.setPixelRatio(ratio)
+      renderer.setPixelRatio(originalRatio)
       renderer.setSize(container.clientWidth, container.clientHeight, false)
       const t0 = performance.now()
       for (let i = 0; i < 20; i++) {
@@ -925,4 +979,19 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, onPin
       el.remove()
     },
   }
+  // Any call from outside (the interface, an effect) may change what is drawn: it asks for a frame.
+  const askForFrames = (object) => {
+    for (const key of Object.keys(object)) {
+      const value = object[key]
+      if (typeof value === 'function') {
+        object[key] = (...args) => {
+          invalidate()
+          return value(...args)
+        }
+      }
+    }
+  }
+  askForFrames(api)
+  askForFrames(api.ground)
+  return api
 }
