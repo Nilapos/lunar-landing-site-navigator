@@ -16,6 +16,7 @@ export const DEFAULT_REQUIREMENTS = {
   landingMinutes: 10, // Sun and Earth both needed for the landing sequence
   maxSlopeDeg: 15, // steepest slope the lander can land on (within about 100 m of the landing point)
   driveSlopeDeg: null, // steepest slope the rover can drive (null: no rover)
+  missionDays: 30, // how long after landing the scores look (one lunar day-night cycle, 29.5 d); Infinity = to the end of the period loaded
   energy: null, // { lander, rover }: each vehicle's power.energy specs (see vehicles.js), or null: no energy balance
 }
 

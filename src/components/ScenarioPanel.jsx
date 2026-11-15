@@ -23,7 +23,7 @@ function countdown(state, subject) {
 // `result` comes from useScenario, `evaluation` from evaluateScenario; `state` / `onChange` hold the controls.
 // `momentMs`: the moment of the shared timeline (bottom bar) that the sky view shows, null until it is loaded.
 // `landingNote`: set when the scores are for a landing at that moment (they follow the timeline) instead of at the start of the period.
-export default function ScenarioPanel({ title, state, onChange, result, evaluation, momentMs = null, landingNote = false, embedded = false, custom = null }) {
+export default function ScenarioPanel({ title, state, onChange, result, evaluation, momentMs = null, missionDays = Infinity, landingNote = false, embedded = false, custom = null }) {
   const { profile, data, error, loading, analysis } = result
 
   const update = (patch) => onChange({ ...state, ...patch })
@@ -51,7 +51,7 @@ export default function ScenarioPanel({ title, state, onChange, result, evaluati
     body = (
       <>
         {landingNote && momentMs !== null && (
-          <p className="panel__detail">Scores if landing at {formatUtc(momentMs)} (the moment of the timeline at the bottom): measured over the period after it.</p>
+          <p className="panel__detail">Scores if landing at {formatUtc(momentMs)} (the moment of the timeline at the bottom): measured over the {Number.isFinite(missionDays) ? `${missionDays} days of the mission` : 'period'} after it (mission length: Settings).</p>
         )}
         <ScoreBar evaluation={evaluation} />
         {!embedded && (

@@ -4,7 +4,7 @@
 // A full verdict takes a few milliseconds (it measures the rest of the period), so the moments are filtered first by two cheap
 // conditions that a Feasible moment always meets:
 //   - the landing window needs the Sun and the Earth both above the local horizon at the moment of landing;
-//   - Night endurance needs every night still ahead to be short enough: a darkness that starts after the moment and lasts longer than
+//   - Night endurance needs every night still ahead (during the mission) to be short enough: a darkness that starts after the moment and lasts longer than
 //     battery autonomy / 1.2 (the green threshold, scores.js) is counted by the verdict, so no moment before it can be Feasible.
 // Verdicts already computed are kept in a cache (a Map) for the same site, period and requirements.
 import { evaluateFromMoment } from './momentScores.js'
@@ -21,8 +21,11 @@ function nightsAhead(sun) {
   return { gaps, longestFrom }
 }
 
-/** Longest darkness (ms) that starts at or after tMs. */
-function longestNightAfter(nights, tMs) {
+/**
+ * Longest darkness (ms) that starts at or after tMs, and before the end of the mission (tMs + missionDays; a night that goes on after that
+ * counts up to it). A necessary condition only: the verdict decides.
+ */
+function longestNightAfter(nights, tMs, missionDays) {
   let lo = 0
   let hi = nights.gaps.length
   while (lo < hi) {
@@ -30,7 +33,13 @@ function longestNightAfter(nights, tMs) {
     if (nights.gaps[mid].start < tMs) lo = mid + 1
     else hi = mid
   }
-  return nights.longestFrom[lo]
+  if (!Number.isFinite(missionDays)) return nights.longestFrom[lo]
+  const endMs = tMs + missionDays * 24 * HOUR
+  let longest = 0
+  for (let i = lo; i < nights.gaps.length && nights.gaps[i].start < endMs; i++) {
+    longest = Math.max(longest, Math.min(nights.gaps[i].length, endMs - nights.gaps[i].start))
+  }
+  return longest
 }
 
 /**
@@ -50,7 +59,7 @@ export function verdictAt(result, requirements, tMs, cache) {
   const margin = cache.both.get(tMs)
   const maxNightMs = (requirements.batteryHours * HOUR) / (1 + MARGIN)
   let level = 'fail'
-  if (margin !== undefined && margin > 0 && longestNightAfter(cache.nights, tMs) <= maxNightMs) {
+  if (margin !== undefined && margin > 0 && longestNightAfter(cache.nights, tMs, requirements.missionDays) <= maxNightMs) {
     level = evaluateFromMoment(result, requirements, tMs)?.overall ?? 'fail'
   }
   cache.verdicts.set(tMs, level)

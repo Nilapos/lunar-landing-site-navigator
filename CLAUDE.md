@@ -36,6 +36,12 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 - The range of dates of the timeline is the period of the sky view (2026-11-15, `src/lib/rangeResult.js`, tested): `restrictToRange` cuts scenario A's series to the range and analyzes it again (`rangedA` in `App.jsx`), and the Sky card,
   the Why tab, the "Feasible" step and the best landing areas (which search the range's samples) all measure "if we land at this moment" up to the END OF THE RANGE, not of the whole period loaded. Before, a narrowed range made the
   list of best areas say "199, Feasible" and the card "156, Not feasible" for the same place. In Compare mode the Analysis tab and the comparison table keep whole periods (A and B are compared over the same kind of period).
+- Mission length (2026-11-15, `requirements.missionDays`, 30 days by default = one lunar day-night cycle, editable in Settings; `DEFAULT_REQUIREMENTS` in verdict.js): every "if we land at this moment" figure (the Sky card, Why, the "Feasible"
+  step, the best landing areas, the hover card, the Feasible layer, the pins and ranking of the sites) is measured over the MISSION that follows the landing: `missionDays` after the moment, or to the end of the range if sooner
+  (`analyzeFromMoment` / `evaluateFromMoment` in momentScores.js; `Infinity` = to the end of the period, the old behavior). Why: with the default period of a lunar year, "to the end of the period" made a landing in November
+  fail on the nights of the following October, so only the last weeks of the period could ever be feasible (and the Feasible layer, which asked every cell to hold over the whole period, lit nothing at all: 0 of 50 960 cells). The
+  numbers are not vehicle data: `origin.missionDays` is 'app'. With the default requirements (battery 240 h, Earth link 30 min per hour) feasible landings still only exist in a window of about two weeks in October 2027 on the year
+  range, and every month with a battery of 480 h: that is the physics of these requirements, not a bug.
 - Slopes: `slopeStats` in `terrain.js` (LOLA **20 m** since 2026-11-15, within 100 m of the site; the horizon profiles are still from the 80 m map), recomputed alone with
   `node scripts/compute-horizons.mjs "LOLA data/ldem_80s_20m/ldem_80s_20m.img" --slopes-only`; without the flag the script also recomputes the horizons (then give it the 80 m map), precomputed with the horizons
   into `src/data/site-terrain.json` by `scripts/compute-horizons.mjs` (rerun it when sites change).
@@ -56,7 +62,7 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
 - Polar sky view (phase A of `BRIEF-V2.md`, done): `PolarSky` is the only 3D view (the old Terrain view is gone: its "from above" look is the "top" camera), fed by one
   timeline (`src/lib/useTimeline.js`) and one ground painting (`src/lib/groundTexture.js`). `src/lib/polarSky.js` (tested) holds the
   geometry and wording (cap vertices on the sphere, true direction and angular size of the bodies, cause text), `src/lib/cellProbe.js`
-  (tested) the hover card of a 2.4 km cell (rules of `verdict.js` / `scores.js`), `src/lib/polarSkyScene.js` the three.js scene with
+  (tested) the hover card of a cell (the same evaluation as the Sky card and the click: a landing at the moment shown over the mission, 4 requirements, via `cellStats` of pointSite.js), `src/lib/polarSkyScene.js` the three.js scene with
   two cameras: orbit, and standing on the site of scenario A with its real horizon profile as the skyline. Earth, Sun glare and
   ground textures are drawn by code (`src/lib/skyTextures.js`): stylized, no downloaded asset.
 - Dashboard shell (BRIEF-V2 phases B to E, then the minimal redesign of 2026-11-14): `App.jsx` composes `Shell` (slim top bar with a site chip, rail of tabs
@@ -106,11 +112,14 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   per day), turned into the `energy.js` spec by `solarSpec` (charge efficiency 0.9 and vertical panels facing the Sun fixed); Blue Moon MK1 (fuel cell) and Starship
   HLS (nothing published) have `energy: null` and an `energyNote`. Every number of the Mission tab can be typed in (same `overrides` as Settings; the energy numbers
   override `energy` as a whole) and shows its origin (`OriginMark`). The research notes behind the catalog are in `research/catalogue-final.json`.
-- Feasible layer (`src/lib/feasibility.js`, `useFeasibility.js`, tested): a fourth mode next to Optimal. A cell is feasible when it meets the power
-  (battery / longest darkness), link (time and antenna rate) and terrain (landing slope, plus the rover drive slope) requirements over the whole
-  period, with the verdict rules of verdict.js (worst ratio: ok from 1.2, marginal from 1, fail below). The period is sampled (90 samples), the
-  2.4 km map is computed in slices by `useFeasibility`, the 500 m chunks and the zones synchronously (cached). The landing window is not part of it.
-  The score card now says what holds a site back (`Blockers` in ScoreCard.jsx): the verdict is the worst requirement, not the average score.
+- Feasible layer (`src/lib/feasibility.js`, `useFeasibility.js`, tested): a fourth mode next to Optimal. It answers "if we land at the moment shown on the timeline, which cells hold up?": a cell is feasible when it meets the power
+  (battery / longest darkness ahead), link (Earth time per hour and antenna rate), landing window (Sun and Earth together at the landing, for how long) and terrain (landing slope, plus the rover drive slope) requirements over the
+  mission that follows (`missionDays`, or to the end of the range), with the verdict rules of verdict.js (worst ratio: ok from 1.2, marginal from 1, fail below). It used to ask for the requirements over the WHOLE period: nothing lit
+  on a lunar year. Speed: the Sun and Earth visibility of every cell is computed ONCE for the range, one bit per cell and sample (`createPrep` / `fillBits`, in slices of 40 ms by `useFeasibility`, about 9 s for the 2.4 km map on a year,
+  at most 360 samples: hourly up to 15 days, a day for a lunar year; cells steeper than the slope limits are skipped, they fail whatever the sky does), then the verdict for any moment is a few bit operations per cell (`levelsAt`,
+  about 11 ms for the 51 000 cells), so the layer follows the slider live; the 500 m chunks and the zones do the same per chunk (240 samples, cached per chunk). `cellRatios` is tested against the real verdict (`evaluateFromMoment`)
+  to 4%. It is an overview: durations are accurate to about one sampling step (a day on a lunar year), so a place near a limit can differ from the precise analysis of its Sky card.
+  The score card says what holds a site back (`Blockers` in ScoreCard.jsx): the verdict is the worst requirement, not the average score.
 - Real Moon around the polar cap: two LRO WAC mosaics from NASA Moon Trek (public WMTS, CORS open), stitched once from tile level 3 and committed:
   `public/moon-wac-2048.jpg` (global, equirectangular, 2048 x 1024 = tile level 2, layer LRO_WAC_Mosaic_Global_303ppd_v02; it was 4096 x 2048 until 2026-11-15, lowered for smoothness) and `public/moon-wac-south-2048.jpg` (south polar,
   polar stereographic, layer LRO_WAC_Mosaic_SPole60_100m_v02). `polarSkyScene.js` draws the sphere in two meshes meeting 33 degrees from the pole

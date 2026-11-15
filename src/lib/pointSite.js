@@ -31,20 +31,14 @@ function cellUnder(latDeg, lonDeg, terrain, fineChunks) {
 }
 
 /**
- * The point (lat, lon in degrees) as a site that useScenario and the views understand, or null outside the data.
- *   terrain: loadTerrain3d (2.4 km grid);  fineChunks: the loaded 500 m chunks (may be empty).
- * Returns { id, custom: true, name, shortName, lat, lon, profile (360 deg values), terrainStats, note, sources }.
+ * What the analysis needs to know about a cell of a grid (the 2.4 km terrain, a 500 m chunk or a zone, n cells per side): its 360-value
+ * horizon profile and its slope statistics (from the 3 x 3 cells around: the cell's own value, the mean and a 1-degree histogram).
+ * Shared by the selected points and the hover card, so both judge a place with the same numbers.
  */
-export function pointSite(latDeg, lonDeg, { terrain, fineChunks = [] }) {
-  const lat = Math.round(latDeg * 1000) / 1000
-  const lon = Math.round((((lonDeg % 360) + 360) % 360) * 1000) / 1000
-  const found = cellUnder(lat, lon, terrain, fineChunks)
-  if (!found) return null
-  const { grid, cell, i, j, n, source } = found
-  if (grid.horizon[cell * 72] === 0) return null // outside the covered disc: no horizon data
-
+export function cellStats(grid, cell, n) {
+  const i = cell % n
+  const j = Math.floor(cell / n)
   const profile = Array.from({ length: 360 }, (_, az) => horizonAtCell(grid.horizon, cell, az))
-  // Slope statistics from the 3 x 3 cells around: the cell's own value, the mean and a 1-degree histogram.
   const histogram = new Array(SLOPE_BINS).fill(0)
   let sum = 0
   let count = 0
@@ -59,7 +53,31 @@ export function pointSite(latDeg, lonDeg, { terrain, fineChunks = [] }) {
       histogram[Math.min(s, SLOPE_BINS - 1)]++
     }
   }
-  const slopeDeg = grid.slope[cell]
+  return {
+    profile,
+    terrainStats: {
+      elevationM: grid.heights?.[cell],
+      slopeMeanDeg: Math.round((sum / count) * 100) / 100,
+      slopeMaxDeg: grid.slope[cell],
+      histogram500: histogram,
+    },
+  }
+}
+
+/**
+ * The point (lat, lon in degrees) as a site that useScenario and the views understand, or null outside the data.
+ *   terrain: loadTerrain3d (2.4 km grid);  fineChunks: the loaded 500 m chunks (may be empty).
+ * Returns { id, custom: true, name, shortName, lat, lon, profile (360 deg values), terrainStats, note, sources }.
+ */
+export function pointSite(latDeg, lonDeg, { terrain, fineChunks = [] }) {
+  const lat = Math.round(latDeg * 1000) / 1000
+  const lon = Math.round((((lonDeg % 360) + 360) % 360) * 1000) / 1000
+  const found = cellUnder(lat, lon, terrain, fineChunks)
+  if (!found) return null
+  const { grid, cell, n, source } = found
+  if (grid.horizon[cell * 72] === 0) return null // outside the covered disc: no horizon data
+
+  const { profile, terrainStats } = cellStats(grid, cell, n)
   const label = `${Math.abs(lat).toFixed(2)}°${lat < 0 ? 'S' : 'N'} ${lon.toFixed(1)}°E`
   return {
     id: `point-${lat.toFixed(3)}_${lon.toFixed(3)}`,
@@ -70,12 +88,7 @@ export function pointSite(latDeg, lonDeg, { terrain, fineChunks = [] }) {
     lat,
     lon,
     profile,
-    terrainStats: {
-      elevationM: grid.heights[cell],
-      slopeMeanDeg: Math.round((sum / count) * 100) / 100,
-      slopeMaxDeg: slopeDeg,
-      histogram500: histogram,
-    },
+    terrainStats,
     gridSource: source,
     note: `A point you selected on the map. Approximate: terrain horizon and slope come from the ${source} grid cell under it, which smooths summits and crater rims. For a decision, analyze a named site (80 m map).`,
     sources: [

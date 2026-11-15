@@ -11,21 +11,13 @@
 //    feasible, even at its best moment, stays in the list below the others, with the requirement that holds it back.
 import { cellSeries } from './cellProbe.js'
 import { cellLatLon, goFractions } from './illumination.js'
-import { evaluateFromMoment } from './momentScores.js'
+import { evaluateFromMoment, reasonOf } from './momentScores.js'
 import { pointSite } from './pointSite.js'
 import { MAP_RADIUS_KM, polarRadiusKm } from './polarMap.js'
 import { analyzeScenario } from './scenario.js'
 
 const RANK = { ok: 0, warn: 1, fail: 2 }
 const LANDING_MARGIN_MS = 15 * 60000 // land a little after a window opens, not on its edge (same margin as "Move landing to the next window")
-
-/** The requirement that holds an evaluation back, in words (the informative energy item never does). */
-function reasonOf(evaluation) {
-  if (evaluation.overall === 'ok') return 'every requirement is met with margin'
-  const held = evaluation.items.filter((i) => !i.informative && i.level !== 'ok')
-  const worst = held.reduce((w, i) => (RANK[i.level] > RANK[w.level] || (i.level === w.level && i.ratio < w.ratio) ? i : w))
-  return `${worst.label}: ${worst.detail}`
-}
 
 /**
  * One cell judged at its best landing moment: { evaluation, landingMs } or null (no data, or too little period left).

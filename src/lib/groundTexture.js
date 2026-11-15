@@ -3,7 +3,7 @@
 // small picture per step of the timeline), the same layers at the resolution of the loaded 500 m chunks, and the graticule with the
 // candidate region squares (painted once). A fine zone around a site (100 to 250 m cells, see zones.js) has its own canvas, painted
 // by paintZone, and is shown in place of the overview when zoomed in.
-import { feasibilityLevels, feasibilityKey, feasibilityOverlay } from './feasibility.js'
+import { FINE_SAMPLES, feasibilityOverlay, levelsAt, prepareFeasibility, visibilityKey } from './feasibility.js'
 import { goFractionOverlay, goFractions, goOverlay, visibilityOverlay } from './illumination.js'
 import { slopeOverlayRgba } from './terrain3d.js'
 import { zoneRect } from './zones.js'
@@ -28,23 +28,25 @@ function periodFractions(terrain, frames, samples, options) {
   return fractions
 }
 
-// The verdict of the cells over the period, for the fine chunks and zones (the 2.4 km map comes in from useFeasibility, sliced).
+// The visibility bits of the cells over the range, for the fine chunks and zones (the 2.4 km map comes in from useFeasibility, sliced), kept
+// per chunk: the verdict for the moment shown is then a few bit operations per cell (feasibility.js).
 const feasibilityCache = new WeakMap()
 function cachedFeasibility(terrain, frames, samples, requirements) {
-  const key = feasibilityKey(requirements)
-  const cached = feasibilityCache.get(terrain)
-  if (cached && cached.samples === samples && cached.key === key) return cached.levels
-  const levels = feasibilityLevels(terrain, frames, samples, requirements)
-  feasibilityCache.set(terrain, { samples, key, levels })
-  return levels
+  const key = visibilityKey(requirements)
+  let cached = feasibilityCache.get(terrain)
+  if (!cached || cached.samples !== samples || cached.key !== key) {
+    cached = { samples, key, prep: prepareFeasibility(terrain, frames, samples, requirements, FINE_SAMPLES) }
+    feasibilityCache.set(terrain, cached)
+  }
+  return cached.prep
 }
 
 /**
  * The RGBA layers (grid x grid each) to paint, bottom first, for a terrain (the whole map or a zone).
- * `feasibleLevels`: for the 2.4 km map, the levels computed by useFeasibility (null while they are being computed); other
- * terrains leave it out and get theirs computed here.
+ * `feasibleLevels`: for the 2.4 km map, the levels for the moment shown (null while they are being prepared); other terrains leave it
+ * out and get theirs computed here, for the sample `index` of `samples`.
  */
-function layerPixels({ terrain, frames, sample, samples, layers, requirements, feasibleLevels }) {
+function layerPixels({ terrain, frames, sample, samples, index, layers, requirements, feasibleLevels }) {
   const out = []
   if (layers.go && sample && frames) {
     const options = { minSunDeg: requirements.minSunDeg, minEarthDeg: requirements.minEarthDeg, maxSlopeDeg: requirements.maxSlopeDeg }
@@ -54,7 +56,7 @@ function layerPixels({ terrain, frames, sample, samples, layers, requirements, f
         : goOverlay(terrain, frames, sample, options),
     )
   } else if (layers.feasible && samples && frames) {
-    const levels = feasibleLevels !== undefined ? feasibleLevels : cachedFeasibility(terrain, frames, samples, requirements)
+    const levels = feasibleLevels !== undefined ? feasibleLevels : levelsAt(terrain, frames, cachedFeasibility(terrain, frames, samples, requirements), requirements, index ?? 0)
     if (levels) out.push(feasibilityOverlay(terrain, frames, levels))
   } else if ((layers.sun || layers.earth) && sample && frames) {
     out.push(
@@ -111,7 +113,7 @@ function stackLayers(list, grid) {
 
 /**
  * Which layers of the 2.4 km map are computed by the GPU for the moment shown (`live`: 'go', 'vis' or null) and which come from
- * pictures that do not depend on the moment (`main`: 'period' (Optimal over the period) or 'feasible' or null; `slope`: the
+ * pictures that are not computed by the GPU (`main`: 'period' (Optimal over the period) or 'feasible' (for the moment shown, by the CPU) or null; `slope`: the
  * forbidden zones). The same precedence as layerPixels: Optimal, else Feasible, else Sun / Earth, with the slope on top of the
  * last two.
  */
@@ -160,13 +162,13 @@ let scratch = null
  * a chunk the alpha is 0.5 + layer alpha / 2 (see capMaterial.js); elsewhere it is 0. Returns false (and leaves the canvas
  * empty) when there is nothing to draw: no chunk, or no layer shown.
  */
-export function paintFine(canvas, { fine, sample, samples, layers, requirements }) {
+export function paintFine(canvas, { fine, sample, samples, index, layers, requirements }) {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE)
   let drawn = false
   ctx.imageSmoothingEnabled = false
   for (const chunk of fine) {
-    const list = layerPixels({ terrain: chunk, frames: chunk.frames, sample, samples, layers, requirements })
+    const list = layerPixels({ terrain: chunk, frames: chunk.frames, sample, samples, index, layers, requirements })
     if (list.length === 0) break // no layer shown: none for the other chunks either
     const rgba = stackLayers(list, chunk.grid)
     const coded = new Uint8ClampedArray(rgba.length)
@@ -193,7 +195,7 @@ export function paintFine(canvas, { fine, sample, samples, layers, requirements 
  * (zone.grid squared, rows from the top of the zone), or null when no layer is shown.
  *   zone: see zones.js;  frames: zoneFrames(zone);  the other fields as for staticLayers.
  */
-export function zoneLayer({ zone, frames, sample, samples, layers, requirements }) {
-  const list = layerPixels({ terrain: zone, frames, sample, samples, layers, requirements })
+export function zoneLayer({ zone, frames, sample, samples, index, layers, requirements }) {
+  const list = layerPixels({ terrain: zone, frames, sample, samples, index, layers, requirements })
   return list.length === 0 ? null : premultiplied(stackLayers(list, zone.grid))
 }

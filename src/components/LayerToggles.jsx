@@ -1,7 +1,7 @@
 // The ground layers as compact pills: a colored dot (the color on the ground) and a short word.
 // Two "modes" cross the three base layers and replace them while they are on:
 //   Optimal  = slope, Sun and Earth fine at once (at the moment shown, or the share of the period);
-//   Feasible = the cell meets the power, link and terrain requirements over the whole period.
+//   Feasible = if you land at the moment of the timeline, the cell meets the power, link, window and terrain requirements to the end of the range.
 const LAYERS = [
   { key: 'sun', label: 'Sunlight', swatch: 'sun', title: 'Sunlight and shadows' },
   { key: 'earth', label: 'Earth', swatch: 'earth', title: 'Earth visible (direct link)' },
@@ -49,7 +49,7 @@ export default function LayerToggles({ layers, onChange, maxSlopeDeg }) {
         type="button"
         className={`layers__pill layers__pill--go${layers.feasible ? ' layers__pill--on' : ''}`}
         aria-pressed={!!layers.feasible}
-        title="Feasible: the cell meets the power, link and terrain requirements over the whole period. Green: met with margin; amber: marginal. The landing window depends on the day, not on the place, so it is not part of it."
+        title="Feasible: if you land at the moment of the timeline, does the cell meet the power, link, landing window and terrain requirements until the end of the range? Green: met with margin; amber: marginal. Move the timeline to see where you could land when."
         onClick={() => toggleMode('feasible')}
       >
         <span className="swatch swatch--go" />

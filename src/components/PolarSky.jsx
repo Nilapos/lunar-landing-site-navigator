@@ -16,6 +16,7 @@ import { candidateRegions, sitePins } from '../lib/useTerrain3d.js'
 import { unitVector } from '../lib/sky.js'
 import { FULL_WINDOW, TILE_LAYERS } from '../lib/tileGrid.js'
 import { TileWindow } from '../lib/tileWindow.js'
+import { levelsAt } from '../lib/feasibility.js'
 import { useFeasibility } from '../lib/useFeasibility.js'
 import { useFineChunks } from '../lib/useFineGrid.js'
 import { useZone } from '../lib/useZone.js'
@@ -155,8 +156,13 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
   const zoneGrid = useMemo(() => (zoneData.zone ? zoneFrames(zoneData.zone) : null), [zoneData.zone])
   const zoneShown = near && !standing && !!zoneData.zone && !!zoneData.image
 
-  // The Feasible layer: the verdict of every 2.4 km cell over the period, computed in slices.
+  // The Feasible layer: if we land at the moment shown, which 2.4 km cells hold up to the end of the range? The visibility of the cells is
+  // prepared once, in slices; the verdict for the moment shown is a few bit operations per cell, so the layer follows the timeline live.
   const feasible = useFeasibility(terrain, frames, samples, requirements, !!layers.feasible)
+  const feasibleLevels = useMemo(
+    () => (feasible.prep && terrain && frames ? levelsAt(terrain, frames, feasible.prep, requirements, timeline.index) : null),
+    [feasible.prep, terrain, frames, requirements, timeline.index],
+  )
 
   // The cell under the pointer is found at the finest resolution there is: the shown fine zone, a loaded 500 m chunk, the overview.
   useEffect(() => {
@@ -316,8 +322,8 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene || !terrain || !hillshade) return
-    scene.ground.setStatic(staticLayers({ terrain, frames, sample: hasSample ? {} : null, samples, layers: { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, slope: slopeOn }, requirements, feasibleLevels: feasible.levels }))
-  }, [terrain, hillshade, engine, frames, samples, goOn, goPeriodOn, feasibleOn, slopeOn, hasSample, requirements, feasible.levels])
+    scene.ground.setStatic(staticLayers({ terrain, frames, sample: hasSample ? {} : null, samples, layers: { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, slope: slopeOn }, requirements, feasibleLevels }))
+  }, [terrain, hillshade, engine, frames, samples, goOn, goPeriodOn, feasibleOn, slopeOn, hasSample, requirements, feasibleLevels])
 
   // The same layers at the resolution of the loaded 500 m chunks, drawn on the CPU: at most MIN_PAINT_MS apart (the last state
   // is always painted), since a play or a drag of the timeline changes the moment far more often than the eye can tell.
@@ -329,7 +335,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
       return undefined
     }
     const run = () => {
-      scene.ground.refreshFine(paintFine(scene.ground.fineCanvas, { fine: fineChunks, sample, samples, layers, requirements }))
+      scene.ground.refreshFine(paintFine(scene.ground.fineCanvas, { fine: fineChunks, sample, samples, index, layers, requirements }))
       lastPaintRef.current = performance.now()
     }
     const wait = MIN_PAINT_MS - (performance.now() - lastPaintRef.current)
@@ -339,7 +345,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
     }
     const timer = setTimeout(run, wait)
     return () => clearTimeout(timer)
-  }, [terrain, hillshade, engine, sample, samples, layers, requirements, fineChunks])
+  }, [terrain, hillshade, engine, sample, samples, index, layers, requirements, fineChunks])
 
   // The fine zone: its mesh when shown, and its own texture (same layers, computed on its cells).
   useEffect(() => {
@@ -351,8 +357,8 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
     const scene = sceneRef.current
     if (!scene || !zoneShown) return
     scene.zoneGround.setLook(groundLook(photo).layerAlpha)
-    scene.zoneGround.setLayer(zoneLayer({ zone: zoneData.zone, frames: zoneGrid, sample, samples, layers, requirements }), zoneData.zone.grid)
-  }, [engine, zoneShown, zoneData, zoneGrid, sample, samples, layers, requirements, photo])
+    scene.zoneGround.setLayer(zoneLayer({ zone: zoneData.zone, frames: zoneGrid, sample, samples, index, layers, requirements }), zoneData.zone.grid)
+  }, [engine, zoneShown, zoneData, zoneGrid, sample, samples, index, layers, requirements, photo])
 
   // The imagery of the zone (sharpened with the tiles of Moon Trek, the zone's own hillshade until they have come) and its graticule.
   useEffect(() => {
@@ -464,7 +470,7 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
       <div className="view3d__canvas view3d__canvas--sky" ref={containerRef}>
         <canvas ref={ghostRef} className="view3d__ghost" width="1" height="1" aria-hidden="true" />
         {!(terrain && hillshade) && <p className="notice view3d__loading">Loading the 3D relief…</p>}
-        {feasible.computing && <p className="notice view3d__computing">Computing which places are feasible over the period…</p>}
+        {feasible.computing && <p className="notice view3d__computing">Preparing the feasibility map of the range…</p>}
 
         <ScoreCard
           site={site}

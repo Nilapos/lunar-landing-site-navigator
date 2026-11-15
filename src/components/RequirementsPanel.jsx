@@ -8,6 +8,7 @@ const FIELDS = [
   { key: 'bandwidthKbps', label: 'Data rate needed', unit: 'kbps', min: 0, max: 1000000, step: 1, help: 'Data rate the rover must send to Earth' },
   { key: 'landingMinutes', label: 'Landing sequence', unit: 'min', min: 1, max: 600, step: 1, help: 'Sun and Earth both needed for this long after landing' },
   { key: 'maxSlopeDeg', label: 'Landing slope', unit: '°', min: 0, max: 45, step: 0.5, help: 'Steepest slope the lander can land on' },
+  { key: 'missionDays', label: 'Mission length', unit: 'days', min: 1, max: 365, step: 1, help: 'How long after landing the scores look: the nights, the Earth link and the window are counted over this time (a lunar day-night cycle is 29.5 days)' },
   { key: 'driveSlopeDeg', label: 'Rover drive slope', unit: '°', min: 0, max: 45, step: 0.5, help: 'Steepest slope the rover can drive (shown when the mission has a rover)' },
 ]
 

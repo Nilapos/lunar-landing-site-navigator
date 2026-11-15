@@ -119,21 +119,21 @@ test('a flat cell near the pole with the Sun and the Earth up is a good zone', (
   assert.equal(probe.fractions.sun, 1)
   assert.equal(probe.fractions.both, 1)
   assert.ok(probe.now.earth.margin > 0 && probe.now.sun.margin > 0)
-  assert.equal(probe.score, 198) // % of the need: terrain 200, power 200, comms 195 (the antenna gives 1.95 times the data rate needed)
+  assert.equal(probe.score, 199) // % of the need: terrain 200, power 200, window 200, comms 195 (the antenna gives 1.95 times the data rate needed)
 })
 
 test('too steep, or hidden from the Earth by a rim: red, with the reason', () => {
   const steep = makeTerrain({ grid: 64, horizonDeg: -1, slopeDeg: 21 })
   const a = probeCell(steep, buildCellFrames(steep), 32 * 64 + 32, SAMPLES, 0, REQ)
   assert.equal(a.level, 'fail')
-  assert.equal(a.reason, 'too steep: 21° for a 15° limit')
+  assert.match(a.reason, /^Terrain: .*21.0° vs landing limit 15°/)
 
   const walled = makeTerrain({ grid: 64, horizonDeg: 12 })
   const b = probeCell(walled, buildCellFrames(walled), 32 * 64 + 32, SAMPLES, 3, REQ)
   assert.equal(b.level, 'fail')
   assert.equal(b.fractions.earth, 0)
   assert.ok(b.now.sun.margin < 0)
-  assert.equal(b.score, 67) // % of the need: terrain 200, power 0, comms 0
+  assert.equal(b.score, 50) // % of the need: terrain 200, power 0, comms 0, window 0
 })
 
 test('no card outside the map', () => {
@@ -204,3 +204,22 @@ test('the picked cell follows the relief: a bump is hit on its summit, not behin
   assert.equal(hit.index, 32 * 64 + 40)
   close(length(hit.point), length(top), 0.2)
 });
+
+test('the card judges a landing at the moment shown, over the mission that follows (not the whole range)', () => {
+  const t = makeTerrain({ grid: 64, horizonDeg: -1 })
+  const frames = buildCellFrames(t)
+  const cell = 4 * 64 + 32 // near the edge of the map on the lon 0 side (the cell at the pole sees the Sun whatever its longitude)
+  // The Earth stays in view; the Sun is up for the first 12 hours and down for the last 12.
+  const sky = Array.from({ length: 25 }, (_, h) => ({ ...SAMPLES[h], sunLat: -1.5, sunLon: h < 12 ? 0 : 180 }))
+  const reqHours = { ...REQ, batteryHours: 6 }
+  const early = probeCell(t, frames, cell, sky, 2, { ...reqHours, missionDays: Infinity }) // lit now, 12 h of night ahead
+  assert.equal(early.level, 'fail')
+  assert.match(early.reason, /^Night endurance/)
+  const short = probeCell(t, frames, cell, sky, 2, { ...reqHours, missionDays: 0.25 }) // a mission of 6 h ends before the night
+  assert.equal(short.level, 'ok')
+  const dark = probeCell(t, frames, cell, sky, 15, { ...reqHours, missionDays: Infinity }) // dark at the landing
+  assert.equal(dark.level, 'fail')
+  const end = probeCell(t, frames, cell, sky, 24, reqHours) // the last moment: nothing left
+  assert.equal(end.level, 'fail')
+  assert.equal(end.score, 0)
+})

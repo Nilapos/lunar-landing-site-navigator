@@ -93,7 +93,6 @@ export default function App() {
   const [custom, setCustom] = useState(null) // a point selected on the map, analyzed like a site (pointSite.js)
   const [mapTarget, setMapTarget] = useState('A') // which scenario a click on the map or the ranking sets
 
-  const overview = useSitesOverview(a.start, a.days, requirements)
   const timeline = useTimeline(a.start, a.days)
   // The relief data and the cell frames are loaded here, for the sky view and for the best landing areas (a menu of the top bar, in every tab).
   const terrainData = useTerrain3d()
@@ -112,8 +111,12 @@ export default function App() {
   const rangedA = useMemo(() => restrictToRange(resultA, requirements, timeline.samples), [resultA, requirements, timeline.samples])
   const evalRangeA = useMemo(() => evaluate(rangedA, requirements), [rangedA, requirements])
 
-  // "What if we land at this moment?": the scores of the sky view are measured from the moment of the timeline onward.
+  // "What if we land at this moment?": the scores of the sky view are measured from the moment of the timeline onward, over the mission
+  // (requirements.missionDays, or to the end of the range if sooner).
   const atMs = timeline.sample ? Date.parse(timeline.sample.t) : null
+  const rangeEndMs = timeline.samples ? Date.parse(timeline.samples[timeline.samples.length - 1].t) : Infinity
+  // The sites (pins and ranking) are judged the same way, at the same moment, so that a site says the same thing everywhere.
+  const overview = useSitesOverview(a.start, a.days, requirements, atMs, rangeEndMs)
   const momentEval = useMemo(
     () => (atMs !== null ? evaluateFromMoment(rangedA, requirements, atMs) : null),
     [atMs, rangedA, requirements],
@@ -264,6 +267,7 @@ export default function App() {
             result={compare ? resultA : rangedA}
             evaluation={compare ? evalA : shownEval}
             momentMs={atMs}
+            missionDays={requirements.missionDays}
             landingNote={!compare && momentEval !== null}
             embedded={!compare}
             custom={custom}
