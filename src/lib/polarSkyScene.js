@@ -3,7 +3,6 @@
 // only draws. Frame: Moon-fixed, kilometers, z north, so "up" at the south pole is -z.
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { cssToken } from './cssTokens.js'
 import { createCapMaterial } from './capMaterial.js'
 import { latLonOfMapPoint, overviewCell, reticleSideKm } from './hoverCell.js'
 import { FULL_WINDOW, sameWindow, windowFor } from './tileGrid.js'
@@ -14,7 +13,6 @@ import {
   capRadii,
   EARTH_RADIUS_KM,
   earthPosition,
-  groundRings,
   polarUv,
   horizonDirection,
   MOON_RADIUS_KM,
@@ -27,9 +25,13 @@ import {
   SOUTH_MOSAIC_WIDTH_M,
   surfacePoint,
 } from './polarSky.js'
+import { sunDiscFraction } from './energy.js'
+import { createSiteGround } from './siteGround.js'
+import { buildSiteRelief, reliefSources, reliefSunMargins } from './siteRelief.js'
 import { azEl, localFrame, unitVector } from './sky.js'
+import { horizonAt } from './visibility.js'
 import { zoneHeightAt, zoneIndices, zonePositions } from './zones.js'
-import { makeEarthCanvas, makeGrainCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
+import { makeEarthCanvas, makeMilkyWayCanvas, makeMoonCanvas, makeStarField, makeStarSpriteCanvas, makeSunGlowCanvas } from './skyTextures.js'
 import { levelColor, makeLabel, selectionColor } from './terrainScene.js'
 
 const IDLE_RENDER_MS = 250 // a still scene is redrawn only this often (a safety net: every change asks for a frame by itself)
@@ -46,9 +48,8 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0)
 const ORBIT_FOV = 50
 const SITE_FOV = 60
 const EYE_KM = 0.002 // the observer of the site view stands 2 m above the ground
-const SKYLINE_KM = 100 // the horizon silhouette is drawn this far from the observer (only its direction matters)
-const GROUND_LIT = 0xbdb8ae
-const GROUND_SHADOW = 0x3a3c45
+const SKYLINE_KM = 100 // the compass marks are drawn this far from the observer (only their direction matters)
+const SITE_NEAR_KM = 0.0004 // the ground starts 2 m under the eyes
 
 function canvasTexture(canvas) {
   const texture = new THREE.CanvasTexture(canvas)
@@ -394,7 +395,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
   const focusPoint = new THREE.Vector3()
   function updateFocus() {
     const show = !!(focus && sample) && view === null
-    groundMaterial.color.setHex(focus?.sunVisible ? GROUND_LIT : GROUND_SHADOW)
+    updateSiteLight()
     sunLine.visible = show
     earthLine.visible = show
     if (!show) return
@@ -423,6 +424,8 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
     sunDisc.scale.setScalar(sun.radius)
     sunGlow.position.copy(sunDisc.position)
     sunGlow.scale.setScalar(2 * DISPLAY_KM * Math.tan((SUN_GLOW_DEG / 2) * RAD))
+    // Standing on the site, the glare follows the share of the Sun's disc above the skyline: it fades as the Sun sets.
+    sunGlow.material.opacity = view ? siteSunShare : 1
     const placed = placeBody(cam, { position: earthPosition(sample), radiusKm: EARTH_RADIUS_KM }, DISPLAY_KM)
     earth.position.fromArray(placed.position)
     earth.scale.setScalar(placed.radius)
@@ -567,10 +570,21 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
   const siteGroup = new THREE.Group()
   siteGroup.visible = false
   scene.add(siteGroup)
-  const grainTexture = canvasTexture(makeGrainCanvas())
-  grainTexture.wrapS = THREE.RepeatWrapping
-  grainTexture.wrapT = THREE.RepeatWrapping
-  const groundMaterial = new THREE.MeshBasicMaterial({ map: grainTexture, vertexColors: true, side: THREE.DoubleSide })
+  // The ground of the site view: the real relief around the observer (siteRelief.js) drawn as lunar regolith (siteGround.js). Made
+  // the first time someone stands on a site.
+  let siteGround = null
+  let relief = null
+  let reliefData = null // { frames, chunks, zone, zoneFrames }: the grids the relief is built from (setReliefData)
+  let sources = null
+  let siteSunShare = 1 // share of the Sun's disc above the skyline of the site (0 to 1)
+  let lift = 0
+  let lit = { sample: null, relief: null, center: 0, half: 0 } // what the sunlight on the relief was last worked out for
+  let reliefTimer = null
+  // Its picture of regolith takes a few tens of ms to make: done while the browser is idle, not when the view opens.
+  const idle = window.requestIdleCallback ? (task) => window.requestIdleCallback(task, { timeout: 4000 }) : (task) => setTimeout(task, 1500)
+  idle(() => {
+    if (!disposed) siteGround ??= createSiteGround(renderer.capabilities.getMaxAnisotropy())
+  })
   const sunLabel = makeLabel('Sun')
   const earthLabel = makeLabel('Earth')
   for (const label of [sunLabel, earthLabel]) {
@@ -581,55 +595,61 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
   function clearSiteGroup() {
     for (const obj of [...siteGroup.children]) {
       siteGroup.remove(obj)
-      obj.geometry?.dispose()
-      if (obj.material !== groundMaterial) disposeTree(obj)
+      if (obj !== siteGround?.mesh) disposeTree(obj)
     }
   }
-  function buildSiteGround(frame, profile) {
+  function buildSiteGround() {
+    clearTimeout(reliefTimer)
     clearSiteGroup()
-    const RINGS = 5
-    const SHADE = [0.62, 0.66, 0.58, 0.46, 0.4] // darker toward the skyline, so the relief reads as a silhouette
-    const V = [0, 1.5, 3.5, 5, 5.3]
-    const vertices = new Float32Array(361 * RINGS * 3)
-    const colors = new Float32Array(361 * RINGS * 3)
-    const uv = new Float32Array(361 * RINGS * 2)
-    const skyline = new Float32Array(361 * 3)
-    for (let az = 0; az <= 360; az++) {
-      const rings = groundRings(profile[az % 360])
-      for (let k = 0; k < RINGS; k++) {
-        const i = az * RINGS + k
-        const d = horizonDirection(frame, az, rings[k])
-        vertices.set([d[0] * SKYLINE_KM, d[1] * SKYLINE_KM, d[2] * SKYLINE_KM], i * 3)
-        colors.fill(SHADE[k], i * 3, i * 3 + 3)
-        uv.set([az / 12, V[k]], i * 2)
-      }
-      skyline.set(vertices.subarray((az * RINGS + RINGS - 1) * 3, (az * RINGS + RINGS) * 3), az * 3)
+    const { frame, profile, lat, lon } = view
+    if (reliefData) {
+      siteGround ??= createSiteGround(renderer.capabilities.getMaxAnisotropy())
+      sources = reliefSources({ terrain, ...reliefData })
+      relief = buildSiteRelief({ lat, lon, profile, sources })
+      siteGround.setRelief(relief)
+      siteGround.setLift(lift)
+      siteGroup.add(siteGround.mesh)
+      updateSiteLight()
     }
-    const indices = []
-    for (let az = 0; az < 360; az++) {
-      for (let k = 0; k < RINGS - 1; k++) {
-        const a = az * RINGS + k
-        const b = a + RINGS
-        indices.push(a, b, a + 1, a + 1, b, b + 1)
-      }
-    }
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
-    geometry.setIndex(indices)
-    const ground = new THREE.Mesh(geometry, groundMaterial)
-    const lineGeometry = new THREE.BufferGeometry()
-    lineGeometry.setAttribute('position', new THREE.BufferAttribute(skyline, 3))
-    const line = new THREE.Line(lineGeometry, new THREE.LineBasicMaterial({ color: new THREE.Color(cssToken('--color-grid-line') || '#7480b8') }))
-    siteGroup.add(ground, line)
     // Compass marks just above the skyline.
     for (const [text, az] of [['N', 0], ['E', 90], ['S', 180], ['W', 270]]) {
       const mark = makeLabel(text)
-      mark.scale.set(30, 5.6, 1)
-      mark.position.fromArray(horizonDirection(frame, az, profile[az] - 3)).multiplyScalar(SKYLINE_KM * 0.9)
+      mark.scale.set(24, 4.5, 1)
+      mark.position.fromArray(horizonDirection(frame, az, profile[az] + 2.4)).multiplyScalar(SKYLINE_KM)
       siteGroup.add(mark)
     }
+  }
+  // The sunlight on the ground of the site view, for the moment shown: where the Sun is in the observer's sky, how much of its disc
+  // clears the skyline of the site, and its height above the terrain horizon at every vertex of the relief.
+  function updateSiteLight() {
+    if (!view || !sample) return
+    const sun = sunDirection(sample)
+    const { az, el } = azEl(view.frame, sun)
+    const siteMargin = el - horizonAt(view.profile, az)
+    siteSunShare = sunDiscFraction(siteMargin, SUN_ANGULAR_RADIUS_DEG)
+    if (!relief || !siteGround) return
+    const { east, north, up } = view.frame
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+    siteGround.setSun(dot(east, sun), dot(north, sun), dot(up, sun))
+    const earthDir = placeBody(camera.position.toArray(), { position: earthPosition(sample), radiusKm: EARTH_RADIUS_KM }, 1).direction
+    siteGround.setEarthshine(!!focus?.earthVisible, dot(east, earthDir), dot(north, earthDir), dot(up, earthDir))
+    // The margins of the vertices only change with the moment or the relief (this is also called when the focus changes and when
+    // the head turns). They are worked out for the directions the camera sees, with some slack so a small turn costs nothing.
+    const seen = seenSector()
+    const covered = lit.sample === sample && lit.relief === relief && (lit.half >= 180 || Math.abs(((seen.center - lit.center + 540) % 360) - 180) + seen.half <= lit.half)
+    if (covered) return
+    lit = { sample, relief, center: seen.center, half: seen.half >= 180 ? 180 : seen.half + 25 }
+    reliefSunMargins(relief, sources, sun, siteMargin, siteGround.sunMargins, lit)
+    siteGround.sunChanged()
+  }
+  // The directions (azimuth, deg) the standing camera can see: its heading, and half its width. Looking down, or zoomed out on a
+  // wide window, it is the whole circle.
+  function seenSector() {
+    if (view.pitch < -30) return { center: view.yaw, half: 180 }
+    const halfWidth = Math.atan(Math.tan((camera.fov / 2) * RAD) * camera.aspect) / RAD
+    // Away from the horizon a window covers more azimuth: widened by the pitch.
+    const half = halfWidth / Math.max(Math.cos((Math.abs(view.pitch) + camera.fov / 2) * RAD), 0.35)
+    return { center: view.yaw, half: half > 150 ? 180 : half }
   }
   const forward = new THREE.Vector3()
   function aimSiteCamera() {
@@ -637,6 +657,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
     forward.fromArray(horizonDirection(view.frame, view.yaw, view.pitch))
     camera.up.fromArray(view.frame.up)
     camera.lookAt(forward.add(camera.position))
+    updateSiteLight() // the sunlight is only worked out where the camera looks
   }
   function lookAtBody(body) {
     if (!view || !sample) return
@@ -653,7 +674,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
     for (const part of orbitParts) part.visible = !site
     siteGroup.visible = site
     controls.enabled = !site
-    camera.near = site ? 0.5 : 2
+    camera.near = site ? SITE_NEAR_KM : 2
     camera.fov = site ? SITE_FOV : ORBIT_FOV
     camera.updateProjectionMatrix()
     updateFocus()
@@ -714,6 +735,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
     e.preventDefault()
     camera.fov = Math.min(Math.max(camera.fov * Math.exp(e.deltaY * 0.001), 6), 80)
     camera.updateProjectionMatrix()
+    updateSiteLight() // a wider window sees more directions
   }
   const onUp = (e) => {
     dragging = false
@@ -750,6 +772,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
     el.style.height = '100%'
     camera.aspect = w / h
     camera.updateProjectionMatrix()
+    if (view) updateSiteLight()
     invalidate()
   }
   const observer = new ResizeObserver(resize)
@@ -879,9 +902,31 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
     ground,
     /** Shadow lift (0 to 1) of the ground and of the fine zone. */
     setLift(value) {
+      lift = value
       ground.setLift(value)
       zoneGround.setLift(value)
+      siteGround?.setLift(value)
       invalidate()
+    },
+    /**
+     * The grids the ground of the site view is built from: { frames (of the 2.4 km overview), chunks (loaded 500 m chunks), zone,
+     * zoneFrames (the fine zone of the site, or null) }. The ground is built again when someone stands on a site.
+     */
+    setReliefData(data) {
+      reliefData = data
+      if (!view) return
+      if (!relief) {
+        buildSiteGround()
+        invalidate()
+        return
+      }
+      // The chunks arrive one by one: the ground is built again once, when they have stopped coming.
+      clearTimeout(reliefTimer)
+      reliefTimer = setTimeout(() => {
+        if (!view || disposed) return
+        buildSiteGround()
+        invalidate()
+      }, 300)
     },
     setExaggeration(value) {
       exaggeration = value
@@ -964,15 +1009,16 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
         const first = !view
         if (first) savedOrbit = { position: camera.position.clone(), target: controls.target.clone() }
         const frame = localFrame(site.lat, site.lon)
-        view = { frame, yaw: view?.yaw ?? 0, pitch: view?.pitch ?? 7 }
+        view = { frame, lat: site.lat, lon: site.lon, profile: site.profile, yaw: view?.yaw ?? 0, pitch: view?.pitch ?? 7 }
         camera.position.fromArray(frame.up).multiplyScalar(MOON_RADIUS_KM + EYE_KM)
         siteGroup.position.copy(camera.position)
-        buildSiteGround(frame, site.profile)
+        buildSiteGround()
         applyMode()
         if (first && sample) lookAtBody('sun')
         else aimSiteCamera()
       } else if (view) {
         view = null
+        relief = null
         clearSiteGroup()
         camera.up.copy(SOUTH)
         camera.position.copy(savedOrbit.position)
@@ -983,6 +1029,25 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
     },
     /** Site view: turn toward 'sun' or 'earth'. */
     lookAt: lookAtBody,
+    /** Site view, for inspection from the console: turn the head to an azimuth and a pitch (deg), and what the ground is made of. */
+    lookToward(yaw, pitch = 0, fov = SITE_FOV) {
+      if (!view) return
+      view.yaw = yaw
+      view.pitch = pitch
+      camera.fov = fov
+      camera.updateProjectionMatrix()
+      aimSiteCamera()
+      invalidate()
+    },
+    get siteInfo() {
+      return relief
+        ? { vertices: relief.count, triangles: relief.indices.length / 3, sources: sources.length, groundM: relief.groundM, skylineShift: relief.skylineShift, margins: siteGround.sunMargins, yaw: view.yaw, pitch: view.pitch }
+        : null
+    },
+    setSiteDetail(on) {
+      siteGround?.setDetail(on)
+      invalidate()
+    },
     resetView,
     /**
      * Profiling aid (works while the page is hidden, where the animation loop is paused): renders `frames` frames synchronously,
@@ -1042,9 +1107,9 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
       el.removeEventListener('pointerup', onUp)
       el.removeEventListener('pointerleave', onLeave)
       el.removeEventListener('wheel', onWheel)
+      clearTimeout(reliefTimer)
       clearSiteGroup()
-      groundMaterial.dispose()
-      grainTexture.dispose()
+      siteGround?.dispose()
       clearMarkers()
       disposeTree(scene)
       ground.dispose()
