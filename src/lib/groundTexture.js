@@ -57,7 +57,7 @@ function layerPixels({ terrain, frames, sample, samples, index, layers, requirem
     )
   } else if (layers.feasible && samples && frames) {
     const levels = feasibleLevels !== undefined ? feasibleLevels : levelsAt(terrain, frames, cachedFeasibility(terrain, frames, samples, requirements), requirements, index ?? 0)
-    if (levels) out.push(feasibilityOverlay(terrain, frames, levels))
+    if (levels) out.push(feasibilityOverlay(terrain, frames, levels, { marginal: layers.marginal !== false }))
   } else if ((layers.sun || layers.earth) && sample && frames) {
     out.push(
       visibilityOverlay(terrain, frames, sample, {
@@ -151,7 +151,7 @@ export function staticLayers({ terrain, frames, sample, samples, layers, require
     const options = { minSunDeg: requirements.minSunDeg, minEarthDeg: requirements.minEarthDeg, maxSlopeDeg: requirements.maxSlopeDeg }
     main = premultiplied(goFractionOverlay(terrain, frames, periodFractions(terrain, frames, samples, options)))
   } else if (plan.main === 'feasible' && feasibleLevels) {
-    main = premultiplied(feasibilityOverlay(terrain, frames, feasibleLevels))
+    main = premultiplied(feasibilityOverlay(terrain, frames, feasibleLevels, { marginal: layers.marginal !== false }))
   }
   return { main, slope: plan.slope ? premultiplied(slopeOverlayRgba(terrain, requirements.maxSlopeDeg)) : null }
 }

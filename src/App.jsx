@@ -67,7 +67,7 @@ export default function App() {
   const [tab, setTab] = useState('sky')
   const [skyView, setSkyView] = useState('orbit') // 'globe', 'orbit' or 'top': the cameras of the sky tab
   const [drawer, setDrawer] = useState(null)
-  const [layers, setLayers] = useState({ sun: true, earth: true, slope: true, go: false, goPeriod: false, feasible: false, psr: false, rough: false })
+  const [layers, setLayers] = useState({ sun: true, earth: true, slope: true, go: false, goPeriod: false, feasible: false, marginal: true, psr: false, rough: false })
   const [compare, setCompare] = useState(false)
   // The mission (a lander, with a rover or not) sets the requirements; values typed in Settings override single ones.
   const [mission, setMission] = useState(() => {

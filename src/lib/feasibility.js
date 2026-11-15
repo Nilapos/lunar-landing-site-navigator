@@ -195,8 +195,11 @@ export function feasibilityLevels(terrain, frames, samples, req, sampleIndex = 0
   return levelsAt(terrain, frames, prepareFeasibility(terrain, frames, samples, req, maxSamples), req, sampleIndex)
 }
 
-/** Neon green for feasible cells (keep in sync with --color-layer-go), amber for marginal ones, a dark veil elsewhere. */
-export function feasibilityOverlay(terrain, frames, levels) {
+/**
+ * Neon green for feasible cells (keep in sync with --color-layer-go), amber for marginal ones (keep in sync with --color-warn), a dark veil
+ * elsewhere. `marginal: false` leaves the marginal cells under the veil: only the strictly feasible ones show.
+ */
+export function feasibilityOverlay(terrain, frames, levels, { marginal = true } = {}) {
   const N = terrain.grid
   const rgba = new Uint8ClampedArray(N * N * 4)
   for (let c = 0; c < N * N; c++) {
@@ -204,7 +207,7 @@ export function feasibilityOverlay(terrain, frames, levels) {
     const o = c * 4
     if (levels[c] === LEVEL_CODE.ok) {
       rgba.set([57, 255, 20, 215], o)
-    } else if (levels[c] === LEVEL_CODE.warn) {
+    } else if (levels[c] === LEVEL_CODE.warn && marginal) {
       rgba.set([255, 183, 77, 200], o)
     } else {
       rgba[o + 3] = 120

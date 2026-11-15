@@ -1,7 +1,8 @@
 // The ground layers as compact pills: a colored dot (the color on the ground) and a short word.
 // Two "modes" cross the three base layers and replace them while they are on:
 //   Optimal  = slope, Sun and Earth fine at once (at the moment shown, or the share of the period);
-//   Feasible = if you land at the moment of the timeline, the cell meets the power, link, window and terrain requirements to the end of the range.
+//   Feasible = if you land at the moment of the timeline, the cell meets the power, link, window and terrain requirements over the mission
+//              that follows (30 days by default). Green: met with margin; amber: marginal. The "+ Marginal" pill shows or hides the amber.
 const LAYERS = [
   { key: 'sun', label: 'Sunlight', swatch: 'sun', title: 'Sunlight and shadows' },
   { key: 'earth', label: 'Earth', swatch: 'earth', title: 'Earth visible (direct link)' },
@@ -49,7 +50,7 @@ export default function LayerToggles({ layers, onChange, maxSlopeDeg }) {
         type="button"
         className={`layers__pill layers__pill--go${layers.feasible ? ' layers__pill--on' : ''}`}
         aria-pressed={!!layers.feasible}
-        title="Feasible: if you land at the moment of the timeline, does the cell meet the power, link, landing window and terrain requirements until the end of the range? Green: met with margin; amber: marginal. Move the timeline to see where you could land when."
+        title="Feasible: if you land at the moment of the timeline, does the cell meet the power, link, landing window and terrain requirements over the mission that follows (30 days by default, see Settings)? Green: met with margin; amber: marginal (the + Marginal pill shows or hides it). Move the timeline to see where you could land when."
         onClick={() => toggleMode('feasible')}
       >
         <span className="swatch swatch--go" />
@@ -68,6 +69,17 @@ export default function LayerToggles({ layers, onChange, maxSlopeDeg }) {
           {l.label}
         </button>
       ))}
+      {layers.feasible && (
+        <button
+          type="button"
+          className={`layers__pill${layers.marginal !== false ? ' layers__pill--on' : ''}`}
+          aria-pressed={layers.marginal !== false}
+          title="Marginal: the cells that meet every requirement but are within 20% of a limit (amber). Switch off to see only the strictly feasible cells (green)."
+          onClick={() => onChange({ ...layers, marginal: layers.marginal === false })}
+        >
+          <span className="swatch swatch--marginal" />+ Marginal
+        </button>
+      )}
       {layers.go && (
         <div className="tabs layers__mode" role="group" aria-label="Optimal layer mode">
           <button type="button" className={`tabs__tab${layers.goPeriod ? '' : ' tabs__tab--active'}`} aria-pressed={!layers.goPeriod} onClick={() => onChange({ ...layers, goPeriod: false })}>

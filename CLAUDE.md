@@ -119,6 +119,7 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   at most 360 samples: hourly up to 15 days, a day for a lunar year; cells steeper than the slope limits are skipped, they fail whatever the sky does), then the verdict for any moment is a few bit operations per cell (`levelsAt`,
   about 11 ms for the 51 000 cells), so the layer follows the slider live; the 500 m chunks and the zones do the same per chunk (240 samples, cached per chunk). `cellRatios` is tested against the real verdict (`evaluateFromMoment`)
   to 4%. It is an overview: durations are accurate to about one sampling step (a day on a lunar year), so a place near a limit can differ from the precise analysis of its Sky card.
+  The layer paints green (feasible), amber (marginal) and a dark veil; the **+ Marginal** pill (`layers.marginal`, on by default, shown only while Feasible is on) shows or hides the amber (`feasibilityOverlay(..., { marginal })`), to see only the strictly feasible cells.
   The score card says what holds a site back (`Blockers` in ScoreCard.jsx): the verdict is the worst requirement, not the average score.
 - Real Moon around the polar cap: two LRO WAC mosaics from NASA Moon Trek (public WMTS, CORS open), stitched once from tile level 3 and committed:
   `public/moon-wac-2048.jpg` (global, equirectangular, 2048 x 1024 = tile level 2, layer LRO_WAC_Mosaic_Global_303ppd_v02; it was 4096 x 2048 until 2026-11-15, lowered for smoothness) and `public/moon-wac-south-2048.jpg` (south polar,

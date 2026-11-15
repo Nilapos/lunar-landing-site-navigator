@@ -316,14 +316,14 @@ export default function PolarSky({ terrainData, frames, areas, flyTarget, items,
   }, [terrain, hillshade, engine, frames, sample, samples, layers, requirements])
 
   const hasSample = !!sample
-  const { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, slope: slopeOn } = layers
+  const { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, marginal: marginalOn, slope: slopeOn } = layers
   // The layers that do not depend on the moment (Optimal over the period, Feasible, forbidden zones): recomputed only when their
   // inputs change, not at every step of the timeline.
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene || !terrain || !hillshade) return
-    scene.ground.setStatic(staticLayers({ terrain, frames, sample: hasSample ? {} : null, samples, layers: { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, slope: slopeOn }, requirements, feasibleLevels }))
-  }, [terrain, hillshade, engine, frames, samples, goOn, goPeriodOn, feasibleOn, slopeOn, hasSample, requirements, feasibleLevels])
+    scene.ground.setStatic(staticLayers({ terrain, frames, sample: hasSample ? {} : null, samples, layers: { go: goOn, goPeriod: goPeriodOn, feasible: feasibleOn, marginal: marginalOn, slope: slopeOn }, requirements, feasibleLevels }))
+  }, [terrain, hillshade, engine, frames, samples, goOn, goPeriodOn, feasibleOn, marginalOn, slopeOn, hasSample, requirements, feasibleLevels])
 
   // The same layers at the resolution of the loaded 500 m chunks, drawn on the CPU: at most MIN_PAINT_MS apart (the last state
   // is always painted), since a play or a drag of the timeline changes the moment far more often than the eye can tell.

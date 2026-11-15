@@ -144,6 +144,11 @@ test('cells outside the map have no verdict, and the overlay paints the three st
   assert.equal(rgba[BOTTOM * 4 + 3], 120) // not feasible: dark veil
   const warn = feasibilityOverlay(t, frames, new Uint8Array(16).fill(LEVEL_CODE.warn))
   assert.deepEqual([...warn.slice(TOP * 4, TOP * 4 + 3)], [255, 183, 77])
+  // The "+ Marginal" pill off: the marginal cells go under the veil, the feasible ones stay.
+  const strict = feasibilityOverlay(t, frames, new Uint8Array(16).fill(LEVEL_CODE.warn), { marginal: false })
+  assert.equal(strict[TOP * 4 + 3], 120)
+  assert.deepEqual([...strict.slice(TOP * 4, TOP * 4 + 3)], [0, 0, 0])
+  assert.deepEqual([...feasibilityOverlay(t, frames, l, { marginal: false }).slice(TOP * 4, TOP * 4 + 3)], [57, 255, 20])
 })
 
 test('the key changes with the requirements that matter', () => {
