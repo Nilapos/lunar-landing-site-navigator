@@ -383,6 +383,7 @@ a:hover { color: var(--color-accent-strong); }
 .view3d--fill .view3d__canvas { flex: 1; height: auto; min-height: 320px; border: 0; border-radius: 0; }
 .view3d__canvas canvas { display: block; touch-action: none; }
 .view3d__canvas--sky { background: var(--color-black); }
+.view3d__canvas .view3d__ghost { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; z-index: 1; }
 .view3d__loading { position: absolute; inset: auto var(--space-3) var(--space-3) var(--space-3); }
 .view3d__about { flex: none; margin-top: 0; }
 

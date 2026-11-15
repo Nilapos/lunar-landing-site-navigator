@@ -142,10 +142,12 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
   }
   const POSES = {
     orbit: poseOf(new THREE.Vector3(-700, 0, -(MOON_RADIUS_KM + 300)), new THREE.Vector3(350, 0, -MOON_RADIUS_KM)),
-    top: { target: [0, 0, -MOON_RADIUS_KM], radius: 820, polar: 0.035, azimuth: Math.PI },
+    // Framed like the flat map (mapScene.js: the whole cap with a 4% margin), so the switch to the map is seamless.
+    top: { target: [0, 0, -MOON_RADIUS_KM], radius: 704, polar: 0.035, azimuth: Math.PI },
     // The whole Moon at true size, seen from the near side from a southern latitude (the pole tilted toward us), like the globe of NASA's videos.
     globe: { target: [0, 0, 0], radius: 5600, polar: 0.8, azimuth: 0 },
   }
+  const FLIGHT_MS = 1800
   let poseName = 'orbit'
   let tween = null
   const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -166,7 +168,7 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
     }
     const from = poseOf(camera.position, controls.target)
     const turn = ((((to.azimuth - from.azimuth + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI // shortest way round
-    tween = { from, to, turn, start: performance.now(), duration: 1800 }
+    tween = { from, to, turn, start: performance.now(), duration: FLIGHT_MS }
     controls.enabled = false
   }
   // One step of the animation: ease in and out, and pull back a little in the middle so the move feels like a flight.
@@ -1023,6 +1025,15 @@ export function createPolarSkyScene(container, terrain, { onPick, onProbe, locat
       result.drawCalls = renderer.info.render.calls
       return result
     },
+    /** Draws the current frame on `target`, a 2D canvas: the picture the next scene fades from (PolarSky.jsx). */
+    snapshot(target) {
+      renderer.render(scene, camera)
+      target.width = renderer.domElement.width
+      target.height = renderer.domElement.height
+      target.getContext('2d').drawImage(renderer.domElement, 0, 0)
+    },
+    /** Duration of the flight between two poses (ms). */
+    FLIGHT_MS,
     dispose() {
       renderer.setAnimationLoop(null)
       observer.disconnect()

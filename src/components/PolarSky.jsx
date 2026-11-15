@@ -129,8 +129,21 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   const [near, setNear] = useState(false) // the camera is close to the selected site: its fine zone replaces the overview
   const standing = view === 'site'
   // The Top view is a flat 2D map (mapScene.js): no globe to load, a fraction of the drawing cost. The other views are the 3D scene.
-  const engine = view === 'top' ? 'map' : '3d'
+  // Going to the Top view, the 3D camera first flies to the straight-down pose, then the flat map takes over with a cross-fade; coming
+  // back, the 3D scene opens on that pose and flies out (the picture of the map fades into it).
+  const [mapReady, setMapReady] = useState(view === 'top') // the flight to the straight-down pose is over: the map takes over
+  if (view !== 'top' && mapReady) setMapReady(false)
+  const engine = view === 'top' && mapReady ? 'map' : '3d'
+  const fromMapRef = useRef(false)
+  const lastEngineRef = useRef(engine)
+  const ghostRef = useRef(null) // the last picture of the scene that is replaced, faded out over the new one
+  const fadeRef = useRef(null)
   const surface = engine === 'map' ? surfaceChoice : 'photo'
+  useEffect(() => {
+    if (view !== 'top' || mapReady) return undefined
+    const swap = setTimeout(() => setMapReady(true), (sceneRef.current?.FLIGHT_MS ?? 1800) + 200)
+    return () => clearTimeout(swap)
+  }, [view, mapReady])
   const frames = useMemo(() => (terrain ? buildCellFrames(terrain) : null), [terrain])
   const { sample, samples, index, playing } = timeline
 
@@ -203,6 +216,9 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   useEffect(() => {
     if (!terrain || !hillshade || !containerRef.current) return undefined
     const make = engine === 'map' ? createMapScene : createPolarSkyScene
+    const ghost = ghostRef.current
+    if (lastEngineRef.current === 'map' && engine === '3d') fromMapRef.current = true
+    lastEngineRef.current = engine
     const scene = make(containerRef.current, terrain, {
       regions: REGIONS,
       gridColors: groundOverlayColors(),
@@ -225,7 +241,24 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     if (import.meta.env.DEV) window.__tiles = tiles // inspection from the console: __tiles.win, __tiles.sources
     if (import.meta.env.DEV) window.__polarSky = scene // profiling from the console: __polarSky.benchmark()
     flightRef.current = false
+    // The new scene takes a moment to compile and fill its textures: the picture of the old one stays over it, then fades.
+    clearTimeout(fadeRef.current)
+    if (ghost && ghost.width > 1) {
+      fadeRef.current = setTimeout(() => {
+        ghost.style.transition = 'opacity 700ms ease'
+        ghost.style.opacity = '0'
+      }, 450)
+    }
     return () => {
+      if (ghost) {
+        try {
+          scene.snapshot(ghost)
+          ghost.style.transition = 'none'
+          ghost.style.opacity = '1'
+        } catch {
+          ghost.width = 1
+        }
+      }
       tiles.dispose()
       tilesRef.current = null
       scene.dispose()
@@ -385,13 +418,18 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
     const profile = site && profileOf(site)
     let dive = null
     if (standing && profile) {
+      fromMapRef.current = false
       scene.setView({ lat: site.lat, lon: site.lon, profile })
     } else {
       scene.setView(null)
       const pose = view === 'top' || view === 'globe' ? view : 'orbit'
       const first = !introDoneRef.current
       introDoneRef.current = true
-      if (engine === '3d' && first && pose !== 'globe') {
+      if (engine === '3d' && fromMapRef.current) {
+        fromMapRef.current = false
+        scene.setOrbitPose('top', false) // opens where the map was, then flies out
+        dive = setTimeout(() => scene.setOrbitPose(pose, true), 350)
+      } else if (engine === '3d' && first && pose !== 'globe') {
         scene.setOrbitPose('globe', false)
         dive = setTimeout(() => scene.setOrbitPose(pose, true), 1200)
       } else {
@@ -406,6 +444,7 @@ export default function PolarSky({ items, selected, onSelect, siteA, onPickPoint
   return (
     <div className="view3d view3d--fill">
       <div className="view3d__canvas view3d__canvas--sky" ref={containerRef}>
+        <canvas ref={ghostRef} className="view3d__ghost" width="1" height="1" aria-hidden="true" />
         {!(terrain && hillshade) && <p className="notice view3d__loading">Loading the 3D relief…</p>}
         {feasible.computing && <p className="notice view3d__computing">Computing which places are feasible over the period…</p>}
 

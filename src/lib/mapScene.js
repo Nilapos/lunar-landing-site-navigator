@@ -507,6 +507,15 @@ export function createMapScene(container, terrain, { onPick, onProbe, locateCell
       for (let i = 0; i < frames; i++) run()
       return { full: +((performance.now() - t) / frames).toFixed(2), size: [el.width, el.height] }
     },
+    /** Draws the current frame (with its graticule) on `target`, a 2D canvas: the picture the next scene fades from (PolarSky.jsx). */
+    snapshot(target) {
+      renderer.render(scene, camera)
+      target.width = el.width
+      target.height = el.height
+      const ctx = target.getContext('2d')
+      ctx.drawImage(el, 0, 0)
+      ctx.drawImage(gridCanvas, 0, 0, el.width, el.height)
+    },
     dispose() {
       renderer.setAnimationLoop(null)
       clearTimeout(clickTimer)

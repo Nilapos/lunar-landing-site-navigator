@@ -158,6 +158,9 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   floor, 30% by default, because the shadows of a hillshade are black). The 3D views always use the photo. Limit: beyond 75.8 km from the pole the relief is 134 m/px, so a very close zoom there is soft (the fine zones and the
   500 m chunks are the sharp data). **QuickMap / ShadowCam** (checked 2026-11-15): LROC's Lunaserv WMS (`https://data.im-ldi.com/shadowcam/wms`, CORS open, polar stereographic `IAU2000:30118`, bbox in meters) works for the
   WAC layer, but its `luna_shadowcam_pds` layer answers a server error ("database shadowcam does not exist") and is a set of single images, not a mosaic; the `luna_lroc_pds_rdr` layer is empty at the pole. Not used.
+  **Switch to / from Top view** (2026-11-15): the 3D scene and the flat map are two scenes, so the switch used to rebuild a whole WebGL scene at once (hitch, then a pop). Now, to Top view, the 3D camera first flies to the straight-down pose
+  (`POSES.top`, radius 704 so the cap is framed like the map: whole cap + 4% margin), then after `FLIGHT_MS` the map takes over (`mapReady` in PolarSky.jsx); coming back, the 3D scene opens on that pose and flies out. The scene that is replaced hands over its last
+  picture (`scene.snapshot(canvas)`, rendered synchronously because the drawing buffer is cleared after display) to the `view3d__ghost` canvas, which stays over the new scene while it compiles and fills its textures, then fades out (450 ms wait, 700 ms fade).
   The **graticule** of the 2D map is a hairline in the bluish `--color-grid-map` over a dark casing (`LOOK_2D` in mapGrid.js), 10 px values.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI: `App.jsx` (compare toggle) -> `ScenarioPanel` (controls, Sun and Earth cards, `SkyView`, `ElevationChart`)
