@@ -195,6 +195,9 @@ Scope: the **lunar south polar region only** (80S to the pole), not the whole Mo
   as a faint veil (up to 60%) of one hue family, deep purple to magenta to pale pink, from 0.95 m (about the 70th percentile) to 1.85 m (99th), UNDER the Sunlight / Earth / Slope layers, nothing on smoother ground. Tried and dropped:
   the RMS about the plane of a 500 m cell (it mostly measures crater relief and varies little: median 3.2 m, 99th 12.4 m, after smoothing 4.0 and 7.9) and iso-lines (they threaded the noise of the data). Not used in any score yet; a
   rover-specific limit would need a sourced value. Keep `--color-layer-rough-*` in tokens.css in sync with `ROUGH_COLORS`.
+- Layer colors (2026-11-15): the two modes that replace the Sun / Earth / Slope layers have their own colors, so they can be told apart: **Optimal** is hot magenta (`OPTIMAL_RGB` in `src/lib/layerColors.js`, used by `illumination.js` and by the GPU
+  version in `capMaterial.js`; token `--color-layer-optimal`, pill `swatch--optimal`), **Feasible** keeps the neon green of `--color-layer-go` (and the best landing areas' rings), with amber for marginal cells. A test checks that the two agree (tokens.css vs
+  layerColors.js) and that Optimal stays far from the Feasible green. To change a color, change both places.
 - Data build order after changing the LOLA inputs or the grid: `build-3d-data.mjs`, then `build-horizon-grid.mjs`.
 - UI scale (2026-11-15): below 1700 px of window width the whole interface is drawn at 80% (`--ui-zoom` in tokens.css, `#root { zoom }` in global.css), the look of a browser zoom of 80%: more fits, nothing overlaps. CSS zoom
   keeps `clientWidth` in layout pixels but `getBoundingClientRect` in screen pixels, so pointer code divides by `rect.width / clientWidth` (`pointer()` in mapScene.js; the 3D scene uses ratios already); heights in `vh` are divided by

@@ -54,7 +54,8 @@
   --color-layer-shadow: rgb(5 10 40);
   --color-layer-earth: rgb(90 110 255);
   --color-layer-slope: rgb(255 40 40);
-  --color-layer-go: rgb(57 255 20);
+  --color-layer-go: rgb(57 255 20); /* Feasible: the neon green of the cells that hold up, and of the best landing areas */
+  --color-layer-optimal: rgb(255 43 214); /* Optimal: its own color, not the green of Feasible; keep in sync with OPTIMAL_RGB in layerColors.js */
 
   /* Lines and labels drawn over the black polar map */
   --color-map-grid: var(--color-grid);

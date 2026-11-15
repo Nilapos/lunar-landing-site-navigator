@@ -19,6 +19,7 @@ import * as THREE from 'three'
 import { TEXTURE_SIZE } from './groundTexture.js'
 import { AZIMUTHS, HORIZON_MIN_DEG, HORIZON_STEP_DEG } from './horizonGrid.js'
 import { MAP_RADIUS_KM } from './polarMap.js'
+import { OPTIMAL_RGB } from './layerColors.js'
 import { ROUGH_COLORS, ROUGHNESS_GLSL } from './roughness.js'
 import { MOON_RADIUS_M } from './terrain.js'
 
@@ -100,7 +101,7 @@ vec4 liveLayer(vec2 img) {
   if (uGoOn > 0.5) {
     float slope = floor(texelFetch(uSlopeDeg, cell, 0).r * 255.0 + 0.5);
     bool good = slope < uMaxSlope && sunMargin > 0.0 && earthMargin > 0.0;
-    return good ? vec4(vec3(57.0, 255.0, 20.0) / 255.0 * (210.0 / 255.0), 210.0 / 255.0) : vec4(0.0, 0.0, 0.0, 120.0 / 255.0);
+    return good ? vec4(vec3(${OPTIMAL_RGB.map((v) => v.toFixed(1)).join(', ')}) / 255.0 * (210.0 / 255.0), 210.0 / 255.0) : vec4(0.0, 0.0, 0.0, 120.0 / 255.0);
   }
   if (uSunOn > 0.5) {
     layer = sunMargin > 0.0

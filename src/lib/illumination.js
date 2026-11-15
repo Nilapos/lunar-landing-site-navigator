@@ -7,6 +7,7 @@ import { AZIMUTHS, horizonAtCell } from './horizonGrid.js'
 import { MAP_RADIUS_KM } from './polarMap.js'
 import { earthDirection, localFrame, unitVector } from './sky.js'
 import { MOON_RADIUS_M } from './terrain.js'
+import { OPTIMAL_RGB } from './layerColors.js'
 
 const DEG = 180 / Math.PI
 const R_KM = MOON_RADIUS_M / 1000
@@ -111,8 +112,7 @@ export function visibilityOverlay(terrain, frames, sample, { sun = true, earth =
 // --- "Optimal" layer: where a rover could land. A cell is good when its slope is under the rover's limit, the Sun is
 // above its local horizon and the Earth is above its local horizon, all at once (same rules as the per-site analysis).
 
-/** Neon green of the "Optimal" layer (keep in sync with --color-layer-go in tokens.css). */
-const GO_RGB = [57, 255, 20]
+const GO_RGB = OPTIMAL_RGB // the color of the "Optimal" layer (layerColors.js)
 
 export const sunMargin = (terrain, frames, c, sunDir, minDeg) => {
   const i = c * 3

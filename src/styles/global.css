@@ -371,6 +371,7 @@ a:hover { color: var(--color-accent-strong); }
 .swatch--psr { background: var(--color-layer-psr); }
 .swatch--rough { background: linear-gradient(90deg, var(--color-layer-rough-low), var(--color-layer-rough-mid), var(--color-layer-rough-high)); }
 .swatch--go { background: var(--color-layer-go); box-shadow: 0 0 6px var(--color-layer-go); }
+.swatch--optimal { background: var(--color-layer-optimal); box-shadow: 0 0 6px var(--color-layer-optimal); }
 .swatch--marginal { background: var(--color-warn); box-shadow: 0 0 6px var(--color-warn); }
 
 .view3d { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
@@ -544,6 +545,7 @@ a:hover { color: var(--color-accent-strong); }
 .scorecard__details strong { color: var(--color-text); font-weight: 600; }
 .view3d__canvas .skycard--probe { left: auto; right: var(--space-3); bottom: var(--space-3); }
 .layers__pill--go.layers__pill--on { border-color: var(--color-layer-go); }
+.layers__pill--optimal.layers__pill--on { border-color: var(--color-layer-optimal); }
 .layers__mode { padding: 2px; }
 .layers__mode .tabs__tab { padding: 2px var(--space-2); font-size: var(--text-xs); }
 

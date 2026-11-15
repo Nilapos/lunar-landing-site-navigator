@@ -38,12 +38,12 @@ export default function LayerToggles({ layers, onChange, maxSlopeDeg }) {
       ))}
       <button
         type="button"
-        className={`layers__pill layers__pill--go${layers.go ? ' layers__pill--on' : ''}`}
+        className={`layers__pill layers__pill--optimal${layers.go ? ' layers__pill--on' : ''}`}
         aria-pressed={!!layers.go}
         title={`Optimal: slope under ${maxSlopeDeg}°, Sun and Earth both above the local horizon (at the moment shown, or the share of the period)`}
         onClick={() => toggleMode('go')}
       >
-        <span className="swatch swatch--go" />
+        <span className="swatch swatch--optimal" />
         Optimal
       </button>
       <button
