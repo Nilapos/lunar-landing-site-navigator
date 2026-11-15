@@ -38,11 +38,17 @@ function RangePicker({ timeline }) {
   )
 }
 
-// The moment shared by every view: Play, step back / forward by an hour, a day or a week, a range of dates, a slider with day marks.
-export default function TimelineBar({ timeline }) {
+const FEASIBLE = { key: 'feasible', label: 'Feasible' }
+
+// The moment shared by every view: Play, step back / forward by an hour, a day, a week or to the next / previous Feasible moment
+// of the selected site, a range of dates, a slider with day marks.
+//   feasible: { site, find(direction) -> index | null } or null while the site's data loads.
+export default function TimelineBar({ timeline, feasible = null }) {
   const { samples, index, sky } = timeline
   const [unitKey, setUnitKey] = useState('hour')
-  const unit = STEP_UNITS.find((u) => u.key === unitKey)
+  const [searching, setSearching] = useState(false)
+  const [notice, setNotice] = useState(null) // { at: index, text }: shown until the moment changes
+  const unit = unitKey === FEASIBLE.key ? FEASIBLE : STEP_UNITS.find((u) => u.key === unitKey)
   const last = samples ? samples.length - 1 : 0
   // The day marks only depend on the period: not rebuilt at every step of the timeline.
   const tickMarks = useMemo(
@@ -54,7 +60,26 @@ export default function TimelineBar({ timeline }) {
       )),
     [samples, last],
   )
-  const move = (direction) => timeline.setIndex(stepIndex(samples, index, unit.ms, direction))
+  const move = (direction) => {
+    if (unit.key !== FEASIBLE.key) {
+      timeline.setIndex(stepIndex(samples, index, unit.ms, direction))
+      return
+    }
+    // A search can take a second or two over a whole year: let the "Searching" state show first.
+    setSearching(true)
+    setTimeout(() => {
+      const found = feasible.find(direction)
+      setSearching(false)
+      if (found === null) setNotice({ at: index, text: `No Feasible moment ${direction > 0 ? 'after' : 'before'} this one for ${feasible.site}` })
+      else timeline.setIndex(found)
+    }, 20)
+  }
+  const stepDisabled = !samples || searching || (unit.key === FEASIBLE.key && !feasible)
+  const clockText = searching
+    ? `Searching a Feasible moment for ${feasible.site}…`
+    : notice && notice.at === index
+      ? notice.text
+      : null
 
   return (
     <div className="timeline" aria-label="Moment shown in the views">
@@ -63,10 +88,22 @@ export default function TimelineBar({ timeline }) {
           <Icon className="button__icon" name={timeline.playing ? 'pause' : 'play'} />
           {timeline.playing ? 'Pause' : 'Play'}
         </button>
-        <button type="button" className="button" disabled={!samples || index === 0} onClick={() => move(-1)} aria-label={`Back one ${unit.key}`}>
+        <button
+          type="button"
+          className="button"
+          disabled={stepDisabled || index === 0}
+          onClick={() => move(-1)}
+          aria-label={unit.key === FEASIBLE.key ? 'Previous Feasible moment' : `Back one ${unit.key}`}
+        >
           <Icon className="button__icon" name="chevron-left" />
         </button>
-        <button type="button" className="button" disabled={!samples || index === last} onClick={() => move(1)} aria-label={`Forward one ${unit.key}`}>
+        <button
+          type="button"
+          className="button"
+          disabled={stepDisabled || index === last}
+          onClick={() => move(1)}
+          aria-label={unit.key === FEASIBLE.key ? 'Next Feasible moment' : `Forward one ${unit.key}`}
+        >
           <Icon className="button__icon" name="chevron-right" />
         </button>
         <label className="timeline__unit">
@@ -77,11 +114,14 @@ export default function TimelineBar({ timeline }) {
                 {u.label}
               </option>
             ))}
+            <option value={FEASIBLE.key} title="Next or previous moment where landing at the selected site is Feasible">
+              {FEASIBLE.label}
+            </option>
           </select>
         </label>
         <RangePicker timeline={timeline} />
         <span className="timeline__clock">
-          {samples ? formatUtc(Date.parse(samples[index].t)) : sky.error ? `Sky data: ${sky.error}` : 'Loading the Sun and Earth positions…'}
+          {clockText ?? (samples ? formatUtc(Date.parse(samples[index].t)) : sky.error ? `Sky data: ${sky.error}` : 'Loading the Sun and Earth positions…')}
         </span>
       </div>
       <div className="timeline__track">

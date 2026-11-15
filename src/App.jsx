@@ -25,6 +25,7 @@ import { nearestIndex } from './lib/timelineTools.js'
 import { useTerrain3d } from './lib/useTerrain3d.js'
 import { useScenario } from './lib/useScenario.js'
 import { useSitesOverview } from './lib/useSitesOverview.js'
+import { feasibleCache, findFeasibleIndex } from './lib/feasibleMoments.js'
 import { LUNAR_YEAR_DAYS } from './lib/useEphemeris.js'
 import { useTimeline } from './lib/useTimeline.js'
 import { evaluateScenario } from './lib/verdict.js'
@@ -111,6 +112,12 @@ export default function App() {
     [atMs, resultA, requirements],
   )
   const shownEval = momentEval ?? evalA
+
+  // "Feasible" step of the timeline: next / previous moment where landing at the site of scenario A is Feasible.
+  const feasibleSteps = useMemo(() => (resultA.analysis ? feasibleCache(resultA, requirements) : null), [resultA, requirements])
+  const feasibleStep = feasibleSteps
+    ? { site: resultA.site.shortName, find: (direction) => findFeasibleIndex(resultA, requirements, timeline.samples, timeline.index, direction, feasibleSteps) }
+    : null
   const startMs = Date.parse(`${a.start}:00Z`)
 
   // Best landing areas: found for the range of the timeline and the requirements (a few seconds), kept until one of them changes.
@@ -345,7 +352,7 @@ export default function App() {
           />
         </>
       }
-      bottom={<TimelineBar timeline={timeline} />}
+      bottom={<TimelineBar timeline={timeline} feasible={feasibleStep} />}
     >
       {content}
     </Shell>
